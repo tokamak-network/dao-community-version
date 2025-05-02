@@ -31,7 +31,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProposalAddInfo } from "@/components/ui/proposal-add-info"
 import { ProposalSelectAction } from "@/components/ui/proposal-select-action"
-import { ProposalAddInfo2 } from "@/components/ui/proposal-add-info2"
 
 
 interface ProposalFormState {
@@ -115,9 +114,8 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
             </div>
 
             {/* Main content */}
-            <ProposalAddInfo2/>
-            <div/>
             <ProposalAddInfo />
+            <div/>
           </div>
         </main>
       </div>
