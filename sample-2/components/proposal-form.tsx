@@ -1,6 +1,6 @@
 "use client"
 
-import { Component } from "react"
+import { Component, useState } from "react"
 import {
   Bold,
   ChevronDown,
@@ -40,6 +40,16 @@ interface ProposalFormState {
   snapshotUrl: string
   discourseUrl: string
   activeTab: string
+  showSelectAction: boolean
+  actions: Array<{
+    id: string
+    title: string
+    contractAddress: string
+    abi: JSON
+    method: string
+    calldata: string
+    sendEth: boolean
+  }>
 }
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
@@ -49,10 +59,16 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       title: "",
       isValidIBaseInput: false,
       description: "",
-      snapshotUrl: "https://snapshot.org/#/mydao.eth/",
-      discourseUrl: "https://forum.mydao.com/t/",
-      activeTab: "edit"
+      snapshotUrl: "",
+      discourseUrl: "",
+      activeTab: "edit",
+      showSelectAction: false,
+      actions: []
     }
+    // const [title, setTitle] = useState("");
+    // const [description, setDescription] = useState("");
+    // const [snapshotUrl, setSnapshotUrl] = useState("");
+    // const [discourseUrl, setDiscourseUrl] = useState("");
 
     this.handleValidBaseInput = this.handleValidBaseInput.bind(this);
   }
@@ -108,13 +124,44 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Left sidebar */}
             <div className="space-y-4">
-              <ProposalInfoButton />
-              <ProposalAddActionButton />
-
+              <ProposalInfoButton
+                title={this.state.title}
+                description={this.state.description}
+                snapshotUrl={this.state.snapshotUrl}
+                discourseUrl={this.state.discourseUrl}
+                onClick={() => this.setState({ showSelectAction: false })}
+              />
+              {this.state.actions.map((action) => (
+                <div key={action.id} className="border border-gray-200 rounded-md p-4">
+                  <div className="font-medium">{action.title}</div>
+                  <div className="text-sm text-gray-500 mt-1">{action.method}</div>
+                </div>
+              ))}
+              <ProposalAddActionButton onClick={() => this.setState({ showSelectAction: true })} />
             </div>
 
             {/* Main content */}
-            <ProposalAddInfo />
+            {!this.state.showSelectAction ? (
+              <ProposalAddInfo
+                title={this.state.title}
+                setTitle={(title) => this.setState({ title })}
+                description={this.state.description}
+                setDescription={(description) => this.setState({ description })}
+                snapshotUrl={this.state.snapshotUrl}
+                setSnapshotUrl={(snapshotUrl) => this.setState({ snapshotUrl })}
+                discourseUrl={this.state.discourseUrl}
+                setDiscourseUrl={(discourseUrl) => this.setState({ discourseUrl })}
+              />
+            ) : (
+              <ProposalSelectAction
+                onAddAction={(action) => {
+                  this.setState(prevState => ({
+                    actions: [...prevState.actions, { ...action, id: Date.now().toString() }],
+                    showSelectAction: false
+                  }))
+                }}
+              />
+            )}
             <div/>
           </div>
         </main>

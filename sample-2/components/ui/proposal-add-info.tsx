@@ -13,151 +13,270 @@ import {
   Table,
   Undo,
   Upload,
+  AlertCircle,
+  Italic,
+  Type,
+  Underline,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import UnderlineExtension from '@tiptap/extension-underline'
+import LinkExtension from '@tiptap/extension-link'
+import ImageExtension from '@tiptap/extension-image'
+import Placeholder from '@tiptap/extension-placeholder'
+import MDEditor, { commands } from '@uiw/react-md-editor'
 
-interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {
+    title: string;
+    setTitle: (title: string) => void;
+    description: string;
+    setDescription: (description: string) => void;
+    snapshotUrl: string;
+    setSnapshotUrl: (url: string) => void;
+    discourseUrl: string;
+    setDiscourseUrl: (url: string) => void;
+}
 
-export function ProposalAddInfo({ className, ...props }: ProposalAddInfoProps) {
+function RequiredString({value, name}: {value: string, name: string}) {
+    if (value === null || value.length == 0 ) {
+        return (  <div className="flex items-center gap-1 text-red-500 mt-1">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-sm">{name} is required</span>
+                </div> );
+    } else {
+        return ;
+    }
+}
 
-  return (
-    <div  className="md:col-span-2 bg-white p-4 rounded-md" {...props} >
-        <div className="flex justify-end mb-4">
-            <Button variant="outline" className="text-gray-700">
-            <Upload className="w-4 h-4 mr-2" />
-            Import
-            </Button>
-        </div>
 
-        <div className="space-y-6">
-            <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                Title
-            </label>
-            <Input id="title" placeholder="Enter the title of your proposal" className="w-full border-gray-300" />
+export function ProposalAddInfo({
+    className,
+    title,
+    setTitle,
+    description,
+    setDescription,
+    snapshotUrl,
+    setSnapshotUrl,
+    discourseUrl,
+    setDiscourseUrl,
+    ...props
+}: ProposalAddInfoProps) {
+    const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+
+    const editor = useEditor({
+        extensions: [
+            StarterKit,
+            UnderlineExtension,
+            LinkExtension.configure({
+                openOnClick: false,
+            }),
+            ImageExtension,
+            Placeholder.configure({
+                placeholder: 'Enter your proposal description here...',
+            }),
+        ],
+        content: description,
+        onUpdate: ({ editor }) => {
+            setDescription(editor.getHTML());
+        },
+        editorProps: {
+            attributes: {
+                class: 'prose prose-sm focus:outline-none max-w-none',
+            },
+        },
+        immediatelyRender: false,
+    });
+
+    return (
+        <div  className="md:col-span-2 bg-white p-4 rounded-md" {...props} >
+            <div className="flex justify-end mb-4">
+                <Button variant="outline" className="text-gray-700">
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+                </Button>
             </div>
 
-            <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <div className="border border-gray-300 rounded-md">
-                <div className="flex items-center border-b border-gray-300 p-2 space-x-2">
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Undo className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Redo className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Bold className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M19 4H5C3.89543 4 3 4.89543 3 6V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V6C21 4.89543 20.1046 4 19 4Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d="M9 9H15M9 13H15M9 17H12"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    </svg>
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M4 7V4H20V7M9 20H15M12 4V20"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    </svg>
-                </button>
-
-                <div className="h-4 border-r border-gray-300 mx-1"></div>
-
-                <div className="relative">
-                    <button className="flex items-center p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <span className="text-xs mr-1">Block type</span>
-                    <ChevronDown className="w-3 h-3" />
-                    </button>
+            <div className="space-y-6">
+                {/* Title Field */}
+                <div>
+                <label htmlFor="title" className="block text-lg font-semibold text-gray-900 mb-2">
+                    Title
+                </label>
+                <Input
+                    placeholder="Enter the title of your proposal"
+                    className={`${title === null || title.length === 0 ? 'border-red-300 focus-visible:ring-red-300' : 'w-full border-gray-300'}`}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                />
+                <RequiredString value={title} name="Title"/>
                 </div>
 
-                <div className="h-4 border-r border-gray-300 mx-1"></div>
-
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <List className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <ListOrdered className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M8 6H21M8 12H21M8 18H21M3 6H3.01M3 12H3.01M3 18H3.01"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    </svg>
-                </button>
-
-                <div className="h-4 border-r border-gray-300 mx-1"></div>
-
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Link className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Code className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <ImageIcon className="w-4 h-4" />
-                </button>
-                <button className="p-1 text-gray-500 hover:text-gray-900 rounded">
-                    <Table className="w-4 h-4" />
-                </button>
-                <button className="p-1 bg-blue-100 text-blue-600 rounded">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-                    <path d="M8 12H16M12 8V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                </button>
+                 {/* Description Field */}
+                <div>
+                <div className="flex justify-between items-center mb-2">
+                    <label className="block text-lg font-semibold text-gray-900">Description</label>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsMarkdownMode(!isMarkdownMode)}
+                        className="text-sm"
+                    >
+                        {isMarkdownMode ? 'Rich Text' : 'Markdown'}
+                    </Button>
                 </div>
-                <div className="p-4 min-h-[200px]"></div>
-            </div>
-            </div>
 
-            <div>
-            <label htmlFor="snapshot-url" className="block text-sm font-medium text-gray-700 mb-1">
-                Snapshot URL
-            </label>
-            <Input
-                id="snapshot-url"
-                defaultValue="https://snapshot.org/#/mydao.eth/"
-                className="w-full border-gray-300"
-            />
-            </div>
+                {isMarkdownMode ? (
+                    <div data-color-mode="light" className={`${description === null || description.length === 0 ? 'border border-red-300 rounded-md' : 'border border-gray-300 rounded-md'}`}>
+                        <MDEditor
+                            value={description}
+                            onChange={(value) => setDescription(value || '')}
+                            height={300}
+                            preview="edit"
+                            hideToolbar={false}
+                            enableScroll={true}
+                            visibleDragbar={true}
+                            commands={[
+                                commands.bold,
+                                commands.italic,
+                                commands.strikethrough,
+                                commands.title,
+                                commands.quote,
+                                commands.unorderedListCommand,
+                                commands.orderedListCommand,
+                                commands.link,
+                                commands.image,
+                                commands.code,
+                                commands.codeBlock
+                            ]}
+                        />
+                    </div>
+                ) : (
+                    <div className={`${!editor?.getText() ? 'border border-red-300 rounded-md' : 'border border-gray-300 rounded-md'}`}>
+                        {/* Rich Text Editor Toolbar */}
+                        <div className="flex items-center gap-1 p-2 border-b border-gray-200">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded"
+                                onClick={() => editor?.chain().focus().undo().run()}
+                                disabled={!editor?.can().undo()}
+                            >
+                                <Undo className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded"
+                                onClick={() => editor?.chain().focus().redo().run()}
+                                disabled={!editor?.can().redo()}
+                            >
+                                <Redo className="h-4 w-4" />
+                            </Button>
+                            <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 rounded ${editor?.isActive('bold') ? 'bg-gray-100' : ''}`}
+                                onClick={() => editor?.chain().focus().toggleBold().run()}
+                            >
+                                <Bold className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 rounded ${editor?.isActive('italic') ? 'bg-gray-100' : ''}`}
+                                onClick={() => editor?.chain().focus().toggleItalic().run()}
+                            >
+                                <Italic className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 rounded ${editor?.isActive('underline') ? 'bg-gray-100' : ''}`}
+                                onClick={() => editor?.chain().focus().toggleUnderline().run()}
+                            >
+                                <Underline className="h-4 w-4" />
+                            </Button>
+                            <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 rounded ${editor?.isActive('bulletList') ? 'bg-gray-100' : ''}`}
+                                onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                            >
+                                <List className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 rounded ${editor?.isActive('orderedList') ? 'bg-gray-100' : ''}`}
+                                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                            >
+                                <ListOrdered className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded"
+                                onClick={() => {
+                                    const url = window.prompt('Enter the URL');
+                                    if (url) {
+                                        editor?.chain().focus().setLink({ href: url }).run();
+                                    }
+                                }}
+                            >
+                                <Link className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded"
+                                onClick={() => {
+                                    const url = window.prompt('Enter the image URL');
+                                    if (url) {
+                                        editor?.chain().focus().setImage({ src: url }).run();
+                                    }
+                                }}
+                            >
+                                <ImageIcon className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        {/* Editor Content Area */}
+                        <EditorContent editor={editor} className="min-h-[300px] p-4" />
+                    </div>
+                )}
+                <RequiredString value={editor?editor.getText():""} name="Description"/>
+                </div>
 
-            <div>
-            <label htmlFor="discourse-url" className="block text-sm font-medium text-gray-700 mb-1">
-                Discourse URL
-            </label>
-            <Input
-                id="discourse-url"
-                defaultValue="https://forum.mydao.com/t/"
-                className="w-full border-gray-300"
-            />
+                <div>
+                <label htmlFor="snapshot-url" className="block text-lg font-semibold text-gray-900 mb-2">
+                    Snapshot URL
+                </label>
+                <Input
+                    id="snapshot-url"
+                    defaultValue={snapshotUrl}
+                    className="w-full border-gray-300"
+                    onChange={(e) => setSnapshotUrl(e.target.value)}
+                />
+                <RequiredString value={snapshotUrl} name="Snapshot URL"/>
+                </div>
+
+                <div>
+                <label htmlFor="discourse-url" className="block text-lg font-semibold text-gray-900 mb-2">
+                    Discourse URL
+                </label>
+                <Input
+                    id="discourse-url"
+                    defaultValue={discourseUrl}
+                    className="w-full border-gray-300"
+                    onChange={(e) => setDiscourseUrl(e.target.value)}
+                />
+                <RequiredString value={discourseUrl} name="Discourse URL"/>
+                </div>
             </div>
         </div>
-    </div>
-  )
+    )
 }

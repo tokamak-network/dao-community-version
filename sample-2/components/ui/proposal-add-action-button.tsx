@@ -39,16 +39,16 @@ export interface ProposalAddActionButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  onClick?: () => void
 }
 
 const ProposalAddActionButton = React.forwardRef<HTMLButtonElement, ProposalAddActionButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, ...props }, ref) => {
     return (
-
-    <Button className={cn(buttonVariants({ variant, size, className }))}>
-      <Plus className="w-4 h-4 mr-2" />
-      Add Action
-    </Button>
+      <Button className={cn(buttonVariants({ variant, size, className }))} onClick={onClick}>
+        <Plus className="w-4 h-4 mr-2" />
+        Add Action
+      </Button>
     )
   }
 )
