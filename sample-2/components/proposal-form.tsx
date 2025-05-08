@@ -45,7 +45,7 @@ interface ProposalFormState {
     id: string
     title: string
     contractAddress: string
-    abi: JSON
+    abi: any[]
     method: string
     calldata: string
     sendEth: boolean

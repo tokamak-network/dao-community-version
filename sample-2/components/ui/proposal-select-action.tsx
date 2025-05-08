@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ethers } from "ethers"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
+import { predefinedMethods, PredefinedMethod } from "@/config/predefined-methods"
 
 interface ProposalSelectActionProps extends React.HTMLAttributes<HTMLDivElement> {
     onAddAction: (action: {
@@ -26,7 +27,7 @@ interface ProposalSelectActionProps extends React.HTMLAttributes<HTMLDivElement>
 
 function RequiredContractAddress({value, setAbiProxy, setAbiLogic}: {value: string, setAbiProxy: React.Dispatch<React.SetStateAction<any[]>>, setAbiLogic: React.Dispatch<React.SetStateAction<any[]>>}) {
     const [isContractFound, setIsContractFound] = useState<boolean | null>(null);
-
+    console.log('RequiredContractAddress', value)
     useEffect(() => {
         const checkContract = async () => {
             if (!value || value.length === 0) {
@@ -52,13 +53,13 @@ function RequiredContractAddress({value, setAbiProxy, setAbiLogic}: {value: stri
                 const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
                 const proxyResponse = await fetch(proxyUrl);
                 const proxyData = await proxyResponse.json();
-
+                console.log(proxyUrl)
                 if (proxyData.status === '1') {
                     setIsContractFound(true);
                     const proxyAbi = JSON.parse(proxyData.result);
                     // Filter only function and view types
                     const filteredProxyAbi = proxyAbi.filter((item: any) =>
-                        item.type === 'function' || item.type === 'view'
+                        item.type === 'function' && item.stateMutability != 'view'
                     );
                     setAbiProxy(filteredProxyAbi);
 
@@ -85,13 +86,15 @@ function RequiredContractAddress({value, setAbiProxy, setAbiLogic}: {value: stri
                                 const logicAbi = JSON.parse(logicData.result);
                                 // Filter only function and view types
                                 const filteredLogicAbi = logicAbi.filter((item: any) =>
-                                    item.type === 'function' || item.type === 'view'
+                                    item.type === 'function' && item.stateMutability != 'view'
                                 );
                                 setAbiLogic(filteredLogicAbi);
                             }
                         } catch (error) {
                             console.error('Error getting implementation:', error);
                         }
+                    } else{
+                        setAbiLogic([]);
                     }
                 } else {
                     setIsContractFound(false);
@@ -146,12 +149,218 @@ function RequiredContractAddress({value, setAbiProxy, setAbiLogic}: {value: stri
     }
 }
 
+interface CalldataComponentProps {
+    abi: any[];
+    selectedFunction: string;
+    onCalldataChange: (calldata: string) => void;
+}
+
+function CalldataComponent({ abi, selectedFunction, onCalldataChange }: CalldataComponentProps) {
+    const [paramValues, setParamValues] = useState<{ [key: string]: string }>({});
+    const [paramErrors, setParamErrors] = useState<{ [key: string]: string }>({});
+    const [calldata, setCalldata] = useState<string>("");
+
+    useEffect(() => {
+        // Reset param values when function changes
+        setParamValues({});
+        setParamErrors({});
+        setCalldata("");
+        onCalldataChange("");
+    }, [selectedFunction, onCalldataChange]);
+
+    const validateType = (value: string, type: string): boolean => {
+        try {
+            if (!value) return false;
+            if (type === 'address') {
+                return ethers.isAddress(value);
+            } else if (type.startsWith('uint') || type.startsWith('int')) {
+                // Check if it's a valid number and not negative for uint
+                const num = BigInt(value);
+                if (type.startsWith('uint') && num < BigInt(0)) return false;
+                return true;
+            } else if (type === 'bool') {
+                return value === 'true' || value === 'false';
+            } else if (type === 'bytes' || type.startsWith('bytes')) {
+                return /^0x[0-9a-fA-F]*$/.test(value);
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const getTypeErrorMessage = (type: string): string => {
+        if (type === 'address') {
+            return 'Invalid Ethereum address';
+        } else if (type.startsWith('uint')) {
+            return 'Must be a positive number';
+        } else if (type.startsWith('int')) {
+            return 'Must be a valid number';
+        } else if (type === 'bool') {
+            return 'Must be true or false';
+        } else if (type === 'bytes' || type.startsWith('bytes')) {
+            return 'Must be a valid hex string starting with 0x';
+        }
+        return 'Invalid input type';
+    };
+
+    const handleParamChange = (paramName: string, value: string, type: string) => {
+        const newValues = { ...paramValues, [paramName]: value };
+        setParamValues(newValues);
+
+        // Validate type
+        const isValid = validateType(value, type);
+        const newErrors = { ...paramErrors };
+        if (!isValid && value.length > 0) {
+            newErrors[paramName] = getTypeErrorMessage(type);
+        } else {
+            delete newErrors[paramName];
+        }
+        setParamErrors(newErrors);
+
+        try {
+            // Find the function in ABI
+            const func = abi.find((item: any) => {
+                const paramTypes = item.inputs.map((input: any) => input.type).join(',');
+                return `${item.name}(${paramTypes})` === selectedFunction;
+            });
+
+            if (func) {
+                // Convert parameter values to their respective types
+                const paramValuesArray = func.inputs.map((input: any) => {
+                    const value = newValues[input.name];
+                    if (!value) return ethers.ZeroAddress;
+                    if (input.type === 'address') {
+                        return value;
+                    } else if (input.type.startsWith('uint')) {
+                        return ethers.parseUnits(value || '0', 0);
+                    } else if (input.type === 'bool') {
+                        return value === 'true';
+                    } else {
+                        return value;
+                    }
+                });
+
+                // Create calldata
+                const iface = new ethers.Interface([func]);
+                const calldata = iface.encodeFunctionData(func.name, paramValuesArray);
+                setCalldata(calldata);
+                onCalldataChange(calldata);
+            }
+        } catch (error) {
+            console.error('Error creating calldata:', error);
+            setCalldata("");
+            onCalldataChange("");
+        }
+    };
+
+    // Find the selected function in ABI
+    const selectedFunc = abi.find((item: any) => {
+        const paramTypes = item.inputs.map((input: any) => input.type).join(',');
+        return `${item.name}(${paramTypes})` === selectedFunction;
+    });
+
+    if (!selectedFunc) return null;
+
+    return (
+        <div className="mt-8 space-y-4">
+            <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Calldata</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                    <span className="font-medium text-gray-900">Function:</span>{" "}
+                    <span className="font-medium text-purple-600">{selectedFunc.name}</span>
+                    {selectedFunc.inputs.length > 0 && (
+                        <span className="text-gray-500 ml-1">
+                            ({selectedFunc.inputs.map((input: any) => (
+                                <span key={input.name} className="text-gray-600">
+                                    <span className="text-gray-500">{input.name}</span>
+                                    <span className="text-gray-400">: </span>
+                                    <span className="text-purple-600">{input.type}</span>
+                                </span>
+                            )).reduce((prev: any, curr: any) => [prev, ", ", curr])})
+                        </span>
+                    )}
+                </p>
+            </div>
+            <div className="space-y-2">
+                {selectedFunc.inputs.map((input: any, index: number) => (
+                    <div key={index} className="grid grid-cols-4 gap-4">
+                        <div className="bg-purple-50 p-3 rounded-md text-center">
+                            <span className="text-sm text-purple-700">{input.name}</span>
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                            <Input
+                                type={input.type === 'bool' ? 'checkbox' : 'text'}
+                                placeholder={`Enter ${input.type}`}
+                                value={paramValues[input.name] || ''}
+                                onChange={(e) => handleParamChange(input.name, e.target.value, input.type)}
+                                className={`w-full ${
+                                    (!paramValues[input.name] || paramValues[input.name].length === 0)
+                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                        : paramErrors[input.name]
+                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                            : ""
+                                }`}
+                            />
+                            {paramErrors[input.name] && (
+                                <p className="text-sm text-red-500">{paramErrors[input.name]}</p>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {calldata && (
+                <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Generated Calldata</label>
+                    <div className="bg-gray-50 p-3 rounded-md">
+                        <code className="text-sm break-all">{calldata}</code>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+interface ActionCardProps {
+    title: string;
+    contractAddress: string;
+    method: string;
+    calldata: string;
+    onRemove: () => void;
+}
+
+function ActionCard({ title, contractAddress, method, calldata, onRemove }: ActionCardProps) {
+    return (
+        <div className="bg-white p-4 rounded-md border border-gray-200 mb-4">
+            <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+                <Button variant="ghost" size="sm" onClick={onRemove} className="text-gray-500 hover:text-gray-700">
+                    <Trash2 className="w-4 h-4" />
+                </Button>
+            </div>
+            <div className="space-y-2 text-sm">
+                <div className="flex">
+                    <span className="w-24 text-gray-500">Contract:</span>
+                    <span className="text-gray-900 font-mono">{contractAddress}</span>
+                </div>
+                <div className="flex">
+                    <span className="w-24 text-gray-500">Method:</span>
+                    <span className="text-gray-900 font-mono">{method}</span>
+                </div>
+                <div className="flex">
+                    <span className="w-24 text-gray-500">Calldata:</span>
+                    <span className="text-gray-900 font-mono break-all">{calldata}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function ProposalSelectAction({
     className,
     onAddAction,
     ...props
 }: ProposalSelectActionProps) {
-    const [title, setTitle] = useState("");
     const [contractAddress, setContractAddress] = useState("");
     const [method, setMethod] = useState("");
     const [selectedProxyMethod, setSelectedProxyMethod] = useState("");
@@ -161,40 +370,42 @@ export function ProposalSelectAction({
     const [sendEth, setSendEth] = useState(false);
     const [abiProxy, setAbiProxy] = useState<any[]>([]);
     const [abiLogic, setAbiLogic] = useState<any[]>([]);
+    const [selectedPredefinedMethod, setSelectedPredefinedMethod] = useState<PredefinedMethod | null>(null);
+    const [customAbi, setCustomAbi] = useState<any[]>([]);
+    const [selectedCustomMethod, setSelectedCustomMethod] = useState("");
 
     const handleAddAction = () => {
-        if (title && contractAddress && method) {
-            onAddAction({
-                title,
+        if (contractAddress && method && calldata) {
+            const newAction = {
+                title: method,  // Use method name as title
                 contractAddress,
-                abi: abiProxy,
                 method,
                 calldata,
+                abi: abiProxy,
                 sendEth
-            });
-            setTitle("");
+            };
+            onAddAction(newAction);
+
+            // Reset form
             setContractAddress("");
             setMethod("");
             setCalldata("");
             setSendEth(false);
             setAbiProxy([]);
+            setAbiLogic([]);
+            setSelectedPredefinedMethod(null);
+            setCustomAbi([]);
+            setSelectedCustomMethod("");
+            setSelectedMethodType("proxy");
         }
     };
 
     return (
-        <div className="md:col-span-2 bg-white p-4 rounded-md" {...props}>
+        <div className={cn("md:col-span-2 bg-white p-4 rounded-md", className)} {...props}>
             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-medium text-purple-600">Action #2</h2>
+                <h2 className="text-xl font-medium text-purple-600">New Action</h2>
                 <Button variant="ghost" className="text-gray-700 flex items-center">
-                    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                            d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <Trash2 className="w-5 h-5 mr-2" />
                     Remove action
                 </Button>
             </div>
@@ -203,7 +414,6 @@ export function ProposalSelectAction({
                 <div>
                     <label className="block text-lg font-semibold text-gray-900 mb-2">Target contract address</label>
                     <Input
-                        id="contractAddress"
                         value={contractAddress}
                         onChange={(e) => setContractAddress(e.target.value)}
                         placeholder="Enter the target contract address"
@@ -218,79 +428,210 @@ export function ProposalSelectAction({
 
                 <div>
                     <label className="block text-lg font-semibold text-gray-900 mb-4">Contract method</label>
-                    <RadioGroup value={selectedMethodType} onValueChange={setSelectedMethodType} className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="proxy" id="proxy" />
-                            <label htmlFor="proxy" className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Select from Proxy contract
+                    <RadioGroup
+                        defaultValue={selectedMethodType}
+                        value={selectedMethodType}
+                        onValueChange={(value) => {
+                            setSelectedMethodType(value);
+                            if (value === "proxy") {
+                                setSelectedProxyMethod("");
+                            }
+                        }}
+                        className="space-y-2"
+                    >
+                        {abiProxy.length > 0 && (
+                            <div className="relative">
+                                <RadioGroupItem value="proxy" id="proxy" className="peer sr-only" />
+                                <label
+                                    htmlFor="proxy"
+                                    className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
+                                        selectedMethodType === "proxy"
+                                            ? "border-purple-200 bg-purple-50/50"
+                                            : "hover:bg-gray-50"
+                                    }`}
+                                >
+                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                                        selectedMethodType === "proxy" ? "border-purple-300" : ""
+                                    }`}>
+                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                                            selectedMethodType === "proxy" ? "scale-100" : "scale-0"
+                                        }`} />
+                                    </div>
+                                    <span className="text-sm text-gray-900">
+                                        {abiLogic.length === 0 ? 'Select from contract' : 'Select from Proxy contract'}
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+                        {abiLogic.length > 0 && (
+                            <div className="relative">
+                                <RadioGroupItem value="logic" id="logic" className="peer sr-only" />
+                                <label
+                                    htmlFor="logic"
+                                    className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
+                                        selectedMethodType === "logic"
+                                            ? "border-purple-200 bg-purple-50/50"
+                                            : "hover:bg-gray-50"
+                                    }`}
+                                >
+                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                                        selectedMethodType === "logic" ? "border-purple-300" : ""
+                                    }`}>
+                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                                            selectedMethodType === "logic" ? "scale-100" : "scale-0"
+                                        }`} />
+                                    </div>
+                                    <span className="text-sm text-gray-900">
+                                        Select from Logic contract
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+                        <div className="relative">
+                            <RadioGroupItem value="predefined" id="predefined" className="peer sr-only" />
+                            <label
+                                htmlFor="predefined"
+                                className={`flex flex-col p-2 border rounded-lg cursor-pointer transition-colors ${
+                                    selectedMethodType === "predefined"
+                                        ? "border-purple-200 bg-purple-50/50"
+                                        : "hover:bg-gray-50"
+                                }`}
+                            >
+                                <div className="flex items-center">
+                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                                        selectedMethodType === "predefined" ? "border-purple-300" : ""
+                                    }`}>
+                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                                            selectedMethodType === "predefined" ? "scale-100" : "scale-0"
+                                        }`} />
+                                    </div>
+                                    <span className="text-sm text-gray-900">
+                                        Select from predefined methods
+                                    </span>
+                                </div>
+                                {selectedMethodType === "predefined" && (
+                                    <div className="mt-2 ml-6">
+                                        <Select onValueChange={(value) => {
+                                            const selectedMethod = predefinedMethods.find(method => method.id === value);
+                                            if (selectedMethod) {
+                                                setSelectedPredefinedMethod(selectedMethod);
+                                                setSelectedProxyMethod("");
+                                                setMethod("");
+                                            }
+                                        }}>
+                                            <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                                                <SelectValue placeholder="Select from predefined methods..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="max-h-[300px] overflow-y-auto">
+                                                {predefinedMethods.map((method) => (
+                                                    <SelectItem key={method.id} value={method.id}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium">{method.name}</span>
+                                                            {method.description && (
+                                                                <span className="text-gray-500">- {method.description}</span>
+                                                            )}
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </label>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="logic" id="logic" />
-                            <label htmlFor="logic" className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Select from Logic contract
-                            </label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="predefined" id="predefined" />
-                            <label htmlFor="predefined" className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Select from predefined ABI
-                            </label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="custom" id="custom" />
-                            <label htmlFor="custom" className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                Upload custom ABI
+                        <div className="relative">
+                            <RadioGroupItem value="custom" id="custom" className="peer sr-only" />
+                            <label
+                                htmlFor="custom"
+                                className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
+                                    selectedMethodType === "custom"
+                                        ? "border-purple-200 bg-purple-50/50"
+                                        : "hover:bg-gray-50"
+                                }`}
+                            >
+                                <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                                    selectedMethodType === "custom" ? "border-purple-300" : ""
+                                }`}>
+                                    <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                                        selectedMethodType === "custom" ? "scale-100" : "scale-0"
+                                    }`} />
+                                </div>
+                                <span className="text-sm text-gray-900">
+                                    Upload custom ABI
+                                </span>
                             </label>
                         </div>
                     </RadioGroup>
 
                     {selectedMethodType === "proxy" && abiProxy.length > 0 && (
                         <div className="mt-4">
-                            <Select value={selectedProxyMethod} onValueChange={setSelectedProxyMethod}>
-                                <SelectTrigger className="w-full">
+                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
+                            <Select
+                                value={selectedProxyMethod}
+                                onValueChange={(value) => {
+                                    setSelectedProxyMethod(value);
+                                    setMethod(value);
+                                }}
+                                defaultValue=""
+                            >
+                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
                                     <SelectValue placeholder="Select the contract method..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    {abiProxy.map((item, index) => (
-                                        <SelectItem key={index} value={item.name || `Function ${index + 1}`}>
-                                            {item.name || `Function ${index + 1}`}
-                                        </SelectItem>
-                                    ))}
+                                    {abiProxy.map((func: any) => {
+                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
+                                        const selector = `${func.name}(${paramTypes})`;
+                                        return (
+                                            <SelectItem key={selector} value={selector}>
+                                                {selector}
+                                            </SelectItem>
+                                        );
+                                    })}
                                 </SelectContent>
                             </Select>
+                            {selectedProxyMethod && (
+                                <CalldataComponent
+                                    abi={abiProxy}
+                                    selectedFunction={selectedProxyMethod}
+                                    onCalldataChange={setCalldata}
+                                />
+                            )}
                         </div>
                     )}
 
                     {selectedMethodType === "logic" && abiLogic.length > 0 && (
                         <div className="mt-4">
-                            <Select value={selectedLogicMethod} onValueChange={setSelectedLogicMethod}>
-                                <SelectTrigger className="w-full">
+                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
+                            <Select
+                                value={selectedLogicMethod}
+                                onValueChange={(value) => {
+                                    setSelectedLogicMethod(value);
+                                    setMethod(value);
+                                }}
+                                defaultValue=""
+                            >
+                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
                                     <SelectValue placeholder="Select the contract method..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    {abiLogic.map((item, index) => (
-                                        <SelectItem key={index} value={item.name || `Function ${index + 1}`}>
-                                            {item.name || `Function ${index + 1}`}
-                                        </SelectItem>
-                                    ))}
+                                    {abiLogic.map((func: any) => {
+                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
+                                        const selector = `${func.name}(${paramTypes})`;
+                                        return (
+                                            <SelectItem key={selector} value={selector}>
+                                                {selector}
+                                            </SelectItem>
+                                        );
+                                    })}
                                 </SelectContent>
                             </Select>
-                        </div>
-                    )}
-
-                    {selectedMethodType === "predefined" && (
-                        <div className="mt-4">
-                            <Select>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select the contract method..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    <SelectItem value="erc20">ERC-20</SelectItem>
-                                    <SelectItem value="erc721">ERC-721</SelectItem>
-                                    <SelectItem value="erc1155">ERC-1155</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            {selectedLogicMethod && (
+                                <CalldataComponent
+                                    abi={abiLogic}
+                                    selectedFunction={selectedLogicMethod}
+                                    onCalldataChange={setCalldata}
+                                />
+                            )}
                         </div>
                     )}
 
@@ -302,148 +643,105 @@ export function ProposalSelectAction({
                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                                     try {
                                         const abi = JSON.parse(e.target.value);
-                                        // Handle the parsed ABI
-                                        console.log('Parsed ABI:', abi);
+                                        const filteredAbi = abi.filter((item: any) =>
+                                            item.type === 'function' && item.stateMutability != 'view'
+                                        );
+                                        setCustomAbi(filteredAbi);
                                     } catch (error) {
-                                        // Invalid JSON - don't update state
                                         console.error('Invalid JSON:', error);
+                                        setCustomAbi([]);
                                     }
                                 }}
                             />
                             <p className="mt-2 text-sm text-gray-500">
                                 Enter your ABI in JSON format. Example: [&#123;"type": "function", "name": "transfer", "inputs": [...]&#125;]
                             </p>
+                            {customAbi.length > 0 && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
+                                    <Select
+                                        value={selectedCustomMethod}
+                                        onValueChange={(value) => {
+                                            setSelectedCustomMethod(value);
+                                            setMethod(value);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                                            <SelectValue placeholder="Select a function from your custom ABI..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[300px] overflow-y-auto">
+                                            {customAbi.map((func: any) => {
+                                                const paramTypes = func.inputs.map((input: any) => input.type).join(',');
+                                                const selector = `${func.name}(${paramTypes})`;
+                                                return (
+                                                    <SelectItem key={selector} value={selector}>
+                                                        {selector}
+                                                    </SelectItem>
+                                                );
+                                            })}
+                                        </SelectContent>
+                                    </Select>
+                                    {selectedCustomMethod && (
+                                        <CalldataComponent
+                                            abi={customAbi}
+                                            selectedFunction={selectedCustomMethod}
+                                            onCalldataChange={setCalldata}
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {selectedMethodType === "predefined" && selectedPredefinedMethod && (
+                        <div className="mt-4">
+                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
+                            <Select
+                                value={selectedProxyMethod}
+                                onValueChange={(value) => {
+                                    setSelectedProxyMethod(value);
+                                    setMethod(value);
+                                }}
+                                defaultValue=""
+                            >
+                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                                    <SelectValue placeholder="Select the contract method..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px] overflow-y-auto">
+                                    {selectedPredefinedMethod.abi.map((func: any) => {
+                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
+                                        const selector = `${func.name}(${paramTypes})`;
+                                        return (
+                                            <SelectItem key={selector} value={selector}>
+                                                {selector}
+                                            </SelectItem>
+                                        );
+                                    })}
+                                </SelectContent>
+                            </Select>
+                            <div className="flex items-center mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md">
+                                <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
+                                This ABI is a standard. Please, be sure the smart contract implements the method you selected.
+                            </div>
+                            {selectedProxyMethod && (
+                                <CalldataComponent
+                                    abi={selectedPredefinedMethod.abi}
+                                    selectedFunction={selectedProxyMethod}
+                                    onCalldataChange={setCalldata}
+                                />
+                            )}
                         </div>
                     )}
                 </div>
 
-                {/*ABI*/}
-                {/* <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Use the imported ABI or upload yours
-                    </label>
-                    <div className="relative">
-                        <Select>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select ABI" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="erc20">ERC-20</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div> */}
-
-                {/* <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contract method</label>
-                    <div className="relative">
-                        <select className="w-full p-2 pr-10 border border-gray-300 rounded-md appearance-none">
-                            <option>approve</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
-                    </div>
-                    <div className="flex items-center mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md">
-                        <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
-                        This ABI is a standard. Please, be sure the smart contract implements the method you selected.
-                    </div>
-                </div> */}
-
-                {/* <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-1">Calldata</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                        The data for the function arguments you wish to send when the action executes
-                    </p>
-
-                    <div className="grid grid-cols-4 gap-4 mb-2">
-                        <div className="bg-purple-50 p-3 rounded-md text-center">
-                            <span className="text-sm text-purple-700">spender</span>
-                        </div>
-                        <div className="col-span-3 p-3 border border-gray-300 rounded-md">
-                            <span className="text-sm text-gray-700">address</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-purple-50 p-3 rounded-md text-center">
-                            <span className="text-sm text-purple-700">amount</span>
-                        </div>
-                        <div className="col-span-3 p-3 border border-gray-300 rounded-md">
-                            <span className="text-sm text-gray-700">uint256</span>
-                        </div>
-                    </div>
-                </div> */}
-
-                {/* <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                        Also send Sepolia Ether to the target address? (this is not common)
-                    </span>
-                    <Switch />
-                </div> */}
+                <Button
+                    onClick={handleAddAction}
+                    className="w-full mt-4"
+                    disabled={!contractAddress || !method || !calldata}
+                >
+                    Add Action
+                </Button>
             </div>
-
-            {/* <div className="md:col-span-2 bg-white p-4 rounded-md" {...props}>
-                <div className="space-y-6">
-                    <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                            Action Title
-                        </label>
-                        <Input
-                            id="title"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Enter action title"
-                            className="w-full border-gray-300"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Contract Address</label>
-                        <Input
-                            value={contractAddress}
-                            onChange={(e) => setContractAddress(e.target.value)}
-                            placeholder="Enter contract address"
-                            className="w-full border-gray-300"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                        <Input
-                            value={method}
-                            onChange={(e) => setMethod(e.target.value)}
-                            placeholder="Enter method name"
-                            className="w-full border-gray-300"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Calldata</label>
-                        <Input
-                            value={calldata}
-                            onChange={(e) => setCalldata(e.target.value)}
-                            placeholder="Enter calldata"
-                            className="w-full border-gray-300"
-                        />
-                    </div>
-
-                    <div className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id="sendEth"
-                            checked={sendEth}
-                            onChange={(e) => setSendEth(e.target.checked)}
-                            className="mr-2"
-                        />
-                        <label htmlFor="sendEth" className="text-sm font-medium text-gray-700">
-                            Send ETH with this action
-                        </label>
-                    </div>
-
-                    <Button onClick={handleAddAction} className="w-full">
-                        Add Action
-                    </Button>
-                </div>
-            */}
         </div>
     )
 }
