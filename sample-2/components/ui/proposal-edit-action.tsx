@@ -1,229 +1,505 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState, useEffect } from "react";
 import {
-    ChevronDown, MoreHorizontal, Plus, ArrowRight, Trash2, AlertCircle,
-} from "lucide-react"
-import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
+  ChevronDown,
+  MoreHorizontal,
+  Plus,
+  ArrowRight,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { ethers } from "ethers";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+// Action 타입 정의 (ProposalFormState와 일치해야 함)
+interface Action {
+  id: string;
+  title: string;
+  contractAddress: string;
+  abi: any[];
+  method: string;
+  calldata: string;
+  sendEth: boolean;
+}
 
 interface ProposalEditActionProps extends React.HTMLAttributes<HTMLDivElement> {
-    onEditAction: (action: {
-        title: string;
-        contractAddress: string;
-        abi: JSON;
-        method: string;
-        calldata: string;
-        sendEth: boolean;
-    }) => void;
+  actionToEdit: Action;
+  onSaveChanges: (updatedAction: Action) => void;
+  onCancel: () => void;
+  onRemoveAction: (actionId: string) => void;
+}
+
+interface CalldataComponentProps {
+  abi: any[];
+  selectedFunction: string;
+  initialParams?: { [key: string]: string };
+  onCalldataChange: (calldata: string) => void;
+  isEditMode?: boolean;
+}
+
+function CalldataComponent({
+  abi,
+  selectedFunction,
+  initialParams,
+  onCalldataChange,
+  isEditMode,
+}: CalldataComponentProps) {
+  const [paramValues, setParamValues] = useState<{ [key: string]: string }>({});
+  const [paramErrors, setParamErrors] = useState<{ [key: string]: string }>({});
+  const [internalCalldata, setInternalCalldata] = useState<string>("");
+
+  useEffect(() => {
+    const func = abi.find((item: any) => {
+      if (!item || !item.inputs) return false;
+      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+      return `${item.name}(${paramTypes})` === selectedFunction;
+    });
+
+    if (func) {
+      const initialP: { [key: string]: string } = {};
+      if (initialParams) {
+        func.inputs.forEach((input: any) => {
+          if (initialParams[input.name] !== undefined) {
+            initialP[input.name] = String(initialParams[input.name]);
+          }
+        });
+      }
+      setParamValues(initialP);
+      setParamErrors({});
+
+      if (
+        isEditMode &&
+        initialParams &&
+        Object.keys(initialParams).length > 0 &&
+        func.inputs.every((input: any) => initialP[input.name] !== undefined)
+      ) {
+        generateCalldata(initialP, func);
+      } else if (func.inputs.length === 0) {
+        generateCalldata({}, func);
+      } else {
+        setInternalCalldata("");
+        onCalldataChange("");
+      }
+    } else {
+      setParamValues({});
+      setParamErrors({});
+      setInternalCalldata("");
+      onCalldataChange("");
+    }
+  }, [
+    selectedFunction,
+    abi,
+    JSON.stringify(initialParams),
+    isEditMode,
+    onCalldataChange,
+  ]);
+
+  const generateCalldata = (
+    currentParamValues: { [key: string]: string },
+    func: any
+  ) => {
+    try {
+      const paramValuesArray = func.inputs.map((input: any) => {
+        const val = currentParamValues[input.name];
+        if (input.type === "address") return val;
+        if (input.type.startsWith("uint"))
+          return ethers.parseUnits(val || "0", 0);
+        if (input.type === "bool") return val === "true";
+        return val;
+      });
+      const iface = new ethers.Interface([func]);
+      const newCalldata = iface.encodeFunctionData(func.name, paramValuesArray);
+      setInternalCalldata(newCalldata);
+      onCalldataChange(newCalldata);
+    } catch (error) {
+      console.error("Error creating calldata:", error);
+      setInternalCalldata("");
+      onCalldataChange("");
+    }
+  };
+
+  const validateType = (value: string, type: string): boolean => {
+    try {
+      if (!value && !(type === "bool")) return false;
+      if (type === "address") {
+        return ethers.isAddress(value);
+      } else if (type.startsWith("uint") || type.startsWith("int")) {
+        const num = BigInt(value);
+        if (type.startsWith("uint") && num < BigInt(0)) return false;
+        return true;
+      } else if (type === "bool") {
+        return value === "true" || value === "false";
+      } else if (type === "bytes" || type.startsWith("bytes")) {
+        return /^0x[0-9a-fA-F]*$/.test(value);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const getTypeErrorMessage = (type: string): string => {
+    if (type === "address") {
+      return "Invalid Ethereum address";
+    } else if (type.startsWith("uint")) {
+      return "Must be a positive number";
+    } else if (type.startsWith("int")) {
+      return "Must be a valid number";
+    } else if (type === "bool") {
+      return "Must be true or false";
+    } else if (type === "bytes" || type.startsWith("bytes")) {
+      return "Must be a valid hex string starting with 0x";
+    }
+    return "Invalid input type";
+  };
+
+  const handleParamChange = (
+    paramName: string,
+    value: string,
+    type: string
+  ) => {
+    const newValues = { ...paramValues, [paramName]: value };
+    setParamValues(newValues);
+
+    const isValid = validateType(value, type);
+    const newErrors = { ...paramErrors };
+    if (!isValid && value.length > 0) {
+      newErrors[paramName] = getTypeErrorMessage(type);
+    } else {
+      delete newErrors[paramName];
+    }
+    setParamErrors(newErrors);
+
+    const func = abi.find((item: any) => {
+      if (!item || !item.inputs) return false;
+      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+      return `${item.name}(${paramTypes})` === selectedFunction;
+    });
+
+    if (func && func.inputs.length > 0) {
+      const allParamsFilledAndValid = func.inputs.every((input: any) => {
+        const val = newValues[input.name];
+        return val !== undefined && validateType(val, input.type);
+      });
+
+      if (allParamsFilledAndValid) {
+        generateCalldata(newValues, func);
+      } else {
+        setInternalCalldata("");
+        onCalldataChange("");
+      }
+    }
+  };
+
+  const selectedFunc = abi.find((item: any) => {
+    if (!item || !item.inputs) return false;
+    const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+    return `${item.name}(${paramTypes})` === selectedFunction;
+  });
+
+  if (!selectedFunc) return null;
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Calldata</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          <span className="font-medium text-gray-900">Function:</span>{" "}
+          <span className="font-medium text-purple-600">
+            {selectedFunc.name}
+          </span>
+          {selectedFunc.inputs.length > 0 && (
+            <span className="text-gray-500 ml-1">
+              (
+              {selectedFunc.inputs
+                .map((input: any) => (
+                  <span key={input.name} className="text-gray-600">
+                    <span className="text-gray-500">{input.name}</span>
+                    <span className="text-gray-400">: </span>
+                    <span className="text-purple-600">{input.type}</span>
+                  </span>
+                ))
+                .reduce(
+                  (
+                    prev: React.ReactNode,
+                    curr: React.ReactNode,
+                    index: number
+                  ) => (index === 0 ? [curr] : [prev, ", ", curr]),
+                  []
+                )}
+              )
+            </span>
+          )}
+        </p>
+      </div>
+      {selectedFunc.inputs.length > 0 && (
+        <div className="space-y-2">
+          {selectedFunc.inputs.map((input: any, index: number) => (
+            <div key={index} className="grid grid-cols-4 gap-4">
+              <div className="bg-purple-50 p-3 rounded-md text-center">
+                <span className="text-sm text-purple-700">{input.name}</span>
+              </div>
+              <div className="col-span-3 space-y-1">
+                <Input
+                  type={input.type === "bool" ? "checkbox" : "text"}
+                  placeholder={`Enter ${input.type}`}
+                  checked={
+                    input.type === "bool"
+                      ? paramValues[input.name] === "true"
+                      : undefined
+                  }
+                  value={
+                    input.type !== "bool"
+                      ? paramValues[input.name] || ""
+                      : undefined
+                  }
+                  onChange={(e) =>
+                    handleParamChange(
+                      input.name,
+                      input.type === "bool"
+                        ? e.target.checked.toString()
+                        : e.target.value,
+                      input.type
+                    )
+                  }
+                  className={`w-full ${
+                    paramErrors[input.name]
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }`}
+                />
+                {paramErrors[input.name] && (
+                  <p className="text-sm text-red-500">
+                    {paramErrors[input.name]}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {internalCalldata && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Generated Calldata
+          </label>
+          <div className="bg-gray-50 p-3 rounded-md">
+            <code className="text-sm break-all">{internalCalldata}</code>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ProposalEditAction({
-    className,
-    onEditAction,
-    ...props
+  className,
+  actionToEdit,
+  onSaveChanges,
+  // onCancel,
+  onRemoveAction,
+  ...props
 }: ProposalEditActionProps) {
-    const [title, setTitle] = useState("");
-    const [contractAddress, setContractAddress] = useState("");
-    const [method, setMethod] = useState("");
-    const [calldata, setCalldata] = useState("");
-    const [sendEth, setSendEth] = useState(false);
+  const [title, setTitle] = useState(actionToEdit.title);
+  const [contractAddress, setContractAddress] = useState(
+    actionToEdit.contractAddress
+  );
+  const [method, setMethod] = useState(actionToEdit.method);
+  const [currentCalldata, setCurrentCalldata] = useState(actionToEdit.calldata);
+  const [sendEth, setSendEth] = useState(actionToEdit.sendEth);
+  const [currentAbi, setCurrentAbi] = useState<any[]>(actionToEdit.abi || []);
+  const [initialCallDataParams, setInitialCallDataParams] = useState<{
+    [key: string]: string;
+  }>({});
+  const [showRemoveAlert, setShowRemoveAlert] = useState(false);
 
-    const handleAddAction = () => {
-        if (title && contractAddress && method) {
-          onEditAction({
-                title,
-                contractAddress,
-                abi: {} as JSON, // 임시로 빈 JSON 객체 사용
-                method,
-                calldata,
-                sendEth
-            });
-            setTitle("");
-            setContractAddress("");
-            setMethod("");
-            setCalldata("");
-            setSendEth(false);
+  useEffect(() => {
+    setTitle(actionToEdit.title);
+    setContractAddress(actionToEdit.contractAddress);
+    setMethod(actionToEdit.method);
+    setCurrentCalldata(actionToEdit.calldata);
+    setSendEth(actionToEdit.sendEth);
+    setCurrentAbi(actionToEdit.abi || []);
+
+    if (actionToEdit.abi && actionToEdit.method && actionToEdit.calldata) {
+      try {
+        const funcAbi = actionToEdit.abi.find((item: any) => {
+          if (!item || !item.inputs || item.type !== "function") return false;
+          const paramTypes = item.inputs
+            .map((input: any) => input.type)
+            .join(",");
+          return `${item.name}(${paramTypes})` === actionToEdit.method;
+        });
+
+        if (funcAbi && funcAbi.inputs.length > 0) {
+          const iface = new ethers.Interface([funcAbi]);
+          const decodedParams = iface.decodeFunctionData(
+            funcAbi.name,
+            actionToEdit.calldata
+          );
+
+          const params: { [key: string]: string } = {};
+          funcAbi.inputs.forEach((input: any, index: number) => {
+            if (decodedParams[index] !== undefined) {
+              if (typeof decodedParams[index] === "bigint") {
+                params[input.name] = decodedParams[index].toString();
+              } else if (typeof decodedParams[index] === "boolean") {
+                params[input.name] = decodedParams[index].toString();
+              } else {
+                params[input.name] = String(decodedParams[index]);
+              }
+            }
+          });
+          setInitialCallDataParams(params);
+        } else {
+          setInitialCallDataParams({});
         }
-    };
+      } catch (error) {
+        console.error("Error decoding calldata for initial params:", error);
+        setInitialCallDataParams({});
+      }
+    }
+  }, [actionToEdit]);
 
-    return (
-        <div className="md:col-span-2 bg-white p-4 rounded-md" {...props}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-medium text-purple-600">Action #2</h2>
-              <Button variant="ghost" className="text-gray-700 flex items-center">
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+  const handleSaveChanges = () => {
+    if (contractAddress && method && currentCalldata) {
+      onSaveChanges({
+        ...actionToEdit,
+        title,
+        contractAddress,
+        method,
+        calldata: currentCalldata,
+        abi: currentAbi,
+        sendEth,
+      });
+    }
+  };
+
+  const handleRemoveConfirm = () => {
+    onRemoveAction(actionToEdit.id);
+    setShowRemoveAlert(false);
+  };
+
+  const isCalldataChanged = () => {
+    return currentCalldata !== actionToEdit.calldata;
+  };
+
+  const hasChanges =
+    title !== actionToEdit.title ||
+    isCalldataChanged() ||
+    sendEth !== actionToEdit.sendEth;
+
+  return (
+    <div
+      className={cn("md:col-span-2 bg-white p-4 rounded-md", className)}
+      {...props}
+    >
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-medium text-purple-600">
+          Edit Action: {actionToEdit.title}
+        </h2>
+        <div>
+          {/* <Button variant="outline" onClick={onCancel} className="mr-2">
+            Cancel
+          </Button> */}
+          <AlertDialog open={showRemoveAlert} onOpenChange={setShowRemoveAlert}>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                className="text-gray-700 border-gray-300 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-500"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
                 Remove action
               </Button>
-            </div>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Are you sure you want to remove this action?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action will be permanently removed. This cannot be
+                  undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRemoveConfirm}>
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
 
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target contract address</label>
-                <Input
-                  type="text"
-                  className="w-full border-gray-300"
-                  defaultValue="0x2320542ae933FbAdf8f5B97cA348c7eDA90fAd7"
-                />
-                <div className="flex items-center mt-2 text-sm text-gray-600">
-                  <svg
-                    className="w-4 h-4 text-green-500 mr-2"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M22 4L12 14.01L9 11.01"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  Verified Contract found on Etherscan. ABI automatically imported.
-                </div>
-              </div>
+      <div className="space-y-6">
+        <div>
+          <label className="block text-lg font-semibold text-gray-900 mb-2">
+            Action Title
+          </label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Enter action title"
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="block text-lg font-semibold text-gray-900 mb-2">
+            Target contract address
+          </label>
+          <Input
+            value={contractAddress}
+            readOnly
+            className="border-gray-300 bg-gray-100"
+          />
+        </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Use the imported ABI or upload yours
-                </label>
-                <div className="relative">
-                  <select className="w-full p-2 pr-10 border border-gray-300 rounded-md appearance-none">
-                    <option>ERC-20</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
-                </div>
-              </div>
+        <div>
+          <label className="block text-lg font-semibold text-gray-900 mb-4">
+            Contract method
+          </label>
+          <div className="mt-4 p-3 border rounded-md bg-gray-50">
+            <p className="text-sm text-gray-500 mb-1">Selected Method:</p>
+            <p className="font-mono text-gray-800 break-all">{method}</p>
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contract method</label>
-                <div className="relative">
-                  <select className="w-full p-2 pr-10 border border-gray-300 rounded-md appearance-none">
-                    <option>approve</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
-                </div>
-                <div className="flex items-center mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md">
-                  <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
-                  This ABI is a standard. Please, be sure the smart contract implements the method you selected.
-                </div>
-              </div>
+          {currentAbi && method && (
+            <CalldataComponent
+              abi={currentAbi}
+              selectedFunction={method}
+              initialParams={initialCallDataParams}
+              onCalldataChange={setCurrentCalldata}
+              isEditMode={true}
+            />
+          )}
+        </div>
 
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-1">Calldata</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  The data for the function arguments you wish to send when the action executes
-                </p>
-
-                <div className="grid grid-cols-4 gap-4 mb-2">
-                  <div className="bg-purple-50 p-3 rounded-md text-center">
-                    <span className="text-sm text-purple-700">spender</span>
-                  </div>
-                  <div className="col-span-3 p-3 border border-gray-300 rounded-md">
-                    <span className="text-sm text-gray-700">address</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-purple-50 p-3 rounded-md text-center">
-                    <span className="text-sm text-purple-700">amount</span>
-                  </div>
-                  <div className="col-span-3 p-3 border border-gray-300 rounded-md">
-                    <span className="text-sm text-gray-700">uint256</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">
-                  Also send Sepolia Ether to the target address? (this is not common)
-                </span>
-                <Switch />
-              </div>
-            </div>
-
-
-        {/* <div className="md:col-span-2 bg-white p-4 rounded-md" {...props}>
-            <div className="space-y-6">
-                <div>
-                    <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                        Action Title
-                    </label>
-                    <Input
-                        id="title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Enter action title"
-                        className="w-full border-gray-300"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contract Address</label>
-                    <Input
-                        value={contractAddress}
-                        onChange={(e) => setContractAddress(e.target.value)}
-                        placeholder="Enter contract address"
-                        className="w-full border-gray-300"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                    <Input
-                        value={method}
-                        onChange={(e) => setMethod(e.target.value)}
-                        placeholder="Enter method name"
-                        className="w-full border-gray-300"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Calldata</label>
-                    <Input
-                        value={calldata}
-                        onChange={(e) => setCalldata(e.target.value)}
-                        placeholder="Enter calldata"
-                        className="w-full border-gray-300"
-                    />
-                </div>
-
-                <div className="flex items-center">
-                    <input
-                        type="checkbox"
-                        id="sendEth"
-                        checked={sendEth}
-                        onChange={(e) => setSendEth(e.target.checked)}
-                        className="mr-2"
-                    />
-                    <label htmlFor="sendEth" className="text-sm font-medium text-gray-700">
-                        Send ETH with this action
-                    </label>
-                </div>
-
-                <Button onClick={handleAddAction} className="w-full">
-                    Add Action
-                </Button>
-            </div>
-       */}
-       </div>
-    )
+        <Button
+          onClick={handleSaveChanges}
+          className="w-full mt-4"
+          disabled={
+            !contractAddress || !method || !currentCalldata || !hasChanges
+          }
+        >
+          Save Changes
+        </Button>
+      </div>
+    </div>
+  );
 }

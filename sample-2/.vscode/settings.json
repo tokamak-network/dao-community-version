@@ -1,0 +1,64 @@
+{
+  // 에디터 기본 설정
+  "editor.tabSize": 2, // 탭 크기를 2칸으로 설정
+  "editor.insertSpaces": true, // 탭을 누를 때 공백 사용
+  "files.trimTrailingWhitespace": true, // 저장 시 줄 끝 불필요한 공백 제거
+
+  // 파일 저장 관련
+  "files.autoSave": "afterDelay", // 파일 변경 후 지연 시간 뒤 자동 저장
+
+  // 코드 포맷팅 (Prettier 익스텐션 설치를 권장합니다)
+  "editor.formatOnSave": true, // 저장 시 자동 코드 서식 정리
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // JavaScript 파일 기본 포맷터
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // TypeScript 파일 기본 포맷터
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // TypeScript React (TSX) 파일 기본 포맷터
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // JSON 파일 기본 포맷터
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // JSON with Comments 파일 기본 포맷터
+  },
+
+  // 탐색기 관련
+  "explorer.compactFolders": true, // 파일 탐색기에서 중첩된 단일 폴더 압축 표시
+
+  // 검색 제외 설정 (일반적인 경우)
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true, // Next.js 빌드 폴더
+    "**/dist": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/*.log": true
+  },
+
+  // 파일 감시 제외 설정 (성능 향상에 도움)
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/*/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true
+  }
+
+  // 터미널 글꼴 가족 (예시: D2Coding, Consolas 등 시스템에 설치된 고정폭 글꼴 사용)
+  // "terminal.integrated.fontFamily": "D2Coding, Consolas, 'Courier New', monospace",
+
+  // ESLint 통합 (ESLint 익스텐션 설치 및 설정 필요)
+  // "eslint.validate": [
+  //   "javascript",
+  //   "javascriptreact",
+  //   "typescript",
+  //   "typescriptreact"
+  // ],
+  // "editor.codeActionsOnSave": {
+  //   "source.fixAll.eslint": "explicit" // 저장 시 ESLint 자동 수정 (명시적으로 실행)
+  // }
+}

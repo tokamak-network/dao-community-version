@@ -1,747 +1,895 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
-    ChevronDown, MoreHorizontal, Plus, ArrowRight, Trash2, AlertCircle,
-} from "lucide-react"
-import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ethers } from "ethers"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Textarea } from "@/components/ui/textarea"
-import { predefinedMethods, PredefinedMethod } from "@/config/predefined-methods"
+  ChevronDown,
+  MoreHorizontal,
+  Plus,
+  ArrowRight,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ethers } from "ethers";
+import {
+  RadioGroup,
+  RadioGroupItem,
+  RadioGroupItem1,
+} from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  predefinedMethods,
+  PredefinedMethod,
+} from "@/config/predefined-methods";
 
-interface ProposalSelectActionProps extends React.HTMLAttributes<HTMLDivElement> {
-    onAddAction: (action: {
-        title: string;
-        contractAddress: string;
-        abi: any[];
-        method: string;
-        calldata: string;
-        sendEth: boolean;
-    }) => void;
+// Action 타입 정의 (ProposalForm.tsx와 일치해야 함)
+interface Action {
+  id: string;
+  title: string;
+  contractAddress: string;
+  abi: any[];
+  method: string;
+  calldata: string;
+  sendEth: boolean;
 }
 
-function RequiredContractAddress({value, setAbiProxy, setAbiLogic}: {value: string, setAbiProxy: React.Dispatch<React.SetStateAction<any[]>>, setAbiLogic: React.Dispatch<React.SetStateAction<any[]>>}) {
-    const [isContractFound, setIsContractFound] = useState<boolean | null>(null);
-    console.log('RequiredContractAddress', value)
-    useEffect(() => {
-        const checkContract = async () => {
-            if (!value || value.length === 0) {
-                setIsContractFound(null);
-                setAbiProxy([]);
-                setAbiLogic([]);
-                return;
-            }
+interface ProposalSelectActionProps
+  extends React.HTMLAttributes<HTMLDivElement> {
+  onAddAction: (action: Omit<Action, "id">) => void;
+}
 
+function RequiredContractAddress({
+  value,
+  setAbiProxy,
+  setAbiLogic,
+}: {
+  value: string;
+  setAbiProxy: React.Dispatch<React.SetStateAction<any[]>>;
+  setAbiLogic: React.Dispatch<React.SetStateAction<any[]>>;
+}) {
+  const [isContractFound, setIsContractFound] = useState<boolean | null>(null);
+  useEffect(() => {
+    const checkContract = async () => {
+      if (!value || value.length === 0) {
+        setIsContractFound(null);
+        setAbiProxy([]);
+        setAbiLogic([]);
+        return;
+      }
+
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY;
+        if (!apiKey) {
+          console.error("Etherscan API key is not configured");
+          setIsContractFound(false);
+          setAbiProxy([]);
+          setAbiLogic([]);
+          return;
+        }
+
+        const apiUrl =
+          process.env.NEXT_PUBLIC_ETHERSCAN_API_URL ||
+          "https://api-sepolia.etherscan.io/api";
+
+        // Get proxy ABI
+        const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
+        const proxyResponse = await fetch(proxyUrl);
+        const proxyData = await proxyResponse.json();
+        console.log(proxyUrl);
+        if (proxyData.status === "1") {
+          setIsContractFound(true);
+          const proxyAbi = JSON.parse(proxyData.result);
+          // Filter only function and view types
+          const filteredProxyAbi = proxyAbi.filter(
+            (item: any) =>
+              item.type === "function" && item.stateMutability != "view"
+          );
+          setAbiProxy(filteredProxyAbi);
+
+          // Check for implementation() function
+          const implementationFunction = proxyAbi.find(
+            (item: any) =>
+              item.type === "function" &&
+              item.name === "implementation" &&
+              item.inputs.length === 0
+          );
+
+          if (implementationFunction) {
             try {
-                const apiKey = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY;
-                if (!apiKey) {
-                    console.error('Etherscan API key is not configured');
-                    setIsContractFound(false);
-                    setAbiProxy([]);
-                    setAbiLogic([]);
-                    return;
-                }
+              // Call implementation() function
+              const provider = new ethers.JsonRpcProvider(
+                process.env.NEXT_PUBLIC_RPC_URL
+              );
+              const contract = new ethers.Contract(value, proxyAbi, provider);
+              const implementationAddress = await contract.implementation();
 
-                const apiUrl = process.env.NEXT_PUBLIC_ETHERSCAN_API_URL || 'https://api-sepolia.etherscan.io/api';
+              // Get implementation ABI
+              const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
+              const logicResponse = await fetch(logicUrl);
+              const logicData = await logicResponse.json();
 
-                // Get proxy ABI
-                const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
-                const proxyResponse = await fetch(proxyUrl);
-                const proxyData = await proxyResponse.json();
-                console.log(proxyUrl)
-                if (proxyData.status === '1') {
-                    setIsContractFound(true);
-                    const proxyAbi = JSON.parse(proxyData.result);
-                    // Filter only function and view types
-                    const filteredProxyAbi = proxyAbi.filter((item: any) =>
-                        item.type === 'function' && item.stateMutability != 'view'
-                    );
-                    setAbiProxy(filteredProxyAbi);
-
-                    // Check for implementation() function
-                    const implementationFunction = proxyAbi.find((item: any) =>
-                        item.type === 'function' &&
-                        item.name === 'implementation' &&
-                        item.inputs.length === 0
-                    );
-
-                    if (implementationFunction) {
-                        try {
-                            // Call implementation() function
-                            const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-                            const contract = new ethers.Contract(value, proxyAbi, provider);
-                            const implementationAddress = await contract.implementation();
-
-                            // Get implementation ABI
-                            const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
-                            const logicResponse = await fetch(logicUrl);
-                            const logicData = await logicResponse.json();
-
-                            if (logicData.status === '1') {
-                                const logicAbi = JSON.parse(logicData.result);
-                                // Filter only function and view types
-                                const filteredLogicAbi = logicAbi.filter((item: any) =>
-                                    item.type === 'function' && item.stateMutability != 'view'
-                                );
-                                setAbiLogic(filteredLogicAbi);
-                            }
-                        } catch (error) {
-                            console.error('Error getting implementation:', error);
-                        }
-                    } else{
-                        setAbiLogic([]);
-                    }
-                } else {
-                    setIsContractFound(false);
-                    setAbiProxy([]);
-                    setAbiLogic([]);
-                }
+              if (logicData.status === "1") {
+                const logicAbi = JSON.parse(logicData.result);
+                // Filter only function and view types
+                const filteredLogicAbi = logicAbi.filter(
+                  (item: any) =>
+                    item.type === "function" && item.stateMutability != "view"
+                );
+                setAbiLogic(filteredLogicAbi);
+              }
             } catch (error) {
-                console.error('Error checking contract:', error);
-                setIsContractFound(false);
-                setAbiProxy([]);
-                setAbiLogic([]);
+              console.error("Error getting implementation:", error);
             }
-        };
+          } else {
+            setAbiLogic([]);
+          }
+        } else {
+          setIsContractFound(false);
+          setAbiProxy([]);
+          setAbiLogic([]);
+        }
+      } catch (error) {
+        console.error("Error checking contract:", error);
+        setIsContractFound(false);
+        setAbiProxy([]);
+        setAbiLogic([]);
+      }
+    };
 
-        checkContract();
-    }, [value, setAbiProxy, setAbiLogic]);
+    checkContract();
+  }, [value, setAbiProxy, setAbiLogic]);
 
-    if (isContractFound === null || !isContractFound) {
-        return (
-            <div className="flex items-start mt-4 text-sm text-amber-700 bg-amber-50 p-3 rounded-md">
-                <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-                <p>Contract not found on Etherscan. Select an ABI or import a JSON file containing your ABI.</p>
-            </div>
-        );
-    } else {
-        return (
-            <div className="flex items-center mt-2 text-sm text-gray-600">
-                <svg
-                    className="w-4 h-4 text-green-500 mr-2"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path
-                        d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d="M22 4L12 14.01L9 11.01"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
-                Verified Contract found on Etherscan. ABI automatically imported.
-            </div>
-        );
-    }
+  if (isContractFound === null || !isContractFound) {
+    return (
+      <div className="flex items-start mt-4 text-sm text-amber-700 bg-amber-50 p-3 rounded-md">
+        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+        <p>
+          Contract not found on Etherscan. Select an ABI or import a JSON file
+          containing your ABI.
+        </p>
+      </div>
+    );
+  } else {
+    return (
+      <div className="flex items-center mt-2 text-sm text-gray-600">
+        <svg
+          className="w-4 h-4 text-green-500 mr-2"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M22 4L12 14.01L9 11.01"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Verified Contract found on Etherscan. ABI automatically imported.
+      </div>
+    );
+  }
 }
 
 interface CalldataComponentProps {
-    abi: any[];
-    selectedFunction: string;
-    onCalldataChange: (calldata: string) => void;
+  abi: any[];
+  selectedFunction: string;
+  onCalldataChange: (calldata: string) => void;
 }
 
-function CalldataComponent({ abi, selectedFunction, onCalldataChange }: CalldataComponentProps) {
-    const [paramValues, setParamValues] = useState<{ [key: string]: string }>({});
-    const [paramErrors, setParamErrors] = useState<{ [key: string]: string }>({});
-    const [calldata, setCalldata] = useState<string>("");
+function CalldataComponent({
+  abi,
+  selectedFunction,
+  onCalldataChange,
+}: CalldataComponentProps) {
+  const [paramValues, setParamValues] = useState<{ [key: string]: string }>({});
+  const [paramErrors, setParamErrors] = useState<{ [key: string]: string }>({});
+  const [calldata, setCalldata] = useState<string>("");
 
-    useEffect(() => {
-        // Reset param values when function changes
-        setParamValues({});
-        setParamErrors({});
-        setCalldata("");
-        onCalldataChange("");
-    }, [selectedFunction, onCalldataChange]);
+  useEffect(() => {
+    setParamValues({});
+    setParamErrors({});
+    setCalldata("");
+    onCalldataChange("");
 
-    const validateType = (value: string, type: string): boolean => {
-        try {
-            if (!value) return false;
-            if (type === 'address') {
-                return ethers.isAddress(value);
-            } else if (type.startsWith('uint') || type.startsWith('int')) {
-                // Check if it's a valid number and not negative for uint
-                const num = BigInt(value);
-                if (type.startsWith('uint') && num < BigInt(0)) return false;
-                return true;
-            } else if (type === 'bool') {
-                return value === 'true' || value === 'false';
-            } else if (type === 'bytes' || type.startsWith('bytes')) {
-                return /^0x[0-9a-fA-F]*$/.test(value);
-            }
-            return true;
-        } catch {
-            return false;
-        }
-    };
-
-    const getTypeErrorMessage = (type: string): string => {
-        if (type === 'address') {
-            return 'Invalid Ethereum address';
-        } else if (type.startsWith('uint')) {
-            return 'Must be a positive number';
-        } else if (type.startsWith('int')) {
-            return 'Must be a valid number';
-        } else if (type === 'bool') {
-            return 'Must be true or false';
-        } else if (type === 'bytes' || type.startsWith('bytes')) {
-            return 'Must be a valid hex string starting with 0x';
-        }
-        return 'Invalid input type';
-    };
-
-    const handleParamChange = (paramName: string, value: string, type: string) => {
-        const newValues = { ...paramValues, [paramName]: value };
-        setParamValues(newValues);
-
-        // Validate type
-        const isValid = validateType(value, type);
-        const newErrors = { ...paramErrors };
-        if (!isValid && value.length > 0) {
-            newErrors[paramName] = getTypeErrorMessage(type);
-        } else {
-            delete newErrors[paramName];
-        }
-        setParamErrors(newErrors);
-
-        try {
-            // Find the function in ABI
-            const func = abi.find((item: any) => {
-                const paramTypes = item.inputs.map((input: any) => input.type).join(',');
-                return `${item.name}(${paramTypes})` === selectedFunction;
-            });
-
-            if (func) {
-                // Convert parameter values to their respective types
-                const paramValuesArray = func.inputs.map((input: any) => {
-                    const value = newValues[input.name];
-                    if (!value) return ethers.ZeroAddress;
-                    if (input.type === 'address') {
-                        return value;
-                    } else if (input.type.startsWith('uint')) {
-                        return ethers.parseUnits(value || '0', 0);
-                    } else if (input.type === 'bool') {
-                        return value === 'true';
-                    } else {
-                        return value;
-                    }
-                });
-
-                // Create calldata
-                const iface = new ethers.Interface([func]);
-                const calldata = iface.encodeFunctionData(func.name, paramValuesArray);
-                setCalldata(calldata);
-                onCalldataChange(calldata);
-            }
-        } catch (error) {
-            console.error('Error creating calldata:', error);
-            setCalldata("");
-            onCalldataChange("");
-        }
-    };
-
-    // Find the selected function in ABI
-    const selectedFunc = abi.find((item: any) => {
-        const paramTypes = item.inputs.map((input: any) => input.type).join(',');
+    if (selectedFunction && abi) {
+      const func = abi.find((item: any) => {
+        if (!item || !item.inputs) return false;
+        const paramTypes = item.inputs
+          .map((input: any) => input.type)
+          .join(",");
         return `${item.name}(${paramTypes})` === selectedFunction;
+      });
+
+      if (func && func.inputs.length === 0) {
+        try {
+          const iface = new ethers.Interface([func]);
+          const newCalldata = iface.encodeFunctionData(func.name, []);
+          setCalldata(newCalldata);
+          onCalldataChange(newCalldata);
+        } catch (error) {
+          console.error(
+            "Error creating calldata for no-param function:",
+            error
+          );
+          setCalldata("");
+          onCalldataChange("");
+        }
+      }
+    }
+  }, [selectedFunction, abi, onCalldataChange]);
+
+  const validateType = (value: string, type: string): boolean => {
+    try {
+      if (!value) return false;
+      if (type === "address") {
+        return ethers.isAddress(value);
+      } else if (type.startsWith("uint") || type.startsWith("int")) {
+        // Check if it's a valid number and not negative for uint
+        const num = BigInt(value);
+        if (type.startsWith("uint") && num < BigInt(0)) return false;
+        return true;
+      } else if (type === "bool") {
+        return value === "true" || value === "false";
+      } else if (type === "bytes" || type.startsWith("bytes")) {
+        return /^0x[0-9a-fA-F]*$/.test(value);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const getTypeErrorMessage = (type: string): string => {
+    if (type === "address") {
+      return "Invalid Ethereum address";
+    } else if (type.startsWith("uint")) {
+      return "Must be a positive number";
+    } else if (type.startsWith("int")) {
+      return "Must be a valid number";
+    } else if (type === "bool") {
+      return "Must be true or false";
+    } else if (type === "bytes" || type.startsWith("bytes")) {
+      return "Must be a valid hex string starting with 0x";
+    }
+    return "Invalid input type";
+  };
+
+  const handleParamChange = (
+    paramName: string,
+    value: string,
+    type: string
+  ) => {
+    const newValues = { ...paramValues, [paramName]: value };
+    setParamValues(newValues);
+
+    const isValid = validateType(value, type);
+    const newErrors = { ...paramErrors };
+    if (!isValid && value.length > 0) {
+      newErrors[paramName] = getTypeErrorMessage(type);
+    } else {
+      delete newErrors[paramName];
+    }
+    setParamErrors(newErrors);
+
+    const func = abi.find((item: any) => {
+      if (!item || !item.inputs) return false;
+      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+      return `${item.name}(${paramTypes})` === selectedFunction;
     });
 
-    if (!selectedFunc) return null;
+    if (func && func.inputs.length > 0) {
+      const allParamsFilledAndValid = func.inputs.every((input: any) => {
+        const val = newValues[input.name];
+        return val && validateType(val, input.type);
+      });
 
-    return (
-        <div className="mt-8 space-y-4">
-            <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Calldata</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                    <span className="font-medium text-gray-900">Function:</span>{" "}
-                    <span className="font-medium text-purple-600">{selectedFunc.name}</span>
-                    {selectedFunc.inputs.length > 0 && (
-                        <span className="text-gray-500 ml-1">
-                            ({selectedFunc.inputs.map((input: any) => (
-                                <span key={input.name} className="text-gray-600">
-                                    <span className="text-gray-500">{input.name}</span>
-                                    <span className="text-gray-400">: </span>
-                                    <span className="text-purple-600">{input.type}</span>
-                                </span>
-                            )).reduce((prev: any, curr: any) => [prev, ", ", curr])})
-                        </span>
-                    )}
+      if (allParamsFilledAndValid) {
+        try {
+          const paramValuesArray = func.inputs.map((input: any) => {
+            const val = newValues[input.name];
+            if (input.type === "address") return val;
+            if (input.type.startsWith("uint"))
+              return ethers.parseUnits(val || "0", 0);
+            if (input.type === "bool") return val === "true";
+            return val;
+          });
+          const iface = new ethers.Interface([func]);
+          const newCalldata = iface.encodeFunctionData(
+            func.name,
+            paramValuesArray
+          );
+          setCalldata(newCalldata);
+          onCalldataChange(newCalldata);
+        } catch (error) {
+          console.error("Error creating calldata:", error);
+          setCalldata("");
+          onCalldataChange("");
+        }
+      } else {
+        setCalldata("");
+        onCalldataChange("");
+      }
+    }
+  };
+
+  const selectedFunc = abi.find((item: any) => {
+    if (!item || !item.inputs) return false;
+    const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+    return `${item.name}(${paramTypes})` === selectedFunction;
+  });
+
+  if (!selectedFunc) return null;
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Calldata</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          <span className="font-medium text-gray-900">Function:</span>{" "}
+          <span className="font-medium text-purple-600">
+            {selectedFunc.name}
+          </span>
+          {selectedFunc.inputs.length > 0 && (
+            <span className="text-gray-500 ml-1">
+              (
+              {selectedFunc.inputs
+                .map((input: any) => (
+                  <span key={input.name} className="text-gray-600">
+                    <span className="text-gray-500">{input.name}</span>
+                    <span className="text-gray-400">: </span>
+                    <span className="text-purple-600">{input.type}</span>
+                  </span>
+                ))
+                .reduce((prev: any, curr: any) => [prev, ", ", curr])}
+              )
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="space-y-2">
+        {selectedFunc.inputs.map((input: any, index: number) => (
+          <div key={index} className="grid grid-cols-4 gap-4">
+            <div className="bg-purple-50 p-3 rounded-md text-center">
+              <span className="text-sm text-purple-700">{input.name}</span>
+            </div>
+            <div className="col-span-3 space-y-1">
+              <Input
+                type={input.type === "bool" ? "checkbox" : "text"}
+                placeholder={`Enter ${input.type}`}
+                value={paramValues[input.name] || ""}
+                onChange={(e) =>
+                  handleParamChange(input.name, e.target.value, input.type)
+                }
+                className={`w-full ${
+                  !paramValues[input.name] ||
+                  paramValues[input.name].length === 0
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : paramErrors[input.name]
+                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                    : ""
+                }`}
+              />
+              {paramErrors[input.name] && (
+                <p className="text-sm text-red-500">
+                  {paramErrors[input.name]}
                 </p>
+              )}
             </div>
-            <div className="space-y-2">
-                {selectedFunc.inputs.map((input: any, index: number) => (
-                    <div key={index} className="grid grid-cols-4 gap-4">
-                        <div className="bg-purple-50 p-3 rounded-md text-center">
-                            <span className="text-sm text-purple-700">{input.name}</span>
-                        </div>
-                        <div className="col-span-3 space-y-1">
-                            <Input
-                                type={input.type === 'bool' ? 'checkbox' : 'text'}
-                                placeholder={`Enter ${input.type}`}
-                                value={paramValues[input.name] || ''}
-                                onChange={(e) => handleParamChange(input.name, e.target.value, input.type)}
-                                className={`w-full ${
-                                    (!paramValues[input.name] || paramValues[input.name].length === 0)
-                                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                        : paramErrors[input.name]
-                                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                            : ""
-                                }`}
-                            />
-                            {paramErrors[input.name] && (
-                                <p className="text-sm text-red-500">{paramErrors[input.name]}</p>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-            {calldata && (
-                <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Generated Calldata</label>
-                    <div className="bg-gray-50 p-3 rounded-md">
-                        <code className="text-sm break-all">{calldata}</code>
-                    </div>
-                </div>
-            )}
+          </div>
+        ))}
+      </div>
+      {calldata && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Generated Calldata
+          </label>
+          <div className="bg-gray-50 p-3 rounded-md">
+            <code className="text-sm break-all">{calldata}</code>
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
 }
 
 interface ActionCardProps {
-    title: string;
-    contractAddress: string;
-    method: string;
-    calldata: string;
-    onRemove: () => void;
+  title: string;
+  contractAddress: string;
+  method: string;
+  calldata: string;
+  onRemove: () => void;
 }
 
-function ActionCard({ title, contractAddress, method, calldata, onRemove }: ActionCardProps) {
-    return (
-        <div className="bg-white p-4 rounded-md border border-gray-200 mb-4">
-            <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-                <Button variant="ghost" size="sm" onClick={onRemove} className="text-gray-500 hover:text-gray-700">
-                    <Trash2 className="w-4 h-4" />
-                </Button>
-            </div>
-            <div className="space-y-2 text-sm">
-                <div className="flex">
-                    <span className="w-24 text-gray-500">Contract:</span>
-                    <span className="text-gray-900 font-mono">{contractAddress}</span>
-                </div>
-                <div className="flex">
-                    <span className="w-24 text-gray-500">Method:</span>
-                    <span className="text-gray-900 font-mono">{method}</span>
-                </div>
-                <div className="flex">
-                    <span className="w-24 text-gray-500">Calldata:</span>
-                    <span className="text-gray-900 font-mono break-all">{calldata}</span>
-                </div>
-            </div>
+function ActionCard({
+  title,
+  contractAddress,
+  method,
+  calldata,
+  onRemove,
+}: ActionCardProps) {
+  return (
+    <div className="bg-white p-4 rounded-md border border-gray-200 mb-4">
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRemove}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+      <div className="space-y-2 text-sm">
+        <div className="flex">
+          <span className="w-24 text-gray-500">Contract:</span>
+          <span className="text-gray-900 font-mono">{contractAddress}</span>
         </div>
-    );
+        <div className="flex">
+          <span className="w-24 text-gray-500">Method:</span>
+          <span className="text-gray-900 font-mono">{method}</span>
+        </div>
+        <div className="flex">
+          <span className="w-24 text-gray-500">Calldata:</span>
+          <span className="text-gray-900 font-mono break-all">{calldata}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ProposalSelectAction({
-    className,
-    onAddAction,
-    ...props
+  className,
+  onAddAction,
+  ...props
 }: ProposalSelectActionProps) {
-    const [contractAddress, setContractAddress] = useState("");
-    const [method, setMethod] = useState("");
-    const [selectedProxyMethod, setSelectedProxyMethod] = useState("");
-    const [selectedLogicMethod, setSelectedLogicMethod] = useState("");
-    const [selectedMethodType, setSelectedMethodType] = useState("proxy");
-    const [calldata, setCalldata] = useState("");
-    const [sendEth, setSendEth] = useState(false);
-    const [abiProxy, setAbiProxy] = useState<any[]>([]);
-    const [abiLogic, setAbiLogic] = useState<any[]>([]);
-    const [selectedPredefinedMethod, setSelectedPredefinedMethod] = useState<PredefinedMethod | null>(null);
-    const [customAbi, setCustomAbi] = useState<any[]>([]);
-    const [selectedCustomMethod, setSelectedCustomMethod] = useState("");
+  const [contractAddress, setContractAddress] = useState("");
+  const [method, setMethod] = useState("");
+  const [selectedProxyMethod, setSelectedProxyMethod] = useState("");
+  const [selectedLogicMethod, setSelectedLogicMethod] = useState("");
+  const [selectedMethodType, setSelectedMethodType] = useState("proxy");
+  const [calldata, setCalldata] = useState("");
+  const [sendEth, setSendEth] = useState(false);
+  const [abiProxy, setAbiProxy] = useState<any[]>([]);
+  const [abiLogic, setAbiLogic] = useState<any[]>([]);
+  const [selectedPredefinedMethod, setSelectedPredefinedMethod] =
+    useState<PredefinedMethod | null>(null);
+  const [customAbi, setCustomAbi] = useState<any[]>([]);
+  const [selectedCustomMethod, setSelectedCustomMethod] = useState("");
 
-    const handleAddAction = () => {
-        if (contractAddress && method && calldata) {
-            const newAction = {
-                title: method,  // Use method name as title
-                contractAddress,
-                method,
-                calldata,
-                abi: abiProxy,
-                sendEth
-            };
-            onAddAction(newAction);
+  const handleAddAction = () => {
+    // Determine the current ABI based on selectedMethodType
+    let currentAbi: any[] = [];
+    if (selectedMethodType === "proxy") {
+      currentAbi = abiProxy;
+    } else if (selectedMethodType === "logic") {
+      currentAbi = abiLogic;
+    } else if (
+      selectedMethodType === "predefined" &&
+      selectedPredefinedMethod
+    ) {
+      currentAbi = selectedPredefinedMethod.abi;
+    } else if (selectedMethodType === "custom") {
+      currentAbi = customAbi;
+    }
 
-            // Reset form
-            setContractAddress("");
-            setMethod("");
-            setCalldata("");
-            setSendEth(false);
-            setAbiProxy([]);
-            setAbiLogic([]);
-            setSelectedPredefinedMethod(null);
-            setCustomAbi([]);
-            setSelectedCustomMethod("");
-            setSelectedMethodType("proxy");
-        }
-    };
+    if (contractAddress && method && calldata) {
+      const newActionData = {
+        title: method, // Use method name as title
+        contractAddress,
+        method,
+        calldata,
+        abi: currentAbi,
+        sendEth,
+      };
+      onAddAction(newActionData);
 
-    return (
-        <div className={cn("md:col-span-2 bg-white p-4 rounded-md", className)} {...props}>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-medium text-purple-600">New Action</h2>
-                <Button variant="ghost" className="text-gray-700 flex items-center">
-                    <Trash2 className="w-5 h-5 mr-2" />
-                    Remove action
-                </Button>
-            </div>
+      // Reset form
+      setContractAddress("");
+      setMethod("");
+      setCalldata(""); // CalldataComponent 내부에서 이미 onCalldataChange("")로 초기화될 수 있음
+      setSendEth(false);
+      setAbiProxy([]);
+      setAbiLogic([]);
+      setSelectedPredefinedMethod(null);
+      setCustomAbi([]);
+      setSelectedProxyMethod(""); // Select 값들도 초기화
+      setSelectedLogicMethod("");
+      setSelectedCustomMethod("");
+      setSelectedMethodType("proxy");
+    }
+  };
 
-            <div className="space-y-6">
-                <div>
-                    <label className="block text-lg font-semibold text-gray-900 mb-2">Target contract address</label>
-                    <Input
-                        value={contractAddress}
-                        onChange={(e) => setContractAddress(e.target.value)}
-                        placeholder="Enter the target contract address"
-                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                    />
-                    <RequiredContractAddress
-                        value={contractAddress}
-                        setAbiProxy={setAbiProxy}
-                        setAbiLogic={setAbiLogic}
-                    />
-                </div>
+  return (
+    <div
+      className={cn("md:col-span-2 bg-white p-4 rounded-md", className)}
+      {...props}
+    >
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-medium text-purple-600">New Action</h2>
+        <Button variant="ghost" className="text-gray-700 flex items-center">
+          <Trash2 className="w-5 h-5 mr-2" />
+          Remove action
+        </Button>
+      </div>
 
-                <div>
-                    <label className="block text-lg font-semibold text-gray-900 mb-4">Contract method</label>
-                    <RadioGroup
-                        defaultValue={selectedMethodType}
-                        value={selectedMethodType}
-                        onValueChange={(value) => {
-                            setSelectedMethodType(value);
-                            if (value === "proxy") {
-                                setSelectedProxyMethod("");
-                            }
-                        }}
-                        className="space-y-2"
-                    >
-                        {abiProxy.length > 0 && (
-                            <div className="relative">
-                                <RadioGroupItem value="proxy" id="proxy" className="peer sr-only" />
-                                <label
-                                    htmlFor="proxy"
-                                    className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
-                                        selectedMethodType === "proxy"
-                                            ? "border-purple-200 bg-purple-50/50"
-                                            : "hover:bg-gray-50"
-                                    }`}
-                                >
-                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
-                                        selectedMethodType === "proxy" ? "border-purple-300" : ""
-                                    }`}>
-                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
-                                            selectedMethodType === "proxy" ? "scale-100" : "scale-0"
-                                        }`} />
-                                    </div>
-                                    <span className="text-sm text-gray-900">
-                                        {abiLogic.length === 0 ? 'Select from contract' : 'Select from Proxy contract'}
-                                    </span>
-                                </label>
-                            </div>
-                        )}
-                        {abiLogic.length > 0 && (
-                            <div className="relative">
-                                <RadioGroupItem value="logic" id="logic" className="peer sr-only" />
-                                <label
-                                    htmlFor="logic"
-                                    className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
-                                        selectedMethodType === "logic"
-                                            ? "border-purple-200 bg-purple-50/50"
-                                            : "hover:bg-gray-50"
-                                    }`}
-                                >
-                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
-                                        selectedMethodType === "logic" ? "border-purple-300" : ""
-                                    }`}>
-                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
-                                            selectedMethodType === "logic" ? "scale-100" : "scale-0"
-                                        }`} />
-                                    </div>
-                                    <span className="text-sm text-gray-900">
-                                        Select from Logic contract
-                                    </span>
-                                </label>
-                            </div>
-                        )}
-                        <div className="relative">
-                            <RadioGroupItem value="predefined" id="predefined" className="peer sr-only" />
-                            <label
-                                htmlFor="predefined"
-                                className={`flex flex-col p-2 border rounded-lg cursor-pointer transition-colors ${
-                                    selectedMethodType === "predefined"
-                                        ? "border-purple-200 bg-purple-50/50"
-                                        : "hover:bg-gray-50"
-                                }`}
-                            >
-                                <div className="flex items-center">
-                                    <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
-                                        selectedMethodType === "predefined" ? "border-purple-300" : ""
-                                    }`}>
-                                        <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
-                                            selectedMethodType === "predefined" ? "scale-100" : "scale-0"
-                                        }`} />
-                                    </div>
-                                    <span className="text-sm text-gray-900">
-                                        Select from predefined methods
-                                    </span>
-                                </div>
-                                {selectedMethodType === "predefined" && (
-                                    <div className="mt-2 ml-6">
-                                        <Select onValueChange={(value) => {
-                                            const selectedMethod = predefinedMethods.find(method => method.id === value);
-                                            if (selectedMethod) {
-                                                setSelectedPredefinedMethod(selectedMethod);
-                                                setSelectedProxyMethod("");
-                                                setMethod("");
-                                            }
-                                        }}>
-                                            <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
-                                                <SelectValue placeholder="Select from predefined methods..." />
-                                            </SelectTrigger>
-                                            <SelectContent className="max-h-[300px] overflow-y-auto">
-                                                {predefinedMethods.map((method) => (
-                                                    <SelectItem key={method.id} value={method.id}>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-medium">{method.name}</span>
-                                                            {method.description && (
-                                                                <span className="text-gray-500">- {method.description}</span>
-                                                            )}
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-                            </label>
-                        </div>
-                        <div className="relative">
-                            <RadioGroupItem value="custom" id="custom" className="peer sr-only" />
-                            <label
-                                htmlFor="custom"
-                                className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
-                                    selectedMethodType === "custom"
-                                        ? "border-purple-200 bg-purple-50/50"
-                                        : "hover:bg-gray-50"
-                                }`}
-                            >
-                                <div className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
-                                    selectedMethodType === "custom" ? "border-purple-300" : ""
-                                }`}>
-                                    <div className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
-                                        selectedMethodType === "custom" ? "scale-100" : "scale-0"
-                                    }`} />
-                                </div>
-                                <span className="text-sm text-gray-900">
-                                    Upload custom ABI
-                                </span>
-                            </label>
-                        </div>
-                    </RadioGroup>
-
-                    {selectedMethodType === "proxy" && abiProxy.length > 0 && (
-                        <div className="mt-4">
-                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
-                            <Select
-                                value={selectedProxyMethod}
-                                onValueChange={(value) => {
-                                    setSelectedProxyMethod(value);
-                                    setMethod(value);
-                                }}
-                                defaultValue=""
-                            >
-                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
-                                    <SelectValue placeholder="Select the contract method..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    {abiProxy.map((func: any) => {
-                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
-                                        const selector = `${func.name}(${paramTypes})`;
-                                        return (
-                                            <SelectItem key={selector} value={selector}>
-                                                {selector}
-                                            </SelectItem>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                            {selectedProxyMethod && (
-                                <CalldataComponent
-                                    abi={abiProxy}
-                                    selectedFunction={selectedProxyMethod}
-                                    onCalldataChange={setCalldata}
-                                />
-                            )}
-                        </div>
-                    )}
-
-                    {selectedMethodType === "logic" && abiLogic.length > 0 && (
-                        <div className="mt-4">
-                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
-                            <Select
-                                value={selectedLogicMethod}
-                                onValueChange={(value) => {
-                                    setSelectedLogicMethod(value);
-                                    setMethod(value);
-                                }}
-                                defaultValue=""
-                            >
-                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
-                                    <SelectValue placeholder="Select the contract method..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    {abiLogic.map((func: any) => {
-                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
-                                        const selector = `${func.name}(${paramTypes})`;
-                                        return (
-                                            <SelectItem key={selector} value={selector}>
-                                                {selector}
-                                            </SelectItem>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                            {selectedLogicMethod && (
-                                <CalldataComponent
-                                    abi={abiLogic}
-                                    selectedFunction={selectedLogicMethod}
-                                    onCalldataChange={setCalldata}
-                                />
-                            )}
-                        </div>
-                    )}
-
-                    {selectedMethodType === "custom" && (
-                        <div className="mt-4">
-                            <Textarea
-                                placeholder="Enter your ABI JSON here..."
-                                className="min-h-[200px] font-mono text-sm"
-                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                                    try {
-                                        const abi = JSON.parse(e.target.value);
-                                        const filteredAbi = abi.filter((item: any) =>
-                                            item.type === 'function' && item.stateMutability != 'view'
-                                        );
-                                        setCustomAbi(filteredAbi);
-                                    } catch (error) {
-                                        console.error('Invalid JSON:', error);
-                                        setCustomAbi([]);
-                                    }
-                                }}
-                            />
-                            <p className="mt-2 text-sm text-gray-500">
-                                Enter your ABI in JSON format. Example: [&#123;"type": "function", "name": "transfer", "inputs": [...]&#125;]
-                            </p>
-                            {customAbi.length > 0 && (
-                                <div className="mt-4">
-                                    <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
-                                    <Select
-                                        value={selectedCustomMethod}
-                                        onValueChange={(value) => {
-                                            setSelectedCustomMethod(value);
-                                            setMethod(value);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
-                                            <SelectValue placeholder="Select a function from your custom ABI..." />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[300px] overflow-y-auto">
-                                            {customAbi.map((func: any) => {
-                                                const paramTypes = func.inputs.map((input: any) => input.type).join(',');
-                                                const selector = `${func.name}(${paramTypes})`;
-                                                return (
-                                                    <SelectItem key={selector} value={selector}>
-                                                        {selector}
-                                                    </SelectItem>
-                                                );
-                                            })}
-                                        </SelectContent>
-                                    </Select>
-                                    {selectedCustomMethod && (
-                                        <CalldataComponent
-                                            abi={customAbi}
-                                            selectedFunction={selectedCustomMethod}
-                                            onCalldataChange={setCalldata}
-                                        />
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {selectedMethodType === "predefined" && selectedPredefinedMethod && (
-                        <div className="mt-4">
-                            <p className="text-sm text-purple-600 mb-2">Select a function to execute</p>
-                            <Select
-                                value={selectedProxyMethod}
-                                onValueChange={(value) => {
-                                    setSelectedProxyMethod(value);
-                                    setMethod(value);
-                                }}
-                                defaultValue=""
-                            >
-                                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
-                                    <SelectValue placeholder="Select the contract method..." />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px] overflow-y-auto">
-                                    {selectedPredefinedMethod.abi.map((func: any) => {
-                                        const paramTypes = func.inputs.map((input: any) => input.type).join(',');
-                                        const selector = `${func.name}(${paramTypes})`;
-                                        return (
-                                            <SelectItem key={selector} value={selector}>
-                                                {selector}
-                                            </SelectItem>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                            <div className="flex items-center mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md">
-                                <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
-                                This ABI is a standard. Please, be sure the smart contract implements the method you selected.
-                            </div>
-                            {selectedProxyMethod && (
-                                <CalldataComponent
-                                    abi={selectedPredefinedMethod.abi}
-                                    selectedFunction={selectedProxyMethod}
-                                    onCalldataChange={setCalldata}
-                                />
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                <Button
-                    onClick={handleAddAction}
-                    className="w-full mt-4"
-                    disabled={!contractAddress || !method || !calldata}
-                >
-                    Add Action
-                </Button>
-            </div>
+      <div className="space-y-6">
+        <div>
+          <label className="block text-lg font-semibold text-gray-900 mb-2">
+            Target contract address
+          </label>
+          <Input
+            value={contractAddress}
+            onChange={(e) => setContractAddress(e.target.value)}
+            placeholder="Enter the target contract address"
+            className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+          />
+          <RequiredContractAddress
+            value={contractAddress}
+            setAbiProxy={setAbiProxy}
+            setAbiLogic={setAbiLogic}
+          />
         </div>
-    )
+
+        <div>
+          <label className="block text-lg font-semibold text-gray-900 mb-4">
+            Contract method
+          </label>
+          <RadioGroup
+            defaultValue={selectedMethodType}
+            value={selectedMethodType}
+            onValueChange={(value) => {
+              setSelectedMethodType(value);
+              if (value === "proxy") {
+                setSelectedProxyMethod("");
+              }
+            }}
+            className="space-y-2"
+          >
+            {abiProxy.length > 0 && (
+              <div className="relative">
+                <RadioGroupItem1
+                  value="proxy"
+                  id="proxy"
+                  className="peer sr-only"
+                  selectedMethodType={selectedMethodType}
+                  text={
+                    abiLogic.length === 0
+                      ? "Select from contract"
+                      : "Select from Proxy contract"
+                  }
+                />
+              </div>
+            )}
+            {abiLogic.length > 0 && (
+              <div className="relative">
+                <RadioGroupItem1
+                  value="logic"
+                  id="logic"
+                  className="peer sr-only"
+                  selectedMethodType={selectedMethodType}
+                  text="Select from Logic contract"
+                />
+              </div>
+            )}
+            <div className="relative">
+              <RadioGroupItem
+                value="predefined"
+                id="predefined"
+                className="peer sr-only"
+              />
+              <label
+                htmlFor="predefined"
+                className={`flex flex-col p-2 border rounded-lg cursor-pointer transition-colors ${
+                  selectedMethodType === "predefined"
+                    ? "border-purple-200 bg-purple-50/50"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <div className="flex items-center">
+                  <div
+                    className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                      selectedMethodType === "predefined"
+                        ? "border-purple-300"
+                        : ""
+                    }`}
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                        selectedMethodType === "predefined"
+                          ? "scale-100"
+                          : "scale-0"
+                      }`}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-900">
+                    Select from predefined methods
+                  </span>
+                </div>
+                {selectedMethodType === "predefined" && (
+                  <div className="mt-2 ml-6">
+                    <Select
+                      onValueChange={(value) => {
+                        const selectedMethod = predefinedMethods.find(
+                          (method) => method.id === value
+                        );
+                        if (selectedMethod) {
+                          setSelectedPredefinedMethod(selectedMethod);
+                          setSelectedProxyMethod("");
+                          setMethod("");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                        <SelectValue placeholder="Select from predefined methods..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {predefinedMethods.map((method) => (
+                          <SelectItem key={method.id} value={method.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{method.name}</span>
+                              {method.description && (
+                                <span className="text-gray-500">
+                                  - {method.description}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </label>
+            </div>
+            <div className="relative">
+              <RadioGroupItem
+                value="custom"
+                id="custom"
+                className="peer sr-only"
+              />
+              <label
+                htmlFor="custom"
+                className={`flex items-center p-2 border rounded-lg cursor-pointer transition-colors ${
+                  selectedMethodType === "custom"
+                    ? "border-purple-200 bg-purple-50/50"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 border-2 rounded-full mr-2 flex items-center justify-center ${
+                    selectedMethodType === "custom" ? "border-purple-300" : ""
+                  }`}
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full bg-purple-400 transition-transform duration-200 ${
+                      selectedMethodType === "custom" ? "scale-100" : "scale-0"
+                    }`}
+                  />
+                </div>
+                <span className="text-sm text-gray-900">Upload custom ABI</span>
+              </label>
+            </div>
+          </RadioGroup>
+
+          {selectedMethodType === "proxy" && abiProxy.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-purple-600 mb-2">
+                Select a function to execute
+              </p>
+              <Select
+                value={selectedProxyMethod}
+                onValueChange={(value) => {
+                  setSelectedProxyMethod(value);
+                  setMethod(value);
+                }}
+                defaultValue=""
+              >
+                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                  <SelectValue placeholder="Select the contract method..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  {abiProxy.map((func: any) => {
+                    const paramTypes = func.inputs
+                      .map((input: any) => input.type)
+                      .join(",");
+                    const selector = `${func.name}(${paramTypes})`;
+                    return (
+                      <SelectItem key={selector} value={selector}>
+                        {selector}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedProxyMethod && (
+                <CalldataComponent
+                  abi={abiProxy}
+                  selectedFunction={selectedProxyMethod}
+                  onCalldataChange={setCalldata}
+                />
+              )}
+            </div>
+          )}
+
+          {selectedMethodType === "logic" && abiLogic.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-purple-600 mb-2">
+                Select a function to execute
+              </p>
+              <Select
+                value={selectedLogicMethod}
+                onValueChange={(value) => {
+                  setSelectedLogicMethod(value);
+                  setMethod(value);
+                }}
+                defaultValue=""
+              >
+                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                  <SelectValue placeholder="Select the contract method..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  {abiLogic.map((func: any) => {
+                    const paramTypes = func.inputs
+                      .map((input: any) => input.type)
+                      .join(",");
+                    const selector = `${func.name}(${paramTypes})`;
+                    return (
+                      <SelectItem key={selector} value={selector}>
+                        {selector}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedLogicMethod && (
+                <CalldataComponent
+                  abi={abiLogic}
+                  selectedFunction={selectedLogicMethod}
+                  onCalldataChange={setCalldata}
+                />
+              )}
+            </div>
+          )}
+
+          {selectedMethodType === "predefined" && selectedPredefinedMethod && (
+            <div className="mt-4">
+              <p className="text-sm text-purple-600 mb-2">
+                Select a function to execute
+              </p>
+              <Select
+                value={selectedProxyMethod}
+                onValueChange={(value) => {
+                  setSelectedProxyMethod(value);
+                  setMethod(value);
+                }}
+                defaultValue=""
+              >
+                <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                  <SelectValue placeholder="Select the contract method..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
+                  {selectedPredefinedMethod.abi.map((func: any) => {
+                    const paramTypes = func.inputs
+                      .map((input: any) => input.type)
+                      .join(",");
+                    const selector = `${func.name}(${paramTypes})`;
+                    return (
+                      <SelectItem key={selector} value={selector}>
+                        {selector}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center mt-2 text-sm text-amber-700 bg-amber-50 p-2 rounded-md">
+                <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
+                This ABI is a standard. Please, be sure the smart contract
+                implements the method you selected.
+              </div>
+              {selectedProxyMethod && (
+                <CalldataComponent
+                  abi={selectedPredefinedMethod.abi}
+                  selectedFunction={selectedProxyMethod}
+                  onCalldataChange={setCalldata}
+                />
+              )}
+            </div>
+          )}
+
+          {selectedMethodType === "custom" && (
+            <div className="mt-4 space-y-3">
+              <Textarea
+                placeholder="Enter your ABI JSON here..."
+                className="min-h-[200px] font-mono text-sm"
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                  try {
+                    const abi = JSON.parse(e.target.value);
+                    const filteredAbi = abi.filter(
+                      (item: any) =>
+                        item.type === "function" &&
+                        item.stateMutability != "view"
+                    );
+                    setCustomAbi(filteredAbi);
+                  } catch (error) {
+                    console.error("Invalid JSON:", error);
+                    setCustomAbi([]);
+                  }
+                }}
+              />
+              <p className="text-sm text-gray-500">
+                Enter your ABI in JSON format. Example: [&#123;"type":
+                "function", "name": "transfer", "inputs": [...]&#125;]
+              </p>
+              {customAbi.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm text-purple-600 mb-2">
+                    Select a function to execute
+                  </p>
+                  <Select
+                    value={selectedCustomMethod}
+                    onValueChange={(value) => {
+                      setSelectedCustomMethod(value);
+                      setMethod(value);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-purple-50 border-2 border-purple-300 focus:border-purple-500 focus:ring-purple-500 shadow-sm">
+                      <SelectValue placeholder="Select a function from your custom ABI..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px] overflow-y-auto">
+                      {customAbi.map((func: any) => {
+                        const paramTypes = func.inputs
+                          .map((input: any) => input.type)
+                          .join(",");
+                        const selector = `${func.name}(${paramTypes})`;
+                        return (
+                          <SelectItem key={selector} value={selector}>
+                            {selector}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {selectedCustomMethod && (
+                    <CalldataComponent
+                      abi={customAbi}
+                      selectedFunction={selectedCustomMethod}
+                      onCalldataChange={setCalldata}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <Button
+          onClick={handleAddAction}
+          className="w-full mt-4"
+          disabled={!contractAddress || !method || !calldata}
+        >
+          Add Action
+        </Button>
+      </div>
+    </div>
+  );
 }
