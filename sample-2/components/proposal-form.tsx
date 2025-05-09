@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useState } from "react";
+import React, { Component, useState } from "react";
 import {
   Bold,
   ChevronDown,
@@ -24,6 +24,7 @@ import {
   BarChart2,
   ExternalLink,
   Loader2,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProposalInfoButton } from "@/components/ui/proposal-info-button";
@@ -50,11 +51,12 @@ interface Action {
   method: string;
   calldata: string;
   sendEth: boolean;
-  simulationResult?: "Passed" | "Failed" | "Simulating...";
+  simulationResult?: "Passed" | "Failed" | "Simulating..." | "Pending";
   tenderlyUrl?: string;
   type?: string;
   gasUsed?: string;
   errorMessage?: string;
+  logs?: string[];
 }
 
 interface ProposalFormState {
@@ -71,9 +73,15 @@ interface ProposalFormState {
   showImpactOverview: boolean;
   simulationStep: "initial" | "results";
   simulatedActions: Action[];
+  generalSimulationLogs: string[];
+  eventSourceInstance: EventSource | null;
+  pendingText: string;
+  expandedActionLogs: { [actionId: string]: boolean };
 }
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
+  private pendingAnimationInterval: NodeJS.Timeout | null = null;
+
   constructor(props: {}) {
     super(props);
     this.state = {
@@ -90,6 +98,10 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       showImpactOverview: false,
       simulationStep: "initial",
       simulatedActions: [],
+      generalSimulationLogs: [],
+      eventSourceInstance: null,
+      pendingText: "Pending...",
+      expandedActionLogs: {},
     };
     this.handleValidBaseInput = this.handleValidBaseInput.bind(this);
     this.handleAddAction = this.handleAddAction.bind(this);
@@ -101,13 +113,26 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     this.handleSimulateExecutionClick =
       this.handleSimulateExecutionClick.bind(this);
     this.resetToDefaultView = this.resetToDefaultView.bind(this);
+    this.toggleActionLogs = this.toggleActionLogs.bind(this);
   }
 
   componentDidMount() {
-    // DOM에 랜더링 된 후, 실행
+    let dotCount = 0;
+    this.pendingAnimationInterval = setInterval(() => {
+      dotCount = (dotCount % 3) + 1;
+      this.setState({ pendingText: `Pending${Array(dotCount + 1).join(".")}` });
+    }, 500);
   }
 
-  componentWillUnmount() {}
+  componentWillUnmount() {
+    if (this.state.eventSourceInstance) {
+      this.state.eventSourceInstance.close();
+      console.log("SSE connection closed on component unmount.");
+    }
+    if (this.pendingAnimationInterval) {
+      clearInterval(this.pendingAnimationInterval);
+    }
+  }
 
   handleValidBaseInput() {
     this.setState((prevState) => ({
@@ -170,7 +195,6 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
   handleImpactOverviewClick = () => {
     const { title, description, actions } = this.state;
 
-    // Proposal Info 유효성 검사
     if (!title.trim() || !description.trim()) {
       alert(
         "Please enter the Proposal Title and Description before viewing the impact overview."
@@ -195,38 +219,49 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
   };
 
   handleSimulateExecutionClick = async () => {
+    if (this.state.eventSourceInstance) {
+      this.state.eventSourceInstance.close();
+      this.setState({ eventSourceInstance: null });
+    }
+
     const initialSimActions = this.state.actions.map((action) => ({
       ...action,
-      simulationResult: "Simulating..." as "Simulating...",
+      simulationResult: "Pending" as "Pending",
       gasUsed: "",
       errorMessage: "",
+      logs: [],
     }));
 
     this.setState({
       simulationStep: "results",
       simulatedActions: initialSimActions,
+      generalSimulationLogs: ["Connecting to simulation server..."],
+      expandedActionLogs: {},
     });
-
-    console.log("Simulate execution button clicked. Sending request to API...");
 
     const daoAddress = process.env.NEXT_PUBLIC_DAO_CONTRACT_ADDRESS;
     const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
     const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
 
     if (!daoAddress || !forkRpc || !localRpc) {
-      alert(
-        "Required environment variables are not set. Please check your .env.local file (NEXT_PUBLIC_RPC_URL, NEXT_PUBLIC_DAO_CONTRACT_ADDRESS, NEXT_PUBLIC_LOCALHOST_RPC_URL)."
-      );
-      this.setState({ simulationStep: "initial", simulatedActions: [] });
+      alert("Required environment variables are not set.");
+      const errorActions = this.state.actions.map((a) => ({
+        ...a,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: "Config error",
+      }));
+      this.setState({
+        simulationStep: "results",
+        simulatedActions: errorActions,
+        generalSimulationLogs: ["Configuration error. Check .env.local file."],
+      });
       return;
     }
 
     try {
       const response = await fetch("/api/simulate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           actions: this.state.actions,
           daoContractAddress: daoAddress,
@@ -237,33 +272,247 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
 
       if (!response.ok) {
         const errorData = await response.json();
-        const failedSimActions = this.state.actions.map((action) => ({
-          ...action,
-          simulationResult: "Failed" as "Failed",
-          errorMessage:
-            errorData.message ||
-            `API request failed with status ${response.status}`,
-        }));
-        this.setState({ simulatedActions: failedSimActions });
-        throw new Error(
+        const errorMsg =
           errorData.message ||
-            `API request failed with status ${response.status}`
-        );
+          `API request failed with status ${response.status}`;
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage:
+              sa.simulationResult === "Pending" ||
+              sa.simulationResult === "Simulating..."
+                ? errorMsg
+                : sa.errorMessage,
+            logs: [...(sa.logs || []), `API Request Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Error: ${errorMsg}`,
+          ],
+        }));
+        throw new Error(errorMsg);
       }
 
-      const data = await response.json();
-      this.setState({
-        simulatedActions: data.simulatedActions || [],
+      if (!response.body) {
+        throw new Error("Response body is null");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let firstLogReceived = false;
+
+      const processStream = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log("Stream finished.");
+            const finalLogs = this.state.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            );
+            if (
+              this.state.generalSimulationLogs.some(
+                (log) =>
+                  log.startsWith("Error:") ||
+                  log.startsWith("Critical Error:") ||
+                  log.startsWith("Stream Error:") ||
+                  log.startsWith("Initialization Error:")
+              ) === false
+            ) {
+              this.setState({
+                generalSimulationLogs: [
+                  ...finalLogs,
+                  "Simulation process completed.",
+                ],
+              });
+            }
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          console.log("[FRONTEND SSE BUFFER AFTER DECODE]", buffer);
+
+          if (!firstLogReceived && buffer.length > 0) {
+            firstLogReceived = true;
+            this.setState({
+              generalSimulationLogs: this.state.generalSimulationLogs.filter(
+                (log) => log !== "Connecting to simulation server..."
+              ),
+            });
+          }
+
+          let eventEndIndex = buffer.indexOf("\n\n");
+          while (eventEndIndex !== -1) {
+            const eventString = buffer.substring(0, eventEndIndex);
+            buffer = buffer.substring(eventEndIndex + 2);
+            console.log(
+              "[FRONTEND SSE RAW EVENT STRING]",
+              JSON.stringify(eventString)
+            );
+
+            let eventName = "message";
+            let eventDataString = eventString;
+
+            if (eventString.startsWith("event:")) {
+              const firstNewline = eventString.indexOf("\n");
+              eventName = eventString
+                .substring("event:".length, firstNewline)
+                .trim();
+              eventDataString = eventString.substring(firstNewline + 1);
+            }
+            if (eventDataString.startsWith("data:")) {
+              eventDataString = eventDataString
+                .substring("data:".length)
+                .trim();
+            }
+
+            console.log("[FRONTEND SSE PARSED EVENT INFO]", {
+              eventName,
+              eventDataString,
+            });
+
+            try {
+              const parsedData = JSON.parse(eventDataString);
+              console.log("[FRONTEND SSE JSON PARSED DATA]", parsedData);
+
+              if (eventName === "log") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] log - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+              } else if (eventName === "actionLog") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionLog - ActionID:",
+                  parsedData.actionId,
+                  "Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((action) =>
+                    action.id === parsedData.actionId
+                      ? {
+                          ...action,
+                          logs: [...(action.logs || []), parsedData.message],
+                        }
+                      : action
+                  ),
+                }));
+              } else if (eventName === "actionUpdate") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionUpdate - ActionID:",
+                  parsedData.action.id,
+                  "Data:",
+                  parsedData.action
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => {
+                    if (sa.id === parsedData.action.id) {
+                      const currentLogs = sa.logs || [];
+                      return {
+                        ...sa,
+                        ...parsedData.action,
+                        logs: parsedData.action.logs || currentLogs,
+                        simulationResult: parsedData.action.simulationResult,
+                      };
+                    }
+                    return sa;
+                  }),
+                }));
+              } else if (eventName === "error") {
+                const errorDetail = parsedData.detail || parsedData.message;
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] error - Detail:",
+                  errorDetail
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => ({
+                    ...sa,
+                    simulationResult:
+                      sa.simulationResult === "Pending" ||
+                      sa.simulationResult === "Simulating..."
+                        ? "Failed"
+                        : sa.simulationResult,
+                    errorMessage: sa.errorMessage || errorDetail,
+                    logs: [...(sa.logs || []), `SSE Error: ${errorDetail}`],
+                  })),
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    `Critical Error: ${errorDetail}`,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              } else if (eventName === "simulationComplete") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] simulationComplete - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              }
+            } catch (e) {
+              console.error(
+                "[FRONTEND SSE ERROR] Error parsing JSON or in handler:",
+                eventDataString,
+                e
+              );
+            }
+            eventEndIndex = buffer.indexOf("\n\n");
+          }
+        }
+      };
+      processStream().catch((streamError) => {
+        const errorMsg = streamError.message || "Stream processing error.";
+        console.error("Stream processing error:", streamError);
+        alert(`Error processing simulation stream: ${errorMsg}`);
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage: errorMsg,
+            logs: [...(sa.logs || []), `Stream Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Stream Error: ${errorMsg}`,
+          ],
+        }));
       });
     } catch (error: any) {
-      console.error("Simulation request failed:", error);
-      alert(`Simulation failed: ${error.message}`);
+      const errorMsg = error.message || "Simulation initialization failed.";
+      console.error("Initial fetch POST failed:", error);
+      alert(`Simulation initialization failed: ${errorMsg}`);
       const errorSimActions = this.state.actions.map((action) => ({
         ...action,
         simulationResult: "Failed" as "Failed",
-        errorMessage: error.message || "Simulation process failed.",
+        errorMessage: errorMsg,
+        logs: [...(action.logs || []), `Initialization Error: ${errorMsg}`],
       }));
-      this.setState({ simulatedActions: errorSimActions }); // Ensure simulationStep remains 'results' to show errors
+      this.setState({
+        simulatedActions: errorSimActions,
+        generalSimulationLogs: [
+          ...this.state.generalSimulationLogs.filter(
+            (log) => log !== "Connecting to simulation server..."
+          ),
+          `Initialization Error: ${errorMsg}`,
+        ],
+      });
     }
   };
 
@@ -277,10 +526,18 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     });
   };
 
+  toggleActionLogs = (actionId: string) => {
+    this.setState((prevState) => ({
+      expandedActionLogs: {
+        ...prevState.expandedActionLogs,
+        [actionId]: !prevState.expandedActionLogs[actionId],
+      },
+    }));
+  };
+
   render() {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
-        {/* Main content */}
         <main className="flex-1 container mx-auto px-4 py-6">
           <div className="flex justify-between mb-6">
             <Tabs
@@ -332,7 +589,6 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Left sidebar */}
             <div className="space-y-4">
               <ProposalInfoButton
                 title={this.state.title}
@@ -403,7 +659,6 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
               </Button>
             </div>
 
-            {/* Main content */}
             <div className="md:col-span-2">
               {this.state.showImpactOverview ? (
                 this.state.simulationStep === "initial" ? (
@@ -424,9 +679,20 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                 ) : (
                   <div className="flex-1 p-6">
                     <div className="max-w-4xl">
-                      <h1 className="text-xl font-semibold mb-1">
-                        Simulations
-                      </h1>
+                      <div className="flex justify-between items-center mb-1">
+                        <h1 className="text-xl font-semibold">Simulations</h1>
+                      </div>
+                      {this.state.generalSimulationLogs.length > 0 && (
+                        <div className="mb-4 p-3 bg-gray-800 text-gray-200 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
+                          {this.state.generalSimulationLogs.map(
+                            (log, index) => (
+                              <p key={index} className="whitespace-pre-wrap">
+                                {log}
+                              </p>
+                            )
+                          )}
+                        </div>
+                      )}
                       <p className="text-gray-500 mb-4">
                         Detailed simulation results per proposal action provided
                         by Tenderly
@@ -435,7 +701,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                         <table className="w-full">
                           <thead>
                             <tr className="bg-gray-50 border-b">
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-16">
                                 Action #
                               </th>
                               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
@@ -447,73 +713,101 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                               <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
                                 Gas Used
                               </th>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                                Error
+                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-12">
+                                Logs
                               </th>
                             </tr>
                           </thead>
                           <tbody>
                             {this.state.simulatedActions.map(
                               (action, index) => (
-                                <tr className="border-b" key={action.id}>
-                                  <td className="px-4 py-3 text-sm">
-                                    {index + 1}
-                                  </td>
-                                  <td className="px-4 py-3 text-sm">
-                                    {action.title}
-                                  </td>
-                                  <td className="px-4 py-3 text-sm">
-                                    <div className="flex items-center">
-                                      {action.simulationResult ===
-                                      "Simulating..." ? (
-                                        <>
-                                          <Loader2 className="w-4 h-4 mr-2 animate-spin text-gray-400" />
+                                <React.Fragment key={action.id}>
+                                  <tr className="border-b">
+                                    <td className="px-4 py-3 text-sm w-16">
+                                      {index + 1}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm">
+                                      {action.title}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm">
+                                      <div className="flex items-center">
+                                        {action.simulationResult ===
+                                        "Pending" ? (
                                           <span className="text-gray-500">
-                                            Simulating...
+                                            {this.state.pendingText}
                                           </span>
-                                        </>
-                                      ) : action.simulationResult ===
-                                        "Passed" ? (
-                                        <>
-                                          <div className="w-2 h-2 rounded-full mr-2 bg-emerald-400"></div>
-                                          <span className="text-emerald-500">
-                                            Passed
+                                        ) : action.simulationResult ===
+                                          "Simulating..." ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin text-gray-400" />
+                                            <span className="text-gray-500">
+                                              Simulating...
+                                            </span>
+                                          </>
+                                        ) : action.simulationResult ===
+                                          "Passed" ? (
+                                          <>
+                                            <div className="w-2 h-2 rounded-full mr-2 bg-emerald-400"></div>
+                                            <span className="text-emerald-500">
+                                              Passed
+                                            </span>
+                                          </>
+                                        ) : action.simulationResult ===
+                                          "Failed" ? (
+                                          <>
+                                            <div className="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
+                                            <span className="text-red-500">
+                                              Failed
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="text-gray-500">
+                                            -
                                           </span>
-                                        </>
-                                      ) : action.simulationResult ===
-                                        "Failed" ? (
-                                        <>
-                                          <div className="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
-                                          <span className="text-red-500">
-                                            Failed
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <span className="text-gray-500">-</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm font-mono">
-                                    {action.gasUsed || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-red-500">
-                                    {action.errorMessage || "-"}
-                                  </td>
-                                </tr>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm font-mono">
+                                      {action.gasUsed || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-center w-12">
+                                      {action.logs &&
+                                        action.logs.length > 0 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() =>
+                                              this.toggleActionLogs(action.id)
+                                            }
+                                            className="h-8 w-8"
+                                          >
+                                            {this.state.expandedActionLogs[
+                                              action.id
+                                            ] ? (
+                                              <ChevronUp className="h-4 w-4" />
+                                            ) : (
+                                              <ChevronDown className="h-4 w-4" />
+                                            )}
+                                          </Button>
+                                        )}
+                                    </td>
+                                  </tr>
+                                  {this.state.expandedActionLogs[action.id] &&
+                                    action.logs &&
+                                    action.logs.length > 0 && (
+                                      <tr className="border-b bg-gray-900 text-gray-200">
+                                        <td colSpan={5} className="p-0">
+                                          <pre className="text-xs whitespace-pre-wrap p-3 m-0 overflow-x-auto max-h-48">
+                                            {action.logs.join("\n")}
+                                          </pre>
+                                        </td>
+                                      </tr>
+                                    )}
+                                </React.Fragment>
                               )
                             )}
                           </tbody>
                         </table>
-                      </div>
-                      <h2 className="text-xl font-semibold mb-1">
-                        Threat analysis
-                      </h2>
-                      <p className="text-gray-500 mb-4">
-                        A full risk analysis model of the proposal actions +
-                        risk severity
-                      </p>
-                      <div className="border rounded-md p-4">
-                        <p className="text-gray-500">Unavailable</p>
                       </div>
                     </div>
                   </div>
