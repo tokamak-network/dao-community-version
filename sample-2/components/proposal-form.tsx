@@ -20,11 +20,12 @@ import {
   Table,
   Underline,
   Undo,
-  Upload,
+  Import,
   BarChart2,
   ExternalLink,
   Loader2,
   ChevronUp,
+  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProposalInfoButton } from "@/components/ui/proposal-info-button";
@@ -129,6 +130,8 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     this.resetToDefaultView = this.resetToDefaultView.bind(this);
     this.toggleActionLogs = this.toggleActionLogs.bind(this);
     this.handleActionCardClick = this.handleActionCardClick.bind(this);
+    this.handleSaveLocally = this.handleSaveLocally.bind(this);
+    this.handleLoadFromFile = this.handleLoadFromFile.bind(this);
   }
 
   componentDidMount() {
@@ -585,6 +588,53 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     });
   };
 
+  handleSaveLocally = () => {
+    const proposalData = {
+      title: this.state.title,
+      description: this.state.description,
+      snapshotUrl: this.state.snapshotUrl,
+      discourseUrl: this.state.discourseUrl,
+      actions: this.state.actions,
+    };
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const blob = new Blob([JSON.stringify(proposalData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `proposal-${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  handleLoadFromFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const proposalData = JSON.parse(e.target?.result as string);
+        this.setState({
+          title: proposalData.title || "",
+          description: proposalData.description || " ",
+          snapshotUrl: proposalData.snapshotUrl || "",
+          discourseUrl: proposalData.discourseUrl || "",
+          actions: proposalData.actions || [],
+        });
+      } catch (error) {
+        alert(
+          "Error loading proposal file. Please make sure it's a valid proposal JSON file."
+        );
+      }
+    };
+    reader.readAsText(file);
+  };
+
   render() {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
@@ -622,18 +672,33 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
             </Tabs>
 
             <div className="flex items-center space-x-2">
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={this.handleLoadFromFile}
+                  className="hidden"
+                  id="proposal-file-input"
+                />
+                <Button
+                  size="sm"
+                  className="bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-md"
+                  onClick={() =>
+                    document.getElementById("proposal-file-input")?.click()
+                  }
+                >
+                  <Import className="w-4 h-4 mr-2" />
+                  Load from File
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="text-sm rounded-md"
+                onClick={this.handleSaveLocally}
               >
-                Save draft
-              </Button>
-              <Button
-                size="sm"
-                className="bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-md"
-              >
-                Publish
+                <Save className="w-4 h-4 mr-2" />
+                Save Locally
               </Button>
             </div>
           </div>

@@ -274,7 +274,7 @@ export function ProposalPreview({
           >
             {isPublishing || isTransactionPending
               ? "Publishing..."
-              : "Publish Proposal"}
+              : "Submit Proposal"}
           </Button>
         </div>
       </div>
