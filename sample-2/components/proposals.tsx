@@ -1,20 +1,279 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // import Header from "@/components/header"
 import Navbar from "@/components/navbar";
 import Link from "next/link";
+import ProposalLists from "./proposal-lists";
+import { useContractRead, useContractReads } from "wagmi";
+
+const DAO_AGENDA_MANAGER_ADDRESS = process.env
+  .NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS as `0x${string}`;
+
+const DAO_COMMITTEE_PROXY_ADDRESS = process.env
+  .NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`;
+
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
+
+const DAO_AGENDA_MANAGER_ABI = [
+  {
+    inputs: [],
+    name: "numAgendas",
+    outputs: [{ type: "uint256", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ type: "uint256", name: "_index" }],
+    name: "agendas",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "createdTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "noticeEndTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "votingPeriodInSeconds",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "votingStartedTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "votingEndTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "executableLimitTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "executedTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "countingYes",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "countingNo",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "countingAbstain",
+            type: "uint256",
+          },
+          {
+            internalType: "enum LibAgenda.AgendaStatus",
+            name: "status",
+            type: "uint8",
+          },
+          {
+            internalType: "enum LibAgenda.AgendaResult",
+            name: "result",
+            type: "uint8",
+          },
+          {
+            internalType: "address[]",
+            name: "voters",
+            type: "address[]",
+          },
+          {
+            internalType: "bool",
+            name: "executed",
+            type: "bool",
+          },
+        ],
+        internalType: "struct LibAgenda.Agenda",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+const AgendaStatus = {
+  NOTICE: 0,
+  VOTING: 1,
+  EXECUTABLE: 2,
+  EXECUTED: 3,
+  REJECTED: 4,
+  CANCELLED: 5,
+} as const;
+
+const AgendaResult = {
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2,
+  CANCELLED: 3,
+} as const;
+
+interface Agenda {
+  id: number;
+  createdTimestamp: bigint;
+  noticeEndTimestamp: bigint;
+  votingPeriodInSeconds: bigint;
+  votingStartedTimestamp: bigint;
+  votingEndTimestamp: bigint;
+  executableLimitTimestamp: bigint;
+  executedTimestamp: bigint;
+  countingYes: bigint;
+  countingNo: bigint;
+  countingAbstain: bigint;
+  status: number;
+  result: number;
+  voters: string[];
+  executed: boolean;
+}
+
+type AgendaContractResult = [
+  bigint, // createdTimestamp
+  bigint, // noticeEndTimestamp
+  bigint, // votingPeriodInSeconds
+  bigint, // votingStartedTimestamp
+  bigint, // votingEndTimestamp
+  bigint, // executableLimitTimestamp
+  bigint, // executedTimestamp
+  bigint, // countingYes
+  bigint, // countingNo
+  bigint, // countingAbstain
+  number, // status
+  number, // result
+  string[], // voters
+  boolean // executed
+];
 
 export default function Proposals() {
   const [activeTab, setActiveTab] = useState("onchain");
+  const [daoProposalIds, setDaoProposalIds] = useState<number[]>([]);
+  const [agendas, setAgendas] = useState<Agenda[]>([]);
+
+  const {
+    data: agendaCount,
+    isError,
+    error,
+    isLoading,
+  } = useContractRead({
+    address: DAO_AGENDA_MANAGER_ADDRESS,
+    abi: DAO_AGENDA_MANAGER_ABI,
+    functionName: "numAgendas",
+    chainId: CHAIN_ID,
+  });
+
+  useEffect(() => {
+    console.log("Component mounted");
+    console.log("DAO_AGENDA_MANAGER_ADDRESS:", DAO_AGENDA_MANAGER_ADDRESS);
+    console.log("Current agendaCount:", agendaCount);
+    console.log("Is loading:", isLoading);
+    if (isError) {
+      console.error("Contract read error:", error);
+    }
+  }, [isLoading, isError, error]);
+
+  useEffect(() => {
+    console.log("agendaCount changed:", agendaCount);
+    if (agendaCount) {
+      console.log(
+        "Total number of agendas from contract:",
+        Number(agendaCount)
+      );
+      const count = Number(agendaCount);
+      const ids = Array.from({ length: count }, (_, i) => count - i - 1);
+      console.log("DAO Agenda IDs:", ids);
+      setDaoProposalIds(ids);
+    } else {
+      console.log("agendaCount is undefined or null");
+    }
+  }, [agendaCount]);
+
+  const {
+    data: agendaDetails,
+    isError: isAgendaDetailsError,
+    error: agendaDetailsError,
+    isLoading: isAgendaDetailsLoading,
+  } = useContractReads({
+    contracts: daoProposalIds.map((id) => ({
+      address: DAO_AGENDA_MANAGER_ADDRESS,
+      abi: DAO_AGENDA_MANAGER_ABI,
+      functionName: "agendas",
+      args: [id],
+      chainId: CHAIN_ID,
+    })),
+  });
+
+  useEffect(() => {
+    console.log("agendaDetails changed:", agendaDetails);
+    console.log("isAgendaDetailsLoading:", isAgendaDetailsLoading);
+    if (isAgendaDetailsError) {
+      console.error("Agenda details error:", agendaDetailsError);
+    }
+    if (agendaDetails) {
+      const agendaList = agendaDetails
+        .map((detail, index) => {
+          if (!detail.result) {
+            console.log(
+              `No result for agenda ${daoProposalIds[index]}:`,
+              detail
+            );
+            return null;
+          }
+          const result = detail.result as unknown as AgendaContractResult;
+          return {
+            id: daoProposalIds[index],
+            createdTimestamp: result[0],
+            noticeEndTimestamp: result[1],
+            votingPeriodInSeconds: result[2],
+            votingStartedTimestamp: result[3],
+            votingEndTimestamp: result[4],
+            executableLimitTimestamp: result[5],
+            executedTimestamp: result[6],
+            countingYes: result[7],
+            countingNo: result[8],
+            countingAbstain: result[9],
+            status: result[10],
+            result: result[11],
+            voters: result[12],
+            executed: result[13],
+          };
+        })
+        .filter((agenda): agenda is Agenda => agenda !== null);
+
+      console.log("Processed DAO Agendas:", agendaList);
+      setAgendas(agendaList);
+    }
+  }, [
+    agendaDetails,
+    daoProposalIds,
+    isAgendaDetailsError,
+    isAgendaDetailsLoading,
+  ]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Main Content */}
       <main className="flex-1 container mx-auto px-4 py-6">
+        <h1 className="text-2xl font-bold mb-6">Proposals</h1>
         <Tabs defaultValue="onchain" className="w-full">
           <div className="flex justify-between items-center mb-4">
             <TabsList className="bg-transparent p-0 h-auto">
@@ -30,6 +289,17 @@ export default function Proposals() {
                 Onchain
               </TabsTrigger>
               <TabsTrigger
+                value="dao"
+                className={`px-4 py-2 rounded-none border-b-2 ${
+                  activeTab === "dao"
+                    ? "border-purple-600 text-purple-600"
+                    : "border-transparent"
+                }`}
+                onClick={() => setActiveTab("dao")}
+              >
+                DAO
+              </TabsTrigger>
+              <TabsTrigger
                 value="drafts"
                 className={`px-4 py-2 rounded-none border-b-2 ${
                   activeTab === "drafts"
@@ -38,7 +308,7 @@ export default function Proposals() {
                 }`}
                 onClick={() => setActiveTab("drafts")}
               >
-                My Drafts
+                Offchain
               </TabsTrigger>
             </TabsList>
             <Link href="/proposals/new">
@@ -49,129 +319,55 @@ export default function Proposals() {
           </div>
 
           <TabsContent value="onchain" className="mt-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-sm text-gray-500 border-b">
-                    <th className="text-left py-4 font-medium">Proposal</th>
-                    <th className="text-right py-4 font-medium">Votes for</th>
-                    <th className="text-right py-4 font-medium">
-                      Votes against
-                    </th>
-                    <th className="text-right py-4 font-medium">Total votes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {proposals.map((proposal, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="py-4">
-                        <div className="flex flex-col">
-                          <h3 className="font-medium">{proposal.title}</h3>
-                          <div className="flex items-center mt-1">
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded ${getStatusClass(
-                                proposal.status
-                              )}`}
-                            >
-                              {proposal.status}
-                            </span>
-                            <span className="text-xs text-gray-500 ml-2">
-                              {proposal.date}
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500 mt-1">
-                            Tokamak Network Governor
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm font-medium text-green-500">
-                            {proposal.votesFor}
-                          </span>
-                          <div className="w-24 h-1 bg-gray-200 mt-1 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-green-500 rounded-full"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  (Number.parseFloat(
-                                    proposal.votesFor.replace(/,/g, "")
-                                  ) /
-                                    (Number.parseFloat(
-                                      proposal.votesFor.replace(/,/g, "")
-                                    ) +
-                                      Number.parseFloat(
-                                        proposal.votesAgainst.replace(
-                                          /,/g,
-                                          ""
-                                        ) || "0"
-                                      ))) *
-                                    100 || 100
-                                )}%`,
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex flex-col items-end">
-                          <span
-                            className={`text-sm font-medium ${
-                              Number.parseFloat(proposal.votesAgainst) > 0
-                                ? "text-red-500"
-                                : "text-gray-500"
-                            }`}
-                          >
-                            {proposal.votesAgainst}
-                          </span>
-                          {Number.parseFloat(proposal.votesAgainst) > 0 && (
-                            <div className="w-24 h-1 bg-gray-200 mt-1 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-red-500 rounded-full"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    (Number.parseFloat(
-                                      proposal.votesAgainst.replace(/,/g, "")
-                                    ) /
-                                      (Number.parseFloat(
-                                        proposal.votesFor.replace(/,/g, "")
-                                      ) +
-                                        Number.parseFloat(
-                                          proposal.votesAgainst.replace(
-                                            /,/g,
-                                            ""
-                                          )
-                                        ))) *
-                                      100 || 0
-                                  )}%`,
-                                }}
-                              ></div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm font-medium">
-                            {proposal.totalVotes}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {proposal.addresses} addresses
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold mb-4">Onchain Agendas</h2>
+              <ProposalLists proposals={proposals} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="dao">
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold mb-4">
+                DAO Agendas
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({agendas.length})
+                </span>
+              </h2>
+              <ProposalLists
+                proposals={agendas.map((agenda) => ({
+                  title: `Agenda #${agenda.id}`,
+                  status:
+                    agenda.status === AgendaStatus.EXECUTED
+                      ? "EXECUTED"
+                      : agenda.status === AgendaStatus.REJECTED
+                      ? "DEFEATED"
+                      : agenda.status === AgendaStatus.CANCELLED
+                      ? "CANCELLED"
+                      : agenda.status === AgendaStatus.EXECUTABLE
+                      ? "PENDING EXECUTION"
+                      : agenda.status === AgendaStatus.VOTING
+                      ? "ACTIVE"
+                      : "ACTIVE",
+                  date: formatDate(Number(agenda.createdTimestamp)),
+                  votesFor: Number(agenda.countingYes).toLocaleString(),
+                  votesAgainst: Number(agenda.countingNo).toLocaleString(),
+                  totalVotes: (
+                    Number(agenda.countingYes) +
+                    Number(agenda.countingNo) +
+                    Number(agenda.countingAbstain)
+                  ).toLocaleString(),
+                  addresses: `${agenda.voters?.length || 0} addresses`,
+                }))}
+              />
             </div>
           </TabsContent>
 
           <TabsContent value="drafts" className="mt-0">
-            <div className="flex items-center justify-center h-40 border rounded-md">
-              <p className="text-gray-500">No drafts available</p>
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold mb-4">Offchain Proposals</h2>
+              <p className="text-gray-500">
+                Offchain proposals will be displayed here.
+              </p>
             </div>
           </TabsContent>
         </Tabs>
@@ -289,3 +485,39 @@ const proposals = [
     addresses: "154 addresses",
   },
 ];
+
+function formatDate(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
+}
+
+function getOrdinalSuffix(day: number): string {
+  if (day > 3 && day < 21) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
