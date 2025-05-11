@@ -518,6 +518,20 @@ export function ProposalPreview({
     router.push("/proposals/edit?section=actions&mode=edit");
   };
 
+  // Check if all required proposal information exists
+  const hasRequiredProposalInfo =
+    title && description && title.trim() !== "" && description.trim() !== "";
+
+  // Check if there is at least one action
+  const hasActions = actions && actions.length > 0;
+
+  // Check if all DAO Agenda parameters are valid
+  const hasValidAgendaParams =
+    agendaFee &&
+    encodedData &&
+    agendaFee !== "Error fetching fee" &&
+    encodedData !== "Encoding parameters...";
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex justify-between items-start mb-6">
@@ -545,7 +559,13 @@ export function ProposalPreview({
         <div>
           <Button
             onClick={handlePublish}
-            disabled={txState === "submitting" || txState === "pending"}
+            disabled={
+              !hasRequiredProposalInfo ||
+              !hasActions ||
+              !hasValidAgendaParams ||
+              txState === "submitting" ||
+              txState === "pending"
+            }
             className="bg-purple-600 hover:bg-purple-700 text-white"
           >
             {txState === "submitting" && !showSuccessModal ? (
@@ -696,74 +716,78 @@ export function ProposalPreview({
         </div>
 
         {/* DAO Agenda Submission Parameters */}
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            DAO Agenda Submission Parameters
-          </h3>
-          <div className="border rounded-lg overflow-hidden">
-            <div className="p-4 space-y-4">
-              {/* TON Contract */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  TON Contract
-                </h4>
-                <div
-                  className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
-                  onClick={() => openEtherscan(TON_CONTRACT_ADDRESS)}
-                >
-                  {TON_CONTRACT_ADDRESS}
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </div>
-              </div>
-
-              {/* approveAndCall Function */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Function
-                </h4>
-                <div
-                  className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
-                  onClick={() =>
-                    openEtherscan(`${TON_CONTRACT_ADDRESS}#writeContract#F3`)
-                  }
-                >
-                  approveAndCall(address spender, uint256 amount, bytes data)
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </div>
-              </div>
-
-              {/* Function Parameters */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Function Parameters
-                </h4>
-                <div className="space-y-2">
-                  {/* spender */}
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">spender</div>
-                    <div
-                      className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
-                      onClick={() => openEtherscan(DAO_COMMITTEE_PROXY_ADDRESS)}
-                    >
-                      {DAO_COMMITTEE_PROXY_ADDRESS}
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </div>
+        {hasRequiredProposalInfo && hasActions && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              DAO Agenda Submission Parameters
+            </h3>
+            <div className="border rounded-lg overflow-hidden">
+              <div className="p-4 space-y-4">
+                {/* TON Contract */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    TON Contract
+                  </h4>
+                  <div
+                    className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                    onClick={() => openEtherscan(TON_CONTRACT_ADDRESS)}
+                  >
+                    {TON_CONTRACT_ADDRESS}
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </div>
+                </div>
 
-                  {/* amount */}
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">amount</div>
-                    <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                      {agendaFee ? `${agendaFee} TON` : "Loading..."}
-                    </div>
+                {/* approveAndCall Function */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Function
+                  </h4>
+                  <div
+                    className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                    onClick={() =>
+                      openEtherscan(`${TON_CONTRACT_ADDRESS}#writeContract#F3`)
+                    }
+                  >
+                    approveAndCall(address spender, uint256 amount, bytes data)
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </div>
+                </div>
 
-                  {/* data */}
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">data</div>
-                    <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                      <div className="break-all">
-                        {encodedData || "Encoding parameters..."}
+                {/* Function Parameters */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    Function Parameters
+                  </h4>
+                  <div className="space-y-2">
+                    {/* spender */}
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">spender</div>
+                      <div
+                        className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                        onClick={() =>
+                          openEtherscan(DAO_COMMITTEE_PROXY_ADDRESS)
+                        }
+                      >
+                        {DAO_COMMITTEE_PROXY_ADDRESS}
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </div>
+                    </div>
+
+                    {/* amount */}
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">amount</div>
+                      <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                        {agendaFee ? `${agendaFee} TON` : "Loading..."}
+                      </div>
+                    </div>
+
+                    {/* data */}
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">data</div>
+                      <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                        <div className="break-all">
+                          {encodedData || "Encoding parameters..."}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -771,7 +795,7 @@ export function ProposalPreview({
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Success Modal */}
