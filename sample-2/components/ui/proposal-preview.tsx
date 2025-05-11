@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, BarChart2 } from "lucide-react";
+import { ChevronDown, ChevronRight, BarChart2, Code } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   ethers,
@@ -9,6 +9,7 @@ import {
   isAddress,
   parseUnits,
   AbiCoder,
+  BrowserProvider,
 } from "ethers";
 import {
   useAccount,
@@ -56,6 +57,17 @@ interface DecodedParam {
   value: any;
 }
 
+// Update contract addresses to use environment variables
+const TON_CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_TON_CONTRACT_ADDRESS ||
+  "0x2be5e8c109e2197D077D13A82dAead6a9b3433C5";
+const DAO_COMMITTEE_PROXY_ADDRESS =
+  process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS ||
+  "0x0dE5B7Bf5bB867ce98B9C9dA0D2B3C1F6C6d1d8";
+const DAO_AGENDA_MANAGER_ADDRESS =
+  process.env.NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS ||
+  "0xcD4421d082752f363E1687544a09d5112cD4f484";
+
 export function ProposalPreview({
   title,
   description,
@@ -72,8 +84,91 @@ export function ProposalPreview({
     [key: string]: boolean;
   }>({});
   const [isPublishing, setIsPublishing] = useState(false);
+  const [agendaFee, setAgendaFee] = useState<string>("");
+  const [encodedData, setEncodedData] = useState<string>("");
   const { address } = useAccount();
   const router = useRouter();
+
+  // Fetch agenda fee and encode parameters when component mounts or actions change
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!window.ethereum) {
+        console.error("Ethereum provider not found");
+        setAgendaFee("Provider not found");
+        return;
+      }
+
+      try {
+        const provider = new BrowserProvider(window.ethereum);
+        const daoAgendaManager = new ethers.Contract(
+          DAO_AGENDA_MANAGER_ADDRESS,
+          [
+            "function createAgendaFees() external view returns (uint256)",
+            "function minimumNoticePeriodSeconds() external view returns (uint128)",
+            "function minimumVotingPeriodSeconds() external view returns (uint128)",
+          ],
+          provider
+        );
+
+        // Fetch agenda fee
+        const fee = await daoAgendaManager.createAgendaFees();
+        const feeInTON = ethers.formatUnits(fee, 18);
+        setAgendaFee(feeInTON);
+        console.log("=== Agenda Fee ===");
+        console.log("Raw fee:", fee.toString());
+        console.log("Fee in TON:", feeInTON);
+
+        // Fetch periods
+        const noticePeriod =
+          await daoAgendaManager.minimumNoticePeriodSeconds();
+        const votingPeriod =
+          await daoAgendaManager.minimumVotingPeriodSeconds();
+        console.log("\n=== Periods ===");
+        console.log("Notice Period:", noticePeriod.toString());
+        console.log("Voting Period:", votingPeriod.toString());
+
+        // Prepare parameters for encoding
+        const targetAddresses = actions.map((a) => a.contractAddress);
+        const calldataArray = actions.map((a) => a.calldata || "0x");
+
+        console.log("\n=== Parameters for Encoding ===");
+        console.log("Target Addresses:", targetAddresses);
+        console.log("Notice Period:", noticePeriod.toString());
+        console.log("Voting Period:", votingPeriod.toString());
+        console.log("Is Emergency:", true);
+        console.log("Calldata Array:", calldataArray);
+
+        // Encode parameters
+        const abiCoder = AbiCoder.defaultAbiCoder();
+        const types = ["address[]", "uint128", "uint128", "bool", "bytes[]"];
+        const values = [
+          targetAddresses,
+          noticePeriod,
+          votingPeriod,
+          true,
+          calldataArray,
+        ];
+
+        console.log("\n=== Encoding Details ===");
+        console.log("Types:", types);
+        console.log("Values:", values);
+
+        const encoded = abiCoder.encode(types, values);
+        console.log("\n=== Encoded Result ===");
+        console.log(encoded);
+
+        setEncodedData(encoded);
+      } catch (error: any) {
+        console.error("Error fetching data:", error);
+        if (error.code) console.error("Error code:", error.code);
+        if (error.message) console.error("Error message:", error.message);
+        if (error.data) console.error("Error data:", error.data);
+        setAgendaFee("Error fetching fee");
+      }
+    };
+
+    fetchData();
+  }, [actions]);
 
   const toggleParams = (actionId: string) => {
     setExpandedParams((prev) => ({
@@ -147,7 +242,7 @@ export function ProposalPreview({
     // Encode parameters
     const param = AbiCoder.defaultAbiCoder().encode(
       ["address[]", "uint128", "uint128", "bool", "bytes[]"],
-      [targets, noticePeriod.toString(), votingPeriod.toString(), true, params]
+      [targets, noticePeriod, votingPeriod, true, params]
     ) as `0x${string}`;
 
     return { param, agendaFee };
@@ -274,7 +369,7 @@ export function ProposalPreview({
           >
             {isPublishing || isTransactionPending
               ? "Publishing..."
-              : "Submit Proposal"}
+              : "Submit DAO Agenda"}
           </Button>
         </div>
       </div>
@@ -412,6 +507,84 @@ export function ProposalPreview({
               )}
             </div>
           ))}
+        </div>
+
+        {/* DAO Agenda Submission Parameters */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            DAO Agenda Submission Parameters
+          </h3>
+          <div className="border rounded-lg overflow-hidden">
+            <div className="p-4 space-y-4">
+              {/* TON Contract */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  TON Contract
+                </h4>
+                <div
+                  className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                  onClick={() => openEtherscan(TON_CONTRACT_ADDRESS)}
+                >
+                  {TON_CONTRACT_ADDRESS}
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </div>
+              </div>
+
+              {/* approveAndCall Function */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  Function
+                </h4>
+                <div
+                  className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                  onClick={() =>
+                    openEtherscan(`${TON_CONTRACT_ADDRESS}#writeContract#F3`)
+                  }
+                >
+                  approveAndCall(address spender, uint256 amount, bytes data)
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </div>
+              </div>
+
+              {/* Function Parameters */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  Function Parameters
+                </h4>
+                <div className="space-y-2">
+                  {/* spender */}
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">spender</div>
+                    <div
+                      className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                      onClick={() => openEtherscan(DAO_COMMITTEE_PROXY_ADDRESS)}
+                    >
+                      {DAO_COMMITTEE_PROXY_ADDRESS}
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </div>
+                  </div>
+
+                  {/* amount */}
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">amount</div>
+                    <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                      {agendaFee ? `${agendaFee} TON` : "Loading..."}
+                    </div>
+                  </div>
+
+                  {/* data */}
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">data</div>
+                    <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                      <div className="break-all">
+                        {encodedData || "Encoding parameters..."}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -469,16 +469,10 @@ export function ProposalEditAction({
         <div className="flex space-x-2">
           <Button
             variant="outline"
-            onClick={onCancel}
-            className="text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
             onClick={() => onRemoveAction(actionToEdit.id)}
             className="text-red-600 hover:bg-red-50"
           >
+            <Trash2 className="w-4 h-4 mr-2" />
             Remove
           </Button>
         </div>
