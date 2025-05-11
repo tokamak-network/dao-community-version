@@ -7,6 +7,14 @@ import { Providers } from "./providers";
 export const metadata: Metadata = {
   title: "Tokamak Network Governance",
   description: "Tokamak Network Governance Interface",
+  icons: {
+    icon: [
+      {
+        url: "/favicon.ico",
+        sizes: "any",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -16,6 +24,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+      </head>
       <body>
         <Providers>
           <div className="min-h-screen flex flex-col bg-white">
