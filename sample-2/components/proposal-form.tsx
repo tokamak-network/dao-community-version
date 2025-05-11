@@ -42,6 +42,8 @@ import { ProposalAddInfo } from "@/components/ui/proposal-add-info";
 import { ProposalSelectAction } from "@/components/ui/proposal-select-action";
 import { ProposalEditAction } from "@/components/ui/proposal-edit-action";
 import { cn } from "@/lib/utils";
+import { ProposalPreview } from "@/components/ui/proposal-preview";
+import { useRouter } from "next/navigation";
 
 interface Action {
   id: string;
@@ -77,10 +79,16 @@ interface ProposalFormState {
   eventSourceInstance: EventSource | null;
   pendingText: string;
   expandedActionLogs: { [actionId: string]: boolean };
+  showSimulation: boolean;
+  isEditMode: boolean;
+  activeEditSection: string;
+  selectedActionId: string | null;
+  currentSection: string;
 }
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
   private pendingAnimationInterval: NodeJS.Timeout | null = null;
+  private router: any;
 
   constructor(props: {}) {
     super(props);
@@ -102,8 +110,14 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       eventSourceInstance: null,
       pendingText: "Pending...",
       expandedActionLogs: {},
+      showSimulation: false,
+      isEditMode: false,
+      activeEditSection: "",
+      selectedActionId: null,
+      currentSection: "actions",
     };
     this.handleValidBaseInput = this.handleValidBaseInput.bind(this);
+    this.handleAddActionClick = this.handleAddActionClick.bind(this);
     this.handleAddAction = this.handleAddAction.bind(this);
     this.handleEditActionClick = this.handleEditActionClick.bind(this);
     this.handleSaveChanges = this.handleSaveChanges.bind(this);
@@ -114,6 +128,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       this.handleSimulateExecutionClick.bind(this);
     this.resetToDefaultView = this.resetToDefaultView.bind(this);
     this.toggleActionLogs = this.toggleActionLogs.bind(this);
+    this.handleActionCardClick = this.handleActionCardClick.bind(this);
   }
 
   componentDidMount() {
@@ -140,7 +155,20 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     }));
   }
 
-  handleAddAction(newActionData: Omit<Action, "id">) {
+  handleAddActionClick = () => {
+    this.setState({
+      showSelectAction: true,
+      showEditAction: false,
+      showImpactOverview: false,
+      simulationStep: "initial",
+      activeTab: "edit",
+      isEditMode: false,
+      activeEditSection: "",
+      showSimulation: false,
+    });
+  };
+
+  handleAddAction = (newActionData: Omit<Action, "id">) => {
     const newAction: Action = {
       ...newActionData,
       id: Date.now().toString(),
@@ -156,7 +184,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       showImpactOverview: false,
       simulationStep: "initial",
     }));
-  }
+  };
 
   handleEditActionClick(actionToEdit: Action) {
     this.setState({
@@ -215,6 +243,10 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       showSelectAction: false,
       showEditAction: false,
       editingAction: null,
+      isEditMode: true,
+      activeEditSection: "impact",
+      showSimulation: true,
+      activeTab: "edit",
     });
   };
 
@@ -523,6 +555,10 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       editingAction: null,
       showImpactOverview: false,
       simulationStep: "initial",
+      activeTab: "edit",
+      isEditMode: false,
+      activeEditSection: "",
+      showSimulation: false,
     });
   };
 
@@ -533,6 +569,20 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
         [actionId]: !prevState.expandedActionLogs[actionId],
       },
     }));
+  };
+
+  handleActionCardClick = (action: Action) => {
+    this.setState({
+      editingAction: action,
+      showSelectAction: false,
+      showEditAction: true,
+      showImpactOverview: false,
+      simulationStep: "initial",
+      activeTab: "edit",
+      isEditMode: false,
+      activeEditSection: "",
+      showSimulation: false,
+    });
   };
 
   render() {
@@ -566,7 +616,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                   }`}
                 >
                   <Eye className="w-4 h-4 mr-2" />
-                  Preview
+                  Proposal Preview
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -597,57 +647,26 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                 discourseUrl={this.state.discourseUrl}
                 onClick={this.resetToDefaultView}
               />
-              {this.state.actions.map((action, index) => {
-                const isSelected = this.state.editingAction?.id === action.id;
-                return (
-                  <div
-                    key={action.id}
-                    className={`border rounded-md p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-150 ${
-                      isSelected
-                        ? "border-purple-500 bg-purple-50 shadow-md ring-2 ring-purple-300 ring-offset-1"
-                        : "border-gray-200"
-                    }`}
-                    onClick={() => {
-                      this.setState({
-                        editingAction: action,
-                        showSelectAction: false,
-                        showEditAction: true,
-                        showImpactOverview: false,
-                        simulationStep: "initial",
-                      });
-                    }}
-                  >
-                    <div
-                      className={`font-medium truncate ${
-                        isSelected ? "text-purple-700" : "text-gray-900"
-                      }`}
-                    >
-                      Action #{index + 1}. {action.title}
-                    </div>
-                    <div
-                      className={`text-sm mt-1 truncate ${
-                        isSelected ? "text-purple-600" : "text-gray-500"
-                      }`}
-                      title={action.method}
-                    >
-                      {action.method.length > 30
-                        ? `${action.method.substring(0, 27)}...`
-                        : action.method}
-                    </div>
+              {this.state.actions.map((action, index) => (
+                <div
+                  key={action.id}
+                  className="border rounded-md p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-150 border-gray-200"
+                  onClick={() => this.handleActionCardClick(action)}
+                >
+                  <div className="font-medium truncate text-gray-900">
+                    Action #{index + 1}. {action.title}
                   </div>
-                );
-              })}
-              <ProposalAddActionButton
-                onClick={() =>
-                  this.setState({
-                    showSelectAction: true,
-                    showEditAction: false,
-                    editingAction: null,
-                    showImpactOverview: false,
-                    simulationStep: "initial",
-                  })
-                }
-              />
+                  <div
+                    className="text-sm mt-1 truncate text-gray-500"
+                    title={action.method}
+                  >
+                    {action.method.length > 30
+                      ? `${action.method.substring(0, 27)}...`
+                      : action.method}
+                  </div>
+                </div>
+              ))}
+              <ProposalAddActionButton onClick={this.handleAddActionClick} />
               <Button
                 variant="outline"
                 className="w-full justify-start text-left font-normal"
@@ -660,13 +679,55 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
             </div>
 
             <div className="md:col-span-2">
-              {this.state.showImpactOverview ? (
+              {this.state.activeTab === "preview" ? (
+                <ProposalPreview
+                  title={this.state.title}
+                  description={this.state.description}
+                  actions={this.state.actions}
+                  onModeChange={(mode, section) => {
+                    this.setState({
+                      activeTab: mode,
+                      currentSection: section || "actions",
+                    });
+                  }}
+                  onActionSelect={(actionId) => {
+                    const action = this.state.actions.find(
+                      (a) => a.id === actionId
+                    );
+                    if (action) {
+                      this.handleActionCardClick(action);
+                    }
+                  }}
+                  selectedActionId={this.state.selectedActionId}
+                  onEditButtonActivate={(section) => {
+                    this.setState({ activeEditSection: section });
+                  }}
+                  isEditMode={this.state.isEditMode}
+                  onImpactOverviewClick={this.handleImpactOverviewClick}
+                  showSimulation={this.state.showSimulation}
+                />
+              ) : this.state.showImpactOverview ? (
                 this.state.simulationStep === "initial" ? (
                   <div className="flex-1 border rounded-md p-6">
                     <div className="flex flex-col items-start">
-                      <p className="text-base mb-4">
-                        Run simulations to see results
-                      </p>
+                      <div className="mb-6">
+                        <h3 className="text-lg font-medium mb-2">
+                          Before running simulation
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                          You need to run a local Hardhat node with forked
+                          network before running the simulation:
+                        </p>
+                        <div className="bg-gray-800 text-gray-200 p-4 rounded-md text-sm font-mono mb-4">
+                          <p>cd simulation-node</p>
+                          <p>npm i</p>
+                          <p>npx hardhat node --fork &lt;RPC URL&gt;</p>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          After the Hardhat node is running, you can proceed
+                          with the simulation.
+                        </p>
+                      </div>
                       <Button
                         variant="secondary"
                         className="bg-slate-100 hover:bg-slate-200 text-sm"
@@ -698,127 +759,138 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                         by Tenderly
                       </p>
                       <div className="border rounded-md overflow-hidden mb-6">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="bg-gray-50 border-b">
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-16">
-                                Action #
-                              </th>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                                Title
-                              </th>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                                Simulation
-                              </th>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                                Gas Used
-                              </th>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-12">
-                                Logs
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {this.state.simulatedActions.map(
-                              (action, index) => (
-                                <React.Fragment key={action.id}>
-                                  <tr className="border-b">
-                                    <td className="px-4 py-3 text-sm w-16">
-                                      {index + 1}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm">
-                                      {action.title}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm">
-                                      <div className="flex items-center">
-                                        {action.simulationResult ===
-                                        "Pending" ? (
-                                          <span className="text-gray-500">
-                                            {this.state.pendingText}
-                                          </span>
-                                        ) : action.simulationResult ===
-                                          "Simulating..." ? (
-                                          <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin text-gray-400" />
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 border-b">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-16">
+                                  Action #
+                                </th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                                  Title
+                                </th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                                  Simulation
+                                </th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                                  Gas Used
+                                </th>
+                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-12">
+                                  Logs
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {this.state.simulatedActions.map(
+                                (action, index) => (
+                                  <React.Fragment key={action.id}>
+                                    <tr className="border-b">
+                                      <td className="px-4 py-3 text-sm w-16">
+                                        {index + 1}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm">
+                                        {action.title}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm">
+                                        <div className="flex items-center">
+                                          {action.simulationResult ===
+                                          "Pending" ? (
                                             <span className="text-gray-500">
-                                              Simulating...
+                                              {this.state.pendingText}
                                             </span>
-                                          </>
-                                        ) : action.simulationResult ===
-                                          "Passed" ? (
-                                          <>
-                                            <div className="w-2 h-2 rounded-full mr-2 bg-emerald-400"></div>
-                                            <span className="text-emerald-500">
-                                              Passed
+                                          ) : action.simulationResult ===
+                                            "Simulating..." ? (
+                                            <>
+                                              <Loader2 className="w-4 h-4 mr-2 animate-spin text-gray-400" />
+                                              <span className="text-gray-500">
+                                                Simulating...
+                                              </span>
+                                            </>
+                                          ) : action.simulationResult ===
+                                            "Passed" ? (
+                                            <>
+                                              <div className="w-2 h-2 rounded-full mr-2 bg-emerald-400"></div>
+                                              <span className="text-emerald-500">
+                                                Passed
+                                              </span>
+                                            </>
+                                          ) : action.simulationResult ===
+                                            "Failed" ? (
+                                            <>
+                                              <div className="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
+                                              <span className="text-red-500">
+                                                Failed
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span className="text-gray-500">
+                                              -
                                             </span>
-                                          </>
-                                        ) : action.simulationResult ===
-                                          "Failed" ? (
-                                          <>
-                                            <div className="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
-                                            <span className="text-red-500">
-                                              Failed
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <span className="text-gray-500">
-                                            -
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-sm font-mono">
-                                      {action.gasUsed || "-"}
-                                    </td>
-                                    <td className="px-4 py-3 text-center w-12">
-                                      {action.logs &&
-                                        action.logs.length > 0 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                              this.toggleActionLogs(action.id)
-                                            }
-                                            className="h-8 w-8"
-                                          >
-                                            {this.state.expandedActionLogs[
-                                              action.id
-                                            ] ? (
-                                              <ChevronUp className="h-4 w-4" />
-                                            ) : (
-                                              <ChevronDown className="h-4 w-4" />
-                                            )}
-                                          </Button>
-                                        )}
-                                    </td>
-                                  </tr>
-                                  {this.state.expandedActionLogs[action.id] &&
-                                    action.logs &&
-                                    action.logs.length > 0 && (
-                                      <tr className="border-b bg-gray-900 text-gray-200">
-                                        <td colSpan={5} className="p-0">
-                                          <pre className="text-xs whitespace-pre-wrap p-3 m-0 overflow-x-auto max-h-48">
-                                            {action.logs.join("\n")}
-                                          </pre>
-                                        </td>
-                                      </tr>
-                                    )}
-                                </React.Fragment>
-                              )
-                            )}
-                          </tbody>
-                        </table>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-sm font-mono">
+                                        {action.gasUsed || "-"}
+                                      </td>
+                                      <td className="px-4 py-3 text-center w-12">
+                                        {action.logs &&
+                                          action.logs.length > 0 && (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() =>
+                                                this.toggleActionLogs(action.id)
+                                              }
+                                              className="h-8 w-8"
+                                            >
+                                              {this.state.expandedActionLogs[
+                                                action.id
+                                              ] ? (
+                                                <ChevronUp className="h-4 w-4" />
+                                              ) : (
+                                                <ChevronDown className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          )}
+                                      </td>
+                                    </tr>
+                                    {this.state.expandedActionLogs[action.id] &&
+                                      action.logs &&
+                                      action.logs.length > 0 && (
+                                        <tr className="border-b">
+                                          <td colSpan={5} className="p-0">
+                                            <div className="bg-gray-900 text-gray-200">
+                                              <pre className="text-xs whitespace-pre-wrap p-3 m-0 overflow-x-auto max-h-48 break-all">
+                                                {action.logs.join("\n")}
+                                              </pre>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                  </React.Fragment>
+                                )
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </div>
                 )
               ) : this.state.showEditAction && this.state.editingAction ? (
-                <ProposalEditAction
-                  actionToEdit={this.state.editingAction}
-                  onSaveChanges={this.handleSaveChanges}
-                  onCancel={this.handleCancelEdit}
-                  onRemoveAction={this.handleRemoveAction}
-                />
+                <div>
+                  <ProposalEditAction
+                    actionToEdit={this.state.editingAction}
+                    onSaveChanges={this.handleSaveChanges}
+                    onCancel={this.handleCancelEdit}
+                    onRemoveAction={this.handleRemoveAction}
+                    actionNumber={
+                      this.state.actions.findIndex(
+                        (a) => a.id === this.state.editingAction?.id
+                      ) + 1
+                    }
+                  />
+                </div>
               ) : this.state.showSelectAction ? (
                 <ProposalSelectAction onAddAction={this.handleAddAction} />
               ) : (

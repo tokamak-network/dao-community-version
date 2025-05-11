@@ -13,7 +13,13 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ethers } from "ethers";
+import {
+  ethers,
+  isAddress,
+  parseUnits,
+  Interface,
+  JsonRpcProvider,
+} from "ethers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +48,7 @@ interface ProposalEditActionProps extends React.HTMLAttributes<HTMLDivElement> {
   onSaveChanges: (updatedAction: Action) => void;
   onCancel: () => void;
   onRemoveAction: (actionId: string) => void;
+  actionNumber: number;
 }
 
 interface CalldataComponentProps {
@@ -75,7 +82,14 @@ function CalldataComponent({
       if (initialParams) {
         func.inputs.forEach((input: any) => {
           if (initialParams[input.name] !== undefined) {
-            initialP[input.name] = String(initialParams[input.name]);
+            // Convert boolean values to string "true"/"false"
+            if (input.type === "bool") {
+              const value = initialParams[input.name];
+              initialP[input.name] =
+                String(value).toLowerCase() === "true" ? "true" : "false";
+            } else {
+              initialP[input.name] = String(initialParams[input.name]);
+            }
           }
         });
       }
@@ -114,16 +128,31 @@ function CalldataComponent({
     func: any
   ) => {
     try {
+      console.log("Generating calldata with values:", currentParamValues);
       const paramValuesArray = func.inputs.map((input: any) => {
         const val = currentParamValues[input.name];
+        console.log(`Processing parameter ${input.name}:`, {
+          type: input.type,
+          value: val,
+        });
+
         if (input.type === "address") return val;
-        if (input.type.startsWith("uint"))
-          return ethers.parseUnits(val || "0", 0);
-        if (input.type === "bool") return val === "true";
+        if (input.type.startsWith("uint")) return parseUnits(val || "0", 0);
+        if (input.type === "bool") {
+          console.log(`Boolean parameter ${input.name}:`, {
+            value: val,
+            converted: val === "true",
+          });
+          return val === "true";
+        }
         return val;
       });
-      const iface = new ethers.Interface([func]);
+      console.log("Final parameter array:", paramValuesArray);
+
+      const iface = new Interface([func]);
       const newCalldata = iface.encodeFunctionData(func.name, paramValuesArray);
+      console.log("Generated calldata:", newCalldata);
+
       setInternalCalldata(newCalldata);
       onCalldataChange(newCalldata);
     } catch (error) {
@@ -135,9 +164,9 @@ function CalldataComponent({
 
   const validateType = (value: string, type: string): boolean => {
     try {
-      if (!value && !(type === "bool")) return false;
+      if (!value && type !== "bool") return false;
       if (type === "address") {
-        return ethers.isAddress(value);
+        return isAddress(value);
       } else if (type.startsWith("uint") || type.startsWith("int")) {
         const num = BigInt(value);
         if (type.startsWith("uint") && num < BigInt(0)) return false;
@@ -172,6 +201,7 @@ function CalldataComponent({
     value: string,
     type: string
   ) => {
+    console.log("handleParamChange called with:", { paramName, value, type });
     const newValues = { ...paramValues, [paramName]: value };
     setParamValues(newValues);
 
@@ -193,9 +223,16 @@ function CalldataComponent({
     if (func && func.inputs.length > 0) {
       const allParamsFilledAndValid = func.inputs.every((input: any) => {
         const val = newValues[input.name];
-        return val !== undefined && validateType(val, input.type);
+        const isValid = validateType(val, input.type);
+        console.log(`Validating parameter ${input.name}:`, {
+          value: val,
+          type: input.type,
+          isValid,
+        });
+        return val !== undefined && isValid;
       });
 
+      console.log("All parameters filled and valid:", allParamsFilledAndValid);
       if (allParamsFilledAndValid) {
         generateCalldata(newValues, func);
       } else {
@@ -254,34 +291,43 @@ function CalldataComponent({
                 <span className="text-sm text-purple-700">{input.name}</span>
               </div>
               <div className="col-span-3 space-y-1">
-                <Input
-                  type={input.type === "bool" ? "checkbox" : "text"}
-                  placeholder={`Enter ${input.type}`}
-                  checked={
-                    input.type === "bool"
-                      ? paramValues[input.name] === "true"
-                      : undefined
-                  }
-                  value={
-                    input.type !== "bool"
-                      ? paramValues[input.name] || ""
-                      : undefined
-                  }
-                  onChange={(e) =>
-                    handleParamChange(
-                      input.name,
-                      input.type === "bool"
-                        ? e.target.checked.toString()
-                        : e.target.value,
-                      input.type
-                    )
-                  }
-                  className={`w-full ${
-                    paramErrors[input.name]
-                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                      : ""
-                  }`}
-                />
+                {input.type === "bool" ? (
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={paramValues[input.name] === "true"}
+                      onCheckedChange={(checked) => {
+                        console.log("Switch changed:", {
+                          name: input.name,
+                          checked,
+                        });
+                        const newValue = checked ? "true" : "false";
+                        console.log("Setting new value:", newValue);
+                        handleParamChange(input.name, newValue, input.type);
+                      }}
+                    />
+                    <span className="text-sm text-gray-600">
+                      {paramValues[input.name] === "true" ? "True" : "False"}
+                    </span>
+                  </div>
+                ) : (
+                  <Input
+                    type="text"
+                    placeholder={`Enter ${input.type}`}
+                    value={paramValues[input.name] || ""}
+                    onChange={(e) => {
+                      console.log("Input changed:", {
+                        name: input.name,
+                        value: e.target.value,
+                      });
+                      handleParamChange(input.name, e.target.value, input.type);
+                    }}
+                    className={`w-full ${
+                      paramErrors[input.name]
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
+                    }`}
+                  />
+                )}
                 {paramErrors[input.name] && (
                   <p className="text-sm text-red-500">
                     {paramErrors[input.name]}
@@ -310,8 +356,9 @@ export function ProposalEditAction({
   className,
   actionToEdit,
   onSaveChanges,
-  // onCancel,
+  onCancel,
   onRemoveAction,
+  actionNumber,
   ...props
 }: ProposalEditActionProps) {
   const [title, setTitle] = useState(actionToEdit.title);
@@ -328,6 +375,13 @@ export function ProposalEditAction({
   const [showRemoveAlert, setShowRemoveAlert] = useState(false);
 
   useEffect(() => {
+    // Check if actionId exists
+    if (!actionToEdit.id) {
+      console.log("No actionId found, redirecting to initial screen");
+      onCancel();
+      return;
+    }
+
     setTitle(actionToEdit.title);
     setContractAddress(actionToEdit.contractAddress);
     setMethod(actionToEdit.method);
@@ -346,7 +400,7 @@ export function ProposalEditAction({
         });
 
         if (funcAbi && funcAbi.inputs.length > 0) {
-          const iface = new ethers.Interface([funcAbi]);
+          const iface = new Interface([funcAbi]);
           const decodedParams = iface.decodeFunctionData(
             funcAbi.name,
             actionToEdit.calldata
@@ -373,7 +427,7 @@ export function ProposalEditAction({
         setInitialCallDataParams({});
       }
     }
-  }, [actionToEdit]);
+  }, [actionToEdit, onCancel]);
 
   const handleSaveChanges = () => {
     if (contractAddress && method && currentCalldata) {
@@ -409,41 +463,24 @@ export function ProposalEditAction({
       {...props}
     >
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-medium text-purple-600">
-          Edit Action: {actionToEdit.title}
+        <h2 className="text-2xl font-semibold text-gray-900">
+          Edit Action #{actionNumber}
         </h2>
-        <div>
-          {/* <Button variant="outline" onClick={onCancel} className="mr-2">
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="text-gray-700 hover:bg-gray-50"
+          >
             Cancel
-          </Button> */}
-          <AlertDialog open={showRemoveAlert} onOpenChange={setShowRemoveAlert}>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="text-gray-700 border-gray-300 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-500"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Remove action
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Are you sure you want to remove this action?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action will be permanently removed. This cannot be
-                  undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRemoveConfirm}>
-                  Remove
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => onRemoveAction(actionToEdit.id)}
+            className="text-red-600 hover:bg-red-50"
+          >
+            Remove
+          </Button>
         </div>
       </div>
 

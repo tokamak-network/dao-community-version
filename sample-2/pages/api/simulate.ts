@@ -247,13 +247,12 @@ export default async function handler(
     }
     console.log("[API LOG] All actions processed.");
   } catch (error: any) {
-    console.error("[API CRITICAL ERROR]", error);
+    console.error("[API ERROR]", error);
     sendSseEvent(res, "error", {
-      message: "Critical error during simulation process",
-      detail: error.message,
+      message: error.message || "Unknown error occurred during simulation.",
+      detail: error.toString(),
     });
   } finally {
-    console.log("[API LOG] Entering finally block, calling cleanup.");
     await cleanup();
   }
 }

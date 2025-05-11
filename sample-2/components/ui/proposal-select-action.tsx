@@ -20,7 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ethers } from "ethers";
+import {
+  ethers,
+  isAddress,
+  parseUnits,
+  Interface,
+  JsonRpcProvider,
+} from "ethers";
 import {
   RadioGroup,
   RadioGroupItem,
@@ -58,12 +64,15 @@ function RequiredContractAddress({
   setAbiLogic: React.Dispatch<React.SetStateAction<any[]>>;
 }) {
   const [isContractFound, setIsContractFound] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     const checkContract = async () => {
       if (!value || value.length === 0) {
         setIsContractFound(null);
         setAbiProxy([]);
         setAbiLogic([]);
+        setError(null);
         return;
       }
 
@@ -71,23 +80,35 @@ function RequiredContractAddress({
         const apiKey = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY;
         if (!apiKey) {
           console.error("Etherscan API key is not configured");
+          setError(
+            "Etherscan API key is not configured. Please check your environment variables."
+          );
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
           return;
         }
 
+        // Use environment variable for Etherscan API URL, fallback to mainnet
         const apiUrl =
           process.env.NEXT_PUBLIC_ETHERSCAN_API_URL ||
-          "https://api-sepolia.etherscan.io/api";
+          "https://api.etherscan.io/api";
 
         // Get proxy ABI
         const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
+        console.log("Fetching ABI from:", proxyUrl);
+
         const proxyResponse = await fetch(proxyUrl);
+        if (!proxyResponse.ok) {
+          throw new Error(`HTTP error! status: ${proxyResponse.status}`);
+        }
+
         const proxyData = await proxyResponse.json();
-        console.log(proxyUrl);
+        console.log("Proxy ABI response:", proxyData);
+
         if (proxyData.status === "1") {
           setIsContractFound(true);
+          setError(null);
           const proxyAbi = JSON.parse(proxyData.result);
           // Filter only function and view types
           const filteredProxyAbi = proxyAbi.filter(
@@ -107,16 +128,24 @@ function RequiredContractAddress({
           if (implementationFunction) {
             try {
               // Call implementation() function
-              const provider = new ethers.JsonRpcProvider(
+              const provider = new JsonRpcProvider(
                 process.env.NEXT_PUBLIC_RPC_URL
               );
               const contract = new ethers.Contract(value, proxyAbi, provider);
               const implementationAddress = await contract.implementation();
+              console.log("Implementation address:", implementationAddress);
 
               // Get implementation ABI
               const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
+              console.log("Fetching implementation ABI from:", logicUrl);
+
               const logicResponse = await fetch(logicUrl);
+              if (!logicResponse.ok) {
+                throw new Error(`HTTP error! status: ${logicResponse.status}`);
+              }
+
               const logicData = await logicResponse.json();
+              console.log("Logic ABI response:", logicData);
 
               if (logicData.status === "1") {
                 const logicAbi = JSON.parse(logicData.result);
@@ -126,20 +155,28 @@ function RequiredContractAddress({
                     item.type === "function" && item.stateMutability != "view"
                 );
                 setAbiLogic(filteredLogicAbi);
+              } else {
+                console.log("No logic ABI found");
+                setAbiLogic([]);
               }
             } catch (error) {
               console.error("Error getting implementation:", error);
+              setAbiLogic([]);
             }
           } else {
+            console.log("No implementation function found");
             setAbiLogic([]);
           }
         } else {
+          console.log("No proxy ABI found");
+          setError(proxyData.message || "Failed to fetch contract ABI");
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
         }
       } catch (error) {
         console.error("Error checking contract:", error);
+        setError("Failed to check contract. Please try again.");
         setIsContractFound(false);
         setAbiProxy([]);
         setAbiLogic([]);
@@ -148,6 +185,15 @@ function RequiredContractAddress({
 
     checkContract();
   }, [value, setAbiProxy, setAbiLogic]);
+
+  if (error) {
+    return (
+      <div className="flex items-start mt-4 text-sm text-red-700 bg-red-50 p-3 rounded-md">
+        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   if (isContractFound === null || !isContractFound) {
     return (
@@ -192,56 +238,167 @@ function RequiredContractAddress({
 interface CalldataComponentProps {
   abi: any[];
   selectedFunction: string;
+  initialParams?: { [key: string]: string };
   onCalldataChange: (calldata: string) => void;
+  isEditMode?: boolean;
 }
 
 function CalldataComponent({
   abi,
   selectedFunction,
+  initialParams,
   onCalldataChange,
+  isEditMode,
 }: CalldataComponentProps) {
   const [paramValues, setParamValues] = useState<{ [key: string]: string }>({});
   const [paramErrors, setParamErrors] = useState<{ [key: string]: string }>({});
-  const [calldata, setCalldata] = useState<string>("");
+  const [internalCalldata, setInternalCalldata] = useState<string>("");
 
   useEffect(() => {
-    setParamValues({});
-    setParamErrors({});
-    setCalldata("");
-    onCalldataChange("");
+    console.log("CalldataComponent mounted/updated:", {
+      selectedFunction,
+      initialParams,
+      isEditMode,
+    });
 
-    if (selectedFunction && abi) {
-      const func = abi.find((item: any) => {
-        if (!item || !item.inputs) return false;
-        const paramTypes = item.inputs
-          .map((input: any) => input.type)
-          .join(",");
-        return `${item.name}(${paramTypes})` === selectedFunction;
+    const func = abi.find((item: any) => {
+      if (!item || !item.inputs) return false;
+      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+      return `${item.name}(${paramTypes})` === selectedFunction;
+    });
+
+    if (func) {
+      console.log("Found function:", func);
+      const initialP: { [key: string]: string } = {};
+      if (initialParams) {
+        func.inputs.forEach((input: any) => {
+          if (initialParams[input.name] !== undefined) {
+            initialP[input.name] = String(initialParams[input.name]);
+          }
+        });
+      }
+      console.log("Initial parameters:", initialP);
+      setParamValues(initialP);
+      setParamErrors({});
+
+      if (
+        isEditMode &&
+        initialParams &&
+        Object.keys(initialParams).length > 0 &&
+        func.inputs.every((input: any) => initialP[input.name] !== undefined)
+      ) {
+        generateCalldata(initialP, func);
+      } else if (func.inputs.length === 0) {
+        generateCalldata({}, func);
+      } else {
+        setInternalCalldata("");
+        onCalldataChange("");
+      }
+    } else {
+      console.log("Function not found");
+      setParamValues({});
+      setParamErrors({});
+      setInternalCalldata("");
+      onCalldataChange("");
+    }
+  }, [
+    selectedFunction,
+    abi,
+    JSON.stringify(initialParams),
+    isEditMode,
+    onCalldataChange,
+  ]);
+
+  const generateCalldata = (
+    currentParamValues: { [key: string]: string },
+    func: any
+  ) => {
+    try {
+      console.log("Generating calldata with values:", currentParamValues);
+      const paramValuesArray = func.inputs.map((input: any) => {
+        const val = currentParamValues[input.name];
+        console.log(`Processing parameter ${input.name}:`, {
+          type: input.type,
+          value: val,
+        });
+
+        if (input.type === "address") return val;
+        if (input.type.startsWith("uint")) return parseUnits(val || "0", 0);
+        if (input.type === "bool") {
+          console.log(`Boolean parameter ${input.name}:`, {
+            value: val,
+            converted: val === "true",
+          });
+          return val === "true";
+        }
+        return val;
+      });
+      console.log("Final parameter array:", paramValuesArray);
+
+      const iface = new Interface([func]);
+      const newCalldata = iface.encodeFunctionData(func.name, paramValuesArray);
+      console.log("Generated calldata:", newCalldata);
+
+      setInternalCalldata(newCalldata);
+      onCalldataChange(newCalldata);
+    } catch (error) {
+      console.error("Error creating calldata:", error);
+      setInternalCalldata("");
+      onCalldataChange("");
+    }
+  };
+
+  const handleParamChange = (
+    paramName: string,
+    value: string,
+    type: string
+  ) => {
+    console.log("handleParamChange called with:", { paramName, value, type });
+    const newValues = { ...paramValues, [paramName]: value };
+    setParamValues(newValues);
+
+    const isValid = validateType(value, type);
+    const newErrors = { ...paramErrors };
+    if (!isValid && value.length > 0) {
+      newErrors[paramName] = getTypeErrorMessage(type);
+    } else {
+      delete newErrors[paramName];
+    }
+    setParamErrors(newErrors);
+
+    const func = abi.find((item: any) => {
+      if (!item || !item.inputs) return false;
+      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
+      return `${item.name}(${paramTypes})` === selectedFunction;
+    });
+
+    if (func && func.inputs.length > 0) {
+      const allParamsFilledAndValid = func.inputs.every((input: any) => {
+        const val = newValues[input.name];
+        const isValid = validateType(val, input.type);
+        console.log(`Validating parameter ${input.name}:`, {
+          value: val,
+          type: input.type,
+          isValid,
+        });
+        return val !== undefined && isValid;
       });
 
-      if (func && func.inputs.length === 0) {
-        try {
-          const iface = new ethers.Interface([func]);
-          const newCalldata = iface.encodeFunctionData(func.name, []);
-          setCalldata(newCalldata);
-          onCalldataChange(newCalldata);
-        } catch (error) {
-          console.error(
-            "Error creating calldata for no-param function:",
-            error
-          );
-          setCalldata("");
-          onCalldataChange("");
-        }
+      console.log("All parameters filled and valid:", allParamsFilledAndValid);
+      if (allParamsFilledAndValid) {
+        generateCalldata(newValues, func);
+      } else {
+        setInternalCalldata("");
+        onCalldataChange("");
       }
     }
-  }, [selectedFunction, abi, onCalldataChange]);
+  };
 
   const validateType = (value: string, type: string): boolean => {
     try {
       if (!value) return false;
       if (type === "address") {
-        return ethers.isAddress(value);
+        return isAddress(value);
       } else if (type.startsWith("uint") || type.startsWith("int")) {
         // Check if it's a valid number and not negative for uint
         const num = BigInt(value);
@@ -273,64 +430,6 @@ function CalldataComponent({
     return "Invalid input type";
   };
 
-  const handleParamChange = (
-    paramName: string,
-    value: string,
-    type: string
-  ) => {
-    const newValues = { ...paramValues, [paramName]: value };
-    setParamValues(newValues);
-
-    const isValid = validateType(value, type);
-    const newErrors = { ...paramErrors };
-    if (!isValid && value.length > 0) {
-      newErrors[paramName] = getTypeErrorMessage(type);
-    } else {
-      delete newErrors[paramName];
-    }
-    setParamErrors(newErrors);
-
-    const func = abi.find((item: any) => {
-      if (!item || !item.inputs) return false;
-      const paramTypes = item.inputs.map((input: any) => input.type).join(",");
-      return `${item.name}(${paramTypes})` === selectedFunction;
-    });
-
-    if (func && func.inputs.length > 0) {
-      const allParamsFilledAndValid = func.inputs.every((input: any) => {
-        const val = newValues[input.name];
-        return val && validateType(val, input.type);
-      });
-
-      if (allParamsFilledAndValid) {
-        try {
-          const paramValuesArray = func.inputs.map((input: any) => {
-            const val = newValues[input.name];
-            if (input.type === "address") return val;
-            if (input.type.startsWith("uint"))
-              return ethers.parseUnits(val || "0", 0);
-            if (input.type === "bool") return val === "true";
-            return val;
-          });
-          const iface = new ethers.Interface([func]);
-          const newCalldata = iface.encodeFunctionData(
-            func.name,
-            paramValuesArray
-          );
-          setCalldata(newCalldata);
-          onCalldataChange(newCalldata);
-        } catch (error) {
-          console.error("Error creating calldata:", error);
-          setCalldata("");
-          onCalldataChange("");
-        }
-      } else {
-        setCalldata("");
-        onCalldataChange("");
-      }
-    }
-  };
-
   const selectedFunc = abi.find((item: any) => {
     if (!item || !item.inputs) return false;
     const paramTypes = item.inputs.map((input: any) => input.type).join(",");
@@ -359,51 +458,81 @@ function CalldataComponent({
                     <span className="text-purple-600">{input.type}</span>
                   </span>
                 ))
-                .reduce((prev: any, curr: any) => [prev, ", ", curr])}
+                .reduce(
+                  (
+                    prev: React.ReactNode,
+                    curr: React.ReactNode,
+                    index: number
+                  ) => (index === 0 ? [curr] : [prev, ", ", curr]),
+                  []
+                )}
               )
             </span>
           )}
         </p>
       </div>
-      <div className="space-y-2">
-        {selectedFunc.inputs.map((input: any, index: number) => (
-          <div key={index} className="grid grid-cols-4 gap-4">
-            <div className="bg-purple-50 p-3 rounded-md text-center">
-              <span className="text-sm text-purple-700">{input.name}</span>
+      {selectedFunc.inputs.length > 0 && (
+        <div className="space-y-2">
+          {selectedFunc.inputs.map((input: any, index: number) => (
+            <div key={index} className="grid grid-cols-4 gap-4">
+              <div className="bg-purple-50 p-3 rounded-md text-center">
+                <span className="text-sm text-purple-700">{input.name}</span>
+              </div>
+              <div className="col-span-3 space-y-1">
+                {input.type === "bool" ? (
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={paramValues[input.name] === "true"}
+                      onCheckedChange={(checked) => {
+                        console.log("Switch changed:", {
+                          name: input.name,
+                          checked,
+                        });
+                        const newValue = checked ? "true" : "false";
+                        console.log("Setting new value:", newValue);
+                        handleParamChange(input.name, newValue, input.type);
+                      }}
+                    />
+                    <span className="text-sm text-gray-600">
+                      {paramValues[input.name] === "true" ? "True" : "False"}
+                    </span>
+                  </div>
+                ) : (
+                  <Input
+                    type="text"
+                    placeholder={`Enter ${input.type}`}
+                    value={paramValues[input.name] || ""}
+                    onChange={(e) => {
+                      console.log("Input changed:", {
+                        name: input.name,
+                        value: e.target.value,
+                      });
+                      handleParamChange(input.name, e.target.value, input.type);
+                    }}
+                    className={`w-full ${
+                      paramErrors[input.name]
+                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                        : ""
+                    }`}
+                  />
+                )}
+                {paramErrors[input.name] && (
+                  <p className="text-sm text-red-500">
+                    {paramErrors[input.name]}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="col-span-3 space-y-1">
-              <Input
-                type={input.type === "bool" ? "checkbox" : "text"}
-                placeholder={`Enter ${input.type}`}
-                value={paramValues[input.name] || ""}
-                onChange={(e) =>
-                  handleParamChange(input.name, e.target.value, input.type)
-                }
-                className={`w-full ${
-                  !paramValues[input.name] ||
-                  paramValues[input.name].length === 0
-                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                    : paramErrors[input.name]
-                    ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                    : ""
-                }`}
-              />
-              {paramErrors[input.name] && (
-                <p className="text-sm text-red-500">
-                  {paramErrors[input.name]}
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      {calldata && (
+          ))}
+        </div>
+      )}
+      {internalCalldata && (
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Generated Calldata
           </label>
           <div className="bg-gray-50 p-3 rounded-md">
-            <code className="text-sm break-all">{calldata}</code>
+            <code className="text-sm break-all">{internalCalldata}</code>
           </div>
         </div>
       )}
@@ -426,6 +555,77 @@ function ActionCard({
   calldata,
   onRemove,
 }: ActionCardProps) {
+  const [decodedParams, setDecodedParams] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      console.log("Decoding calldata:", { method, calldata });
+
+      // Extract function name and parameter types from method string
+      const match = method.match(/(.+)\((.*)\)/);
+      if (!match) {
+        console.error("Invalid method format:", method);
+        setDecodedParams("Invalid method format");
+        return;
+      }
+
+      const [_, funcName, paramTypes] = match;
+      console.log("Parsed method:", { funcName, paramTypes });
+
+      const types = paramTypes.split(",").map((t) => t.trim());
+      console.log("Parameter types:", types);
+
+      // Create a minimal ABI for decoding
+      const minimalAbi = [
+        {
+          name: funcName,
+          type: "function",
+          inputs: types.map((type, index) => ({
+            name: `param${index}`,
+            type: type,
+          })),
+        },
+      ];
+      console.log("Created minimal ABI:", minimalAbi);
+
+      const iface = new Interface(minimalAbi);
+      const decoded = iface.parseTransaction({ data: calldata });
+      console.log("Decoded transaction:", decoded);
+
+      if (decoded) {
+        const formattedParams = decoded.args
+          .map((arg: any, index: number) => {
+            const type = types[index];
+            let value = arg.toString();
+
+            // Format based on type
+            if (type === "bool") {
+              value = arg ? "true" : "false";
+            } else if (type.startsWith("uint") || type.startsWith("int")) {
+              value = arg.toString();
+            } else if (type === "address") {
+              value = arg;
+            } else if (type.startsWith("bytes")) {
+              value = arg;
+            }
+
+            console.log(`Formatted parameter ${index}:`, { type, value });
+            return `${type}: ${value}`;
+          })
+          .join(", ");
+
+        console.log("Final formatted parameters:", formattedParams);
+        setDecodedParams(formattedParams);
+      } else {
+        console.error("Failed to decode transaction");
+        setDecodedParams("Failed to decode parameters");
+      }
+    } catch (error) {
+      console.error("Error decoding calldata:", error);
+      setDecodedParams("Error decoding parameters");
+    }
+  }, [method, calldata]);
+
   return (
     <div className="bg-white p-4 rounded-md border border-gray-200 mb-4">
       <div className="flex justify-between items-start mb-4">
@@ -448,9 +648,17 @@ function ActionCard({
           <span className="w-24 text-gray-500">Method:</span>
           <span className="text-gray-900 font-mono">{method}</span>
         </div>
-        <div className="flex">
-          <span className="w-24 text-gray-500">Calldata:</span>
-          <span className="text-gray-900 font-mono break-all">{calldata}</span>
+        <div className="flex flex-col">
+          <span className="w-24 text-gray-500 mb-1">Parameters:</span>
+          <span className="text-gray-900 font-mono break-all pl-6">
+            {decodedParams}
+          </span>
+        </div>
+        <div className="flex flex-col">
+          <span className="w-24 text-gray-500 mb-1">Calldata:</span>
+          <span className="text-gray-900 font-mono break-all pl-6">
+            {calldata}
+          </span>
         </div>
       </div>
     </div>
@@ -628,7 +836,7 @@ export function ProposalSelectAction({
                 {selectedMethodType === "predefined" && (
                   <div className="mt-2 ml-6">
                     <Select
-                      onValueChange={(value) => {
+                      onValueChange={(value: string) => {
                         const selectedMethod = predefinedMethods.find(
                           (method) => method.id === value
                         );
@@ -698,7 +906,7 @@ export function ProposalSelectAction({
               </p>
               <Select
                 value={selectedProxyMethod}
-                onValueChange={(value) => {
+                onValueChange={(value: string) => {
                   setSelectedProxyMethod(value);
                   setMethod(value);
                 }}
@@ -738,7 +946,7 @@ export function ProposalSelectAction({
               </p>
               <Select
                 value={selectedLogicMethod}
-                onValueChange={(value) => {
+                onValueChange={(value: string) => {
                   setSelectedLogicMethod(value);
                   setMethod(value);
                 }}
@@ -778,7 +986,7 @@ export function ProposalSelectAction({
               </p>
               <Select
                 value={selectedProxyMethod}
-                onValueChange={(value) => {
+                onValueChange={(value: string) => {
                   setSelectedProxyMethod(value);
                   setMethod(value);
                 }}
@@ -847,7 +1055,7 @@ export function ProposalSelectAction({
                   </p>
                   <Select
                     value={selectedCustomMethod}
-                    onValueChange={(value) => {
+                    onValueChange={(value: string) => {
                       setSelectedCustomMethod(value);
                       setMethod(value);
                     }}
