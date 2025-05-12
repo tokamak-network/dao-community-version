@@ -103,6 +103,7 @@ This project implements a DAO (Decentralized Autonomous Organization) system wit
    ```bash
    git clone [repository-url]
    cd dao-community-version
+   cd sample-2
    ```
 
 2. Install dependencies
