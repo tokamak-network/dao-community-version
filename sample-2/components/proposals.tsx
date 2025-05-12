@@ -8,7 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Navbar from "@/components/navbar";
 import Link from "next/link";
 import ProposalLists from "./proposal-lists";
-import { useContractRead, useContractReads } from "wagmi";
+import {
+  useContractRead,
+  useContractReads,
+  useWatchContractEvent,
+  usePublicClient,
+} from "wagmi";
+import { AgendaStatus } from "@/lib/utils";
 
 const DAO_AGENDA_MANAGER_ADDRESS = process.env
   .NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS as `0x${string}`;
@@ -17,6 +23,10 @@ const DAO_COMMITTEE_PROXY_ADDRESS = process.env
   .NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`;
 
 const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
+
+const EVENT_START_BLOCK = BigInt(
+  process.env.NEXT_PUBLIC_EVENT_START_BLOCK || "0"
+);
 
 const DAO_AGENDA_MANAGER_ABI = [
   {
@@ -113,15 +123,6 @@ const DAO_AGENDA_MANAGER_ABI = [
   },
 ] as const;
 
-const AgendaStatus = {
-  NOTICE: 0,
-  VOTING: 1,
-  EXECUTABLE: 2,
-  EXECUTED: 3,
-  REJECTED: 4,
-  CANCELLED: 5,
-} as const;
-
 const AgendaResult = {
   PENDING: 0,
   APPROVED: 1,
@@ -129,7 +130,16 @@ const AgendaResult = {
   CANCELLED: 3,
 } as const;
 
-interface Agenda {
+interface AgendaCreatedEvent {
+  from: `0x${string}`;
+  id: bigint;
+  targets: `0x${string}`[];
+  noticePeriodSeconds: bigint;
+  votingPeriodSeconds: bigint;
+  atomicExecute: boolean;
+}
+
+export interface Agenda {
   id: number;
   createdTimestamp: bigint;
   noticeEndTimestamp: bigint;
@@ -145,29 +155,36 @@ interface Agenda {
   result: number;
   voters: string[];
   executed: boolean;
+  creator: string;
+  targets?: string[];
+  atomicExecute?: boolean;
 }
 
-type AgendaContractResult = [
-  bigint, // createdTimestamp
-  bigint, // noticeEndTimestamp
-  bigint, // votingPeriodInSeconds
-  bigint, // votingStartedTimestamp
-  bigint, // votingEndTimestamp
-  bigint, // executableLimitTimestamp
-  bigint, // executedTimestamp
-  bigint, // countingYes
-  bigint, // countingNo
-  bigint, // countingAbstain
-  number, // status
-  number, // result
-  string[], // voters
-  boolean // executed
-];
+type AgendaContractResult = {
+  createdTimestamp: bigint;
+  noticeEndTimestamp: bigint;
+  votingPeriodInSeconds: bigint;
+  votingStartedTimestamp: bigint;
+  votingEndTimestamp: bigint;
+  executableLimitTimestamp: bigint;
+  executedTimestamp: bigint;
+  countingYes: bigint;
+  countingNo: bigint;
+  countingAbstain: bigint;
+  status: number;
+  result: number;
+  voters: string[];
+  executed: boolean;
+  creator: string;
+};
 
 export default function Proposals() {
   const [activeTab, setActiveTab] = useState("onchain");
   const [daoProposalIds, setDaoProposalIds] = useState<number[]>([]);
   const [agendas, setAgendas] = useState<Agenda[]>([]);
+  const [agendaEvents, setAgendaEvents] = useState<AgendaCreatedEvent[]>([]);
+  const [isFetchingEvents, setIsFetchingEvents] = useState(false);
+  const [hasFetchedEvents, setHasFetchedEvents] = useState(false);
 
   const {
     data: agendaCount,
@@ -241,26 +258,31 @@ export default function Proposals() {
           const result = detail.result as unknown as AgendaContractResult;
           return {
             id: daoProposalIds[index],
-            createdTimestamp: result[0],
-            noticeEndTimestamp: result[1],
-            votingPeriodInSeconds: result[2],
-            votingStartedTimestamp: result[3],
-            votingEndTimestamp: result[4],
-            executableLimitTimestamp: result[5],
-            executedTimestamp: result[6],
-            countingYes: result[7],
-            countingNo: result[8],
-            countingAbstain: result[9],
-            status: result[10],
-            result: result[11],
-            voters: result[12],
-            executed: result[13],
-          };
+            createdTimestamp: result.createdTimestamp,
+            noticeEndTimestamp: result.noticeEndTimestamp,
+            votingPeriodInSeconds: result.votingPeriodInSeconds,
+            votingStartedTimestamp: result.votingStartedTimestamp,
+            votingEndTimestamp: result.votingEndTimestamp,
+            executableLimitTimestamp: result.executableLimitTimestamp,
+            executedTimestamp: result.executedTimestamp,
+            countingYes: result.countingYes,
+            countingNo: result.countingNo,
+            countingAbstain: result.countingAbstain,
+            status: result.status,
+            result: result.result,
+            voters: result.voters,
+            executed: result.executed,
+            creator: result.creator || "",
+            targets: [] as string[],
+            atomicExecute: false,
+          } as Agenda;
         })
         .filter((agenda): agenda is Agenda => agenda !== null);
 
-      console.log("Processed DAO Agendas:", agendaList);
+      console.log("Agendas data:", agendaList);
       setAgendas(agendaList);
+      // Reset hasFetchedEvents when agendas are loaded
+      setHasFetchedEvents(false);
     }
   }, [
     agendaDetails,
@@ -268,6 +290,348 @@ export default function Proposals() {
     isAgendaDetailsError,
     isAgendaDetailsLoading,
   ]);
+
+  // Fetch historical events and watch for new events using wagmi
+  const publicClient = usePublicClient();
+
+  // Watch for new events
+  useWatchContractEvent({
+    address: DAO_COMMITTEE_PROXY_ADDRESS,
+    abi: [
+      {
+        anonymous: false,
+        inputs: [
+          { indexed: true, name: "from", type: "address" },
+          { indexed: true, name: "id", type: "uint256" },
+          { indexed: false, name: "targets", type: "address[]" },
+          { indexed: false, name: "noticePeriodSeconds", type: "uint128" },
+          { indexed: false, name: "votingPeriodSeconds", type: "uint128" },
+          { indexed: false, name: "atomicExecute", type: "bool" },
+        ],
+        name: "AgendaCreated",
+        type: "event",
+      },
+    ],
+    eventName: "AgendaCreated",
+    onLogs(logs) {
+      console.log("Received new AgendaCreated event logs:", logs);
+      const events = logs
+        .map((log) => {
+          if (!log.args) return null;
+          return {
+            from: log.args.from as `0x${string}`,
+            id: log.args.id as bigint,
+            targets: (log.args.targets as readonly `0x${string}`[]).map(
+              (addr) => addr
+            ),
+            noticePeriodSeconds: log.args.noticePeriodSeconds as bigint,
+            votingPeriodSeconds: log.args.votingPeriodSeconds as bigint,
+            atomicExecute: log.args.atomicExecute as boolean,
+          } as AgendaCreatedEvent;
+        })
+        .filter((event): event is AgendaCreatedEvent => event !== null);
+
+      setAgendaEvents((prev) => {
+        const existingIds = new Set(prev.map((e) => Number(e.id)));
+        const newEvents = events.filter((e) => !existingIds.has(Number(e.id)));
+        return [...prev, ...newEvents];
+      });
+    },
+  });
+
+  // Add progress state
+  const [fetchProgress, setFetchProgress] = useState({
+    currentBlock: BigInt(0),
+    totalBlocks: BigInt(0),
+    percentage: 0,
+  });
+
+  // Fetch historical events
+  useEffect(() => {
+    const fetchHistoricalEvents = async () => {
+      console.log("\n=== Checking Event Fetch Status ===");
+      console.log("hasFetchedEvents:", hasFetchedEvents);
+      console.log("publicClient available:", !!publicClient);
+
+      if (!publicClient || hasFetchedEvents) {
+        console.log(
+          "Skipping event fetch - publicClient not available or events already fetched"
+        );
+        return;
+      }
+
+      let currentBlock: bigint = BigInt(0);
+      let totalBlocksChecked = 0;
+
+      try {
+        // Check if we need to fetch historical events
+        const agendasWithoutCreator = agendas.filter(
+          (agenda: Agenda) => !agenda.creator
+        );
+        console.log("\n=== Checking Agendas ===");
+        console.log("Total agendas:", agendas.length);
+        console.log("Agendas without creator:", agendasWithoutCreator.length);
+
+        if (agendasWithoutCreator.length === 0) {
+          console.log(
+            "All agendas have creators, skipping historical event fetch"
+          );
+          setHasFetchedEvents(true);
+          return;
+        }
+
+        setIsFetchingEvents(true);
+        console.log("\n=== Starting Historical Event Fetch ===");
+        console.log(
+          `Found ${agendasWithoutCreator.length} agendas without creators`
+        );
+        console.log(
+          "Agendas without creators:",
+          agendasWithoutCreator.map((a) => a.id)
+        );
+
+        // Get current block number
+        currentBlock = await publicClient.getBlockNumber();
+        console.log("Current block number:", currentBlock);
+        const blockRange = BigInt(10000); // 10000 blocks per request
+        let fromBlock = currentBlock - blockRange;
+        let allLogs: any[] = [];
+        let checkedBlocks = new Set<string>();
+
+        // Calculate total blocks to check
+        const totalBlocks = currentBlock - EVENT_START_BLOCK;
+        setFetchProgress({
+          currentBlock: currentBlock,
+          totalBlocks: totalBlocks,
+          percentage: 0,
+        });
+
+        // Fetch logs in chunks
+        while (fromBlock > EVENT_START_BLOCK) {
+          const blockRangeKey = `${fromBlock}-${fromBlock + blockRange}`;
+          if (checkedBlocks.has(blockRangeKey)) {
+            console.log(
+              `Skipping already checked block range: ${blockRangeKey}`
+            );
+            fromBlock -= blockRange;
+            continue;
+          }
+
+          console.log("\n=== Fetching Block Range ===");
+          console.log(`From block: ${fromBlock}`);
+          console.log(`To block: ${fromBlock + blockRange}`);
+
+          // Update progress
+          const progress =
+            (Number(currentBlock - fromBlock) / Number(totalBlocks)) * 100;
+          setFetchProgress((prev) => ({
+            ...prev,
+            currentBlock: fromBlock,
+            percentage: progress,
+          }));
+
+          try {
+            const logs = await publicClient.getLogs({
+              address: DAO_COMMITTEE_PROXY_ADDRESS,
+              event: {
+                type: "event",
+                name: "AgendaCreated",
+                inputs: [
+                  { indexed: true, name: "from", type: "address" },
+                  { indexed: true, name: "id", type: "uint256" },
+                  { indexed: false, name: "targets", type: "address[]" },
+                  {
+                    indexed: false,
+                    name: "noticePeriodSeconds",
+                    type: "uint128",
+                  },
+                  {
+                    indexed: false,
+                    name: "votingPeriodSeconds",
+                    type: "uint128",
+                  },
+                  { indexed: false, name: "atomicExecute", type: "bool" },
+                ],
+              },
+              fromBlock,
+              toBlock: fromBlock + blockRange,
+            });
+
+            if (logs.length > 0) {
+              console.log("=== Found Events ===");
+              console.log(`Number of events: ${logs.length}`);
+              console.log(
+                "Event details:",
+                logs.map((log) => ({
+                  id: log.args.id,
+                  from: log.args.from,
+                  targets: log.args.targets,
+                }))
+              );
+            } else {
+              console.log("No events found in this block range");
+            }
+
+            allLogs = [...allLogs, ...logs];
+            checkedBlocks.add(blockRangeKey);
+            totalBlocksChecked += Number(blockRange);
+            console.log(`Total blocks checked: ${totalBlocksChecked}`);
+          } catch (error) {
+            console.error("=== Error Fetching Events ===");
+            console.error(
+              `Block range: ${fromBlock} to ${fromBlock + blockRange}`
+            );
+            console.error("Error details:", error);
+
+            // If error occurs, try with smaller block range
+            const smallerBlockRange = blockRange / BigInt(2);
+            if (smallerBlockRange > BigInt(1000)) {
+              console.log(
+                `Retrying with smaller block range: ${smallerBlockRange}`
+              );
+              fromBlock += blockRange - smallerBlockRange;
+              continue;
+            }
+          }
+
+          fromBlock -= blockRange;
+          // Add longer delay between requests to avoid rate limiting
+          await new Promise((resolve) => setTimeout(resolve, 3000)); // 3 seconds delay
+        }
+
+        // Fetch the last chunk from EVENT_START_BLOCK
+        const finalBlockRangeKey = `${EVENT_START_BLOCK}-${
+          fromBlock + blockRange
+        }`;
+        if (!checkedBlocks.has(finalBlockRangeKey)) {
+          console.log("\n=== Fetching Final Block Range ===");
+          console.log(`From block: ${EVENT_START_BLOCK}`);
+          console.log(`To block: ${fromBlock + blockRange}`);
+          console.log(`Progress: 100%`);
+
+          try {
+            const finalLogs = await publicClient.getLogs({
+              address: DAO_COMMITTEE_PROXY_ADDRESS,
+              event: {
+                type: "event",
+                name: "AgendaCreated",
+                inputs: [
+                  { indexed: true, name: "from", type: "address" },
+                  { indexed: true, name: "id", type: "uint256" },
+                  { indexed: false, name: "targets", type: "address[]" },
+                  {
+                    indexed: false,
+                    name: "noticePeriodSeconds",
+                    type: "uint128",
+                  },
+                  {
+                    indexed: false,
+                    name: "votingPeriodSeconds",
+                    type: "uint128",
+                  },
+                  { indexed: false, name: "atomicExecute", type: "bool" },
+                ],
+              },
+              fromBlock: EVENT_START_BLOCK,
+              toBlock: fromBlock + blockRange,
+            });
+
+            if (finalLogs.length > 0) {
+              console.log("=== Found Final Events ===");
+              console.log(`Number of events: ${finalLogs.length}`);
+              console.log(
+                "Final event details:",
+                finalLogs.map((log) => ({
+                  id: log.args.id,
+                  from: log.args.from,
+                  targets: log.args.targets,
+                }))
+              );
+            } else {
+              console.log("No events found in final block range");
+            }
+
+            allLogs = [...allLogs, ...finalLogs];
+            checkedBlocks.add(finalBlockRangeKey);
+            totalBlocksChecked += Number(
+              fromBlock + blockRange - EVENT_START_BLOCK
+            );
+            console.log(`Total blocks checked: ${totalBlocksChecked}`);
+          } catch (error) {
+            console.error("=== Error Fetching Final Events ===");
+            console.error("Error details:", error);
+          }
+        }
+
+        console.log("\n=== Event Fetch Summary ===");
+        console.log("Total historical event logs:", allLogs.length);
+        console.log("Total blocks checked:", totalBlocksChecked);
+
+        const events = allLogs
+          .map((log) => {
+            const args = log.args;
+            if (!args) return null;
+            return {
+              from: args.from as `0x${string}`,
+              id: args.id as bigint,
+              targets: (args.targets as readonly `0x${string}`[]).map(
+                (addr) => addr
+              ),
+              noticePeriodSeconds: args.noticePeriodSeconds as bigint,
+              votingPeriodSeconds: args.votingPeriodSeconds as bigint,
+              atomicExecute: args.atomicExecute as boolean,
+            } as AgendaCreatedEvent;
+          })
+          .filter((event): event is AgendaCreatedEvent => event !== null);
+
+        console.log("Total processed events:", events.length);
+        if (events.length > 0) {
+          console.log(
+            "Processed events:",
+            events.map((e) => ({
+              id: e.id,
+              from: e.from,
+              targets: e.targets,
+            }))
+          );
+        }
+
+        // Update agendas with creators in one batch
+        const updatedAgendas: Agenda[] = agendas.map((agenda: Agenda) => {
+          const event = events.find((e) => Number(e.id) === agenda.id);
+          if (event) {
+            const tmpAgenda = agenda;
+            tmpAgenda.creator = event.from;
+            return tmpAgenda;
+          }
+          return agenda; // Return original agenda if no event found
+        });
+
+        console.log("\n=== Update Summary ===");
+        console.log("Updated agendas:", updatedAgendas);
+
+        setAgendas(updatedAgendas);
+        setHasFetchedEvents(true);
+      } catch (error) {
+        console.error("\n=== Error in Historical Event Fetch ===");
+        console.error("Error details:", error);
+      } finally {
+        setIsFetchingEvents(false);
+        setFetchProgress({
+          currentBlock: BigInt(0),
+          totalBlocks: BigInt(0),
+          percentage: 0,
+        });
+        console.log(`\n=== Historical Event Fetch Completed ===`);
+        if (currentBlock > BigInt(0)) {
+          console.log(`Block range: ${EVENT_START_BLOCK} to ${currentBlock}`);
+          console.log(`Total blocks processed: ${totalBlocksChecked}`);
+        }
+      }
+    };
+
+    fetchHistoricalEvents();
+  }, [publicClient, hasFetchedEvents]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -321,7 +685,11 @@ export default function Proposals() {
           <TabsContent value="onchain" className="mt-0">
             <div className="mt-6">
               <h2 className="text-xl font-semibold mb-4">Onchain Agendas</h2>
-              <ProposalLists proposals={proposals} />
+              {isLoading ? (
+                <div className="text-center py-8 text-gray-500">Loading...</div>
+              ) : (
+                <ProposalLists agendas={agendas} />
+              )}
             </div>
           </TabsContent>
 
@@ -333,32 +701,11 @@ export default function Proposals() {
                   ({agendas.length})
                 </span>
               </h2>
-              <ProposalLists
-                proposals={agendas.map((agenda) => ({
-                  title: `Agenda #${agenda.id}`,
-                  status:
-                    agenda.status === AgendaStatus.EXECUTED
-                      ? "EXECUTED"
-                      : agenda.status === AgendaStatus.REJECTED
-                      ? "DEFEATED"
-                      : agenda.status === AgendaStatus.CANCELLED
-                      ? "CANCELLED"
-                      : agenda.status === AgendaStatus.EXECUTABLE
-                      ? "PENDING EXECUTION"
-                      : agenda.status === AgendaStatus.VOTING
-                      ? "ACTIVE"
-                      : "ACTIVE",
-                  date: formatDate(Number(agenda.createdTimestamp)),
-                  votesFor: Number(agenda.countingYes).toLocaleString(),
-                  votesAgainst: Number(agenda.countingNo).toLocaleString(),
-                  totalVotes: (
-                    Number(agenda.countingYes) +
-                    Number(agenda.countingNo) +
-                    Number(agenda.countingAbstain)
-                  ).toLocaleString(),
-                  addresses: `${agenda.voters?.length || 0} addresses`,
-                }))}
-              />
+              {isLoading ? (
+                <div className="text-center py-8 text-gray-500">Loading...</div>
+              ) : (
+                <ProposalLists agendas={agendas} />
+              )}
             </div>
           </TabsContent>
 
@@ -372,6 +719,27 @@ export default function Proposals() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Fixed event fetching status at bottom */}
+      {isFetchingEvents && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-3 px-4 shadow-lg">
+          <div className="container mx-auto">
+            <div className="text-center text-gray-500 mb-2">
+              Fetching agenda events... {fetchProgress.percentage.toFixed(1)}%
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-purple-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${fetchProgress.percentage}%` }}
+              ></div>
+            </div>
+            <div className="text-center text-sm text-gray-400 mt-1">
+              Block {fetchProgress.currentBlock.toString()} /{" "}
+              {fetchProgress.totalBlocks.toString()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
