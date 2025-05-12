@@ -8,7 +8,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "name: Validate Agenda Metadata PR",
   "dependencies": {
     "ethers": "^6.0.0"
   }

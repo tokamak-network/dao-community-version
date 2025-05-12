@@ -3,7 +3,7 @@ name: Validate Agenda Metadata PR
 on:
   pull_request:
     paths:
-      - 'src/agenda/metadata/*.json'
+      - 'agenda/metadata/*.json'
 
 jobs:
   validate:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Validate JSON format
         run: |
-          for file in src/agenda/metadata/*.json; do
+          for file in agenda/metadata/*.json; do
             if ! jq . "$file" > /dev/null 2>&1; then
               echo "Invalid JSON format in $file"
               exit 1
@@ -34,7 +34,7 @@ jobs:
 
       - name: Validate metadata schema
         run: |
-          node src/agenda/scripts/validate-metadata.js
+          node agenda/scripts/validate-metadata.js
 
       - name: Validate PR title format
         run: |
@@ -49,4 +49,4 @@ jobs:
           AGENDA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -o '[0-9]\+')
 
           # Run verification
-          node src/agenda/scripts/verify-signature.js "src/agenda/metadata/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
+          node agenda/scripts/verify-signature.js "agenda/metadata/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
