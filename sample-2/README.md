@@ -7,11 +7,13 @@ graph TB
     subgraph Frontend["Frontend<br/>Next.js/React"]
         style Frontend fill:#e1f5fe,stroke:#01579b
         DAO[DAO Proposal Website]
+        style DAO fill:#fff3e0,stroke:#e65100
     end
 
     subgraph Backend["Backend<br/>Next.js API Routes"]
         style Backend fill:#f3e5f5,stroke:#4a148c
         API[Simulation API]
+        style API fill:#fff3e0,stroke:#e65100
     end
 
     subgraph Blockchain["Blockchain Nodes"]
