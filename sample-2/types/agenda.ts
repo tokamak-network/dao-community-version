@@ -15,7 +15,11 @@ export interface Agenda {
   voters: string[];
   executed: boolean;
   creator?: string;
-  targets?: string[];
+  targets?: {
+    type: string;
+    address: string;
+    value?: string;
+  }[];
   atomicExecute?: boolean;
 }
 
@@ -23,6 +27,8 @@ export interface AgendaWithMetadata extends Agenda {
   title?: string;
   description?: string;
   creator?: string;
+  snapshotUrl?: string;
+  discourseUrl?: string;
 }
 
 export interface AgendaCreatedEvent {

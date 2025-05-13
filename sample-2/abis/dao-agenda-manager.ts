@@ -91,4 +91,25 @@ export const DAO_AGENDA_MANAGER_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [],
+    name: "minimumNoticePeriodSeconds",
+    outputs: [{ type: "uint128", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "minimumVotingPeriodSeconds",
+    outputs: [{ type: "uint128", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "executingPeriodSeconds",
+    outputs: [{ type: "uint128", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;

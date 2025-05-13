@@ -80,7 +80,10 @@ export function getResultText(result: number): string {
   }
 }
 
-export function formatDate(timestamp: number): string {
+export function formatDate(
+  timestamp: number,
+  includeTimezone: boolean = true
+): string {
   const date = new Date(timestamp * 1000);
   const months = [
     "Jan",
@@ -101,6 +104,12 @@ export function formatDate(timestamp: number): string {
   const year = date.getFullYear();
   const hours = date.getHours().toString().padStart(2, "0");
   const minutes = date.getMinutes().toString().padStart(2, "0");
+
+  if (!includeTimezone) {
+    return `${month} ${day}${getOrdinalSuffix(
+      day
+    )}, ${year} ${hours}:${minutes}`;
+  }
 
   // Get timezone offset in minutes and convert to hours
   const timezoneOffset = -date.getTimezoneOffset();

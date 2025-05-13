@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Image from "next/image";
 import { AgendaWithMetadata } from "@/types/agenda";
 import {
@@ -12,8 +13,6 @@ import {
   Zap,
   MoreVertical,
   Copy,
-  ArrowUpRight,
-  Send,
   CheckCircle2,
   Square,
   Hourglass,
@@ -23,12 +22,19 @@ import {
   Circle,
   Timer,
 } from "lucide-react";
+import AgendaDescription from "./AgendaDescription";
+import AgendaActions from "./AgendaActions";
+import AgendaStatusTimeline from "./AgendaStatusTimeline";
+import AgendaVotes from "./AgendaVotes";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
 }
 
+type TabType = "description" | "actions" | "votes";
+
 export default function AgendaDetail({ agenda }: AgendaDetailProps) {
+  const [activeTab, setActiveTab] = useState<TabType>("description");
   const currentStatus = calculateAgendaStatus(agenda);
   const timeInfo = getAgendaTimeInfo(agenda);
 
@@ -45,7 +51,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">
-            {agenda.title || `Proposal #${agenda.id}`}
+            {agenda.title || `Agenda #${agenda.id}`}
           </h1>
           <div className="flex items-center">
             <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md mr-2">
@@ -85,150 +91,51 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         <div className="flex">
           <div className="w-2/3 border-r border-gray-200">
             <div className="p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                Result details
-              </h2>
-
-              {/* Voting Results */}
-              <div className="mt-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center border-b-2 border-emerald-500 pb-2">
-                    <span className="text-emerald-500 font-medium">For</span>
-                  </div>
-                  <div className="text-center pb-2">
-                    <span className="text-gray-600">Against</span>
-                  </div>
-                  <div className="text-center pb-2">
-                    <span className="text-gray-600">Abstain</span>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>{agenda.voters.length} addresses</span>
-                    <span>
-                      {Number(agenda.countingYes) +
-                        Number(agenda.countingNo) +
-                        Number(agenda.countingAbstain)}{" "}
-                      votes
-                    </span>
-                  </div>
-
-                  <div className="border-t border-gray-200 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-gray-300 mr-2 overflow-hidden">
-                          <Image
-                            src="/placeholder.svg?height=32&width=32"
-                            alt="Avatar"
-                            width={32}
-                            height={32}
-                          />
-                        </div>
-                        <span className="text-gray-700">Yes Votes</span>
-                      </div>
-                      <span className="text-gray-700">
-                        {Number(agenda.countingYes)}
-                      </span>
-                    </div>
-                  </div>
+              {/* Tabs */}
+              <div className="border-b border-gray-200">
+                <div className="flex">
+                  <button
+                    className={`px-4 py-2 ${
+                      activeTab === "description"
+                        ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setActiveTab("description")}
+                  >
+                    Description
+                  </button>
+                  <button
+                    className={`px-4 py-2 ${
+                      activeTab === "actions"
+                        ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setActiveTab("actions")}
+                  >
+                    Actions
+                  </button>
+                  <button
+                    className={`px-4 py-2 ${
+                      activeTab === "votes"
+                        ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setActiveTab("votes")}
+                  >
+                    Votes
+                  </button>
                 </div>
               </div>
 
-              {/* Timeline */}
-              <div className="mt-8">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Timeline
-                </h2>
-
-                <div className="relative pl-8 border-l border-gray-200 space-y-8">
-                  {/* Created */}
-                  <div className="relative">
-                    <div className="absolute -left-10 mt-1.5 h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                      <PlusCircle className="h-4 w-4 text-gray-600" />
-                    </div>
-                    <div className="mb-1 text-xs text-gray-500">
-                      {formatDate(Number(agenda.createdTimestamp))}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Draft created
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notice Period */}
-                  <div className="relative">
-                    <div className="absolute -left-10 mt-1.5 h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Timer className="h-4 w-4 text-gray-600" />
-                    </div>
-                    <div className="mb-1 text-xs text-gray-500">
-                      Notice Period: {timeInfo.noticePeriod.remaining}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Notice period
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Voting Period */}
-                  <div className="relative">
-                    <div className="absolute -left-10 mt-1.5 h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Square className="h-4 w-4 text-gray-600" />
-                    </div>
-                    <div className="mb-1 text-xs text-gray-500">
-                      Voting Period: {timeInfo.votingPeriod.remaining}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Voting period
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Execution Period */}
-                  <div className="relative">
-                    <div className="absolute -left-10 mt-1.5 h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Hourglass className="h-4 w-4 text-gray-600" />
-                    </div>
-                    <div className="mb-1 text-xs text-gray-500">
-                      Execution Period: {timeInfo.executionPeriod.remaining}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Execution period
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Executed */}
-                  {agenda.executed && (
-                    <div className="relative">
-                      <div className="absolute -left-10 mt-1.5 h-6 w-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <Bolt className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <div className="mb-1 text-xs text-gray-500">
-                        {formatDate(Number(agenda.executedTimestamp))}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <h4 className="text-sm font-medium text-indigo-600">
-                            Proposal executed
-                          </h4>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              {/* Tab Content */}
+              <div className="mt-6">
+                {activeTab === "description" ? (
+                  <AgendaDescription agenda={agenda} />
+                ) : activeTab === "actions" ? (
+                  <AgendaActions agenda={agenda} />
+                ) : (
+                  <AgendaVotes agenda={agenda} />
+                )}
               </div>
             </div>
           </div>
@@ -313,6 +220,11 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     {Number(agenda.countingAbstain)}
                   </span>
                 </div>
+              </div>
+
+              {/* Status Timeline */}
+              <div className="border-t border-gray-200 pt-6">
+                <AgendaStatusTimeline agenda={agenda} />
               </div>
             </div>
           </div>
