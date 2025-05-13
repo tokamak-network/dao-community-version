@@ -50,10 +50,20 @@
             background-color: #e8f5e9;
             border-radius: 4px;
             display: none;
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
         .error {
             color: red;
             margin-top: 10px;
+        }
+        .signature-text {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
         }
     </style>
 </head>
@@ -83,7 +93,7 @@
                 return;
             }
 
-            const message = `I am the original submitter of agenda #${agendaId} with transaction ${transactionHash}. This signature verifies my ownership and authorization of this agenda submission.`;
+            const message = `I am the one who submitted agenda #${agendaId} via transaction ${transactionHash}. This signature proves that I am the one who submitted this agenda.`;
 
             try {
                 // Check if MetaMask is installed
@@ -105,7 +115,8 @@
                 signatureResult.style.display = 'block';
                 signatureResult.innerHTML = `
                     <h3>Signature Generated Successfully!</h3>
-                    <p><strong>Signature:</strong> ${signature}</p>
+                    <p><strong>Signature:</strong></p>
+                    <div class="signature-text">${signature}</div>
                     <p>Copy this signature and include it in your metadata file under the <code>creator.signature</code> field.</p>
                 `;
             } catch (error) {
