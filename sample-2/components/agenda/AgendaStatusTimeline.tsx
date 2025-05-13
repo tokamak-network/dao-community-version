@@ -1,5 +1,11 @@
 import { AgendaWithMetadata } from "@/types/agenda";
-import { formatDate, getStatusClass, getAgendaTimeInfo } from "@/lib/utils";
+import {
+  formatDate,
+  getStatusClass,
+  getAgendaTimeInfo,
+  calculateAgendaStatus,
+  AgendaStatus,
+} from "@/lib/utils";
 import {
   CheckCircle2,
   Clock,
@@ -21,6 +27,7 @@ export default function AgendaStatusTimeline({
   agenda,
 }: AgendaStatusTimelineProps) {
   const timeInfo = getAgendaTimeInfo(agenda);
+  const currentStatus = calculateAgendaStatus(agenda);
 
   // Get period information from contract
   const { data: noticePeriod } = useContractRead({
@@ -68,6 +75,7 @@ export default function AgendaStatusTimeline({
       color: "text-gray-600",
       bgColor: "bg-gray-100",
       period: "Start",
+      isCurrent: currentStatus === AgendaStatus.NONE,
     },
     {
       status: "Notice Period",
@@ -76,6 +84,7 @@ export default function AgendaStatusTimeline({
       color: "text-yellow-600",
       bgColor: "bg-yellow-100",
       period: formatPeriod(noticePeriod as bigint),
+      isCurrent: currentStatus === AgendaStatus.NOTICE,
     },
     {
       status: "Voting Period",
@@ -84,6 +93,7 @@ export default function AgendaStatusTimeline({
       color: "text-purple-600",
       bgColor: "bg-purple-100",
       period: formatPeriod(votingPeriod as bigint),
+      isCurrent: currentStatus === AgendaStatus.VOTING,
     },
     {
       status: "Waiting Execution",
@@ -92,6 +102,7 @@ export default function AgendaStatusTimeline({
       color: "text-blue-600",
       bgColor: "bg-blue-100",
       period: formatPeriod(executionPeriod as bigint),
+      isCurrent: currentStatus === AgendaStatus.WAITING_EXEC,
     },
     {
       status: agenda.executed ? "Executed" : "Ended",
@@ -102,6 +113,9 @@ export default function AgendaStatusTimeline({
       color: agenda.executed ? "text-emerald-600" : "text-red-600",
       bgColor: agenda.executed ? "bg-emerald-100" : "bg-red-100",
       period: agenda.executed ? "Completed" : "Expired",
+      isCurrent:
+        currentStatus === AgendaStatus.EXECUTED ||
+        currentStatus === AgendaStatus.ENDED,
     },
   ];
 
@@ -119,8 +133,21 @@ export default function AgendaStatusTimeline({
           {timeline.map((item, index) => (
             <div key={index} className="relative flex items-start">
               {/* Icon */}
-              <div className="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border-2 border-gray-200">
-                <item.icon className={`w-4 h-4 ${item.color}`} />
+              <div
+                className={`relative z-10 flex items-center justify-center ${
+                  item.isCurrent ? "w-10 h-10 border-4" : "w-8 h-8 border-2"
+                } rounded-full ${
+                  item.isCurrent ? item.bgColor : "bg-white"
+                } border-${item.color.split("-")[1]} shadow-lg`}
+              >
+                <item.icon
+                  className={`${item.isCurrent ? "w-5 h-5" : "w-4 h-4"} ${
+                    item.color
+                  }`}
+                />
+                {item.isCurrent && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                )}
               </div>
 
               {/* Content */}
@@ -128,7 +155,13 @@ export default function AgendaStatusTimeline({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${item.bgColor} ${item.color}`}
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        item.isCurrent
+                          ? `${item.bgColor} ${item.color} ring-2 ring-${
+                              item.color.split("-")[1]
+                            }`
+                          : `${item.bgColor} ${item.color}`
+                      }`}
                     >
                       {item.status}
                     </span>
