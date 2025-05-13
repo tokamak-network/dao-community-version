@@ -21,6 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import { useContractRead } from "wagmi";
 import { POLLING_INTERVAL } from "@/config/contracts";
+import { useRouter } from "next/navigation";
 
 import { chain } from "@/config/chain";
 import { createPublicClient, http } from "viem";
@@ -43,6 +44,7 @@ export default function ProposalLists({
   contract,
   daoContract,
 }: ProposalListsProps) {
+  const router = useRouter();
   const [agendasWithMetadata, setAgendasWithMetadata] = useState<
     AgendaWithMetadata[]
   >([]);
@@ -310,7 +312,11 @@ export default function ProposalLists({
                 const currentStatus = calculateAgendaStatus(agenda);
                 const timeInfo = getAgendaTimeInfo(agenda);
                 return (
-                  <tr key={index} className="border-b">
+                  <tr
+                    key={index}
+                    className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/proposals/${agenda.id}`)}
+                  >
                     <td className="py-4">
                       <div className="flex flex-col">
                         <h3 className="font-medium">
