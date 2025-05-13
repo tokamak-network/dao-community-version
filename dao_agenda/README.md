@@ -1,4 +1,4 @@
-# DAO Agenda Repository
+# DAO Agenda Metadata Repository
 
 This repository contains agenda metadata for DAO governance proposals.
 
