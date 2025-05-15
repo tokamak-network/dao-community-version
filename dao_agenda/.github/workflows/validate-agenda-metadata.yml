@@ -3,7 +3,7 @@ name: Validate Agenda Metadata PR
 on:
   pull_request:
     paths:
-      - 'agenda/metadata/*.json'
+      - 'agenda/metadata/*/*.json'
 
 jobs:
   validate:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Validate JSON format
         run: |
-          for file in agenda/metadata/*.json; do
+          for file in agenda/metadata/*/*.json; do
             if ! jq . "$file" > /dev/null 2>&1; then
               echo "Invalid JSON format in $file"
               exit 1
@@ -36,17 +36,29 @@ jobs:
         run: |
           node agenda/scripts/validate-metadata.js
 
-      - name: Validate PR title format
+      - name: Validate PR title format and file path
         run: |
-          if ! [[ "${{ github.event.pull_request.title }}" =~ ^\[Agenda\ #[0-9]+\]\ Add\ metadata$ ]]; then
-            echo "Invalid PR title format. Expected format: [Agenda #{id}] Add metadata"
+          # Extract agenda ID and network from PR title
+          if ! [[ "${{ github.event.pull_request.title }}" =~ ^\[Agenda\ #([0-9]+)\]\ Add\ metadata\ \(([a-zA-Z0-9-]+)\)$ ]]; then
+            echo "Invalid PR title format. Expected format: [Agenda #{id}] Add metadata ({network})"
+            exit 1
+          fi
+
+          AGENDA_ID="${BASH_REMATCH[1]}"
+          NETWORK="${BASH_REMATCH[2]}"
+
+          # Check if file exists in the correct path
+          EXPECTED_PATH="agenda/metadata/$NETWORK/$AGENDA_ID.json"
+          if [ ! -f "$EXPECTED_PATH" ]; then
+            echo "File not found at expected path: $EXPECTED_PATH"
             exit 1
           fi
 
       - name: Verify signature and transaction
         run: |
-          # Get the agenda ID from PR title
-          AGENDA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -o '[0-9]\+')
+          # Get the agenda ID and network from PR title
+          AGENDA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=#)[0-9]+')
+          NETWORK=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=\()([a-zA-Z0-9-]+)(?=\))')
 
           # Run verification
-          node agenda/scripts/verify-signature.js "agenda/metadata/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
+          node agenda/scripts/verify-signature.js "agenda/metadata/$NETWORK/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
