@@ -1,4 +1,4 @@
-name: Validate Sepolia Agenda Metadata PR
+name: Validate Sepolia Agenda Metadata PR 1
 
 on:
   pull_request:
