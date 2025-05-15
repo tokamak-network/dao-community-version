@@ -1,0 +1,42 @@
+{
+  "title": "Title1",
+  "description": "<p><strong>Description</strong></p>",
+  "actions": [
+    {
+      "title": "updateSeigniorageLayer(address)",
+      "contractAddress": "0x2320542ae933FbAdf8f5B97cA348c7CeDA90fAd7",
+      "method": "updateSeigniorageLayer(address)",
+      "calldata": "0x1e1f0b60000000000000000000000000f078ae62ea4740e19ddf6c0c5e17ecdb820bbee1",
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "layer2",
+              "type": "address"
+            }
+          ],
+          "name": "updateSeigniorageLayer",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        }
+      ],
+      "sendEth": false,
+      "id": "1747210004619",
+      "type": "Custom"
+    }
+  ],
+  "transaction": {
+    "hash": "0xf011feaead3f5b09beaa45d1de573f38aebdcbe0a0920ed8c8a42a2e806b2d5c",
+    "explorerUrl": "https://sepolia.etherscan.io/tx/0xf011feaead3f5b09beaa45d1de573f38aebdcbe0a0920ed8c8a42a2e806b2d5c"
+  },
+  "agendaNumber": "64",
+  "timestamp": "2025-05-14T08:12:45.518Z"
+}
