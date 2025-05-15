@@ -2,7 +2,7 @@ name: Validate Sepolia Agenda Metadata PR 1
 
 on:
   pull_request:
-    branches: [ sample-2 ]
+    branches: [ dao_agenda ]
     paths:
       - 'dao_agenda/agenda/metadata/*/*.json'
   workflow_dispatch:  # 수동 실행을 위한 이벤트 추가

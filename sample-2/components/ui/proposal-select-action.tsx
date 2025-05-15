@@ -734,10 +734,6 @@ export function ProposalSelectAction({
     >
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-medium text-purple-600">New Action</h2>
-        <Button variant="ghost" className="text-gray-700 flex items-center">
-          <Trash2 className="w-5 h-5 mr-2" />
-          Remove action
-        </Button>
       </div>
 
       <div className="space-y-6">
