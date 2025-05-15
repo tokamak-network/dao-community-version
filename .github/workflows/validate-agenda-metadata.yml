@@ -5,7 +5,14 @@ on:
     branches: [ sample-2 ]
     paths:
       - 'dao_agenda/agenda/metadata/*/*.json'
-
+  workflow_dispatch:  # 수동 실행을 위한 이벤트 추가
+    inputs:
+      agenda_id:
+        description: 'Agenda ID to validate'
+        required: true
+      network:
+        description: 'Network name (e.g., mainnet)'
+        required: true
 jobs:
   validate:
     runs-on: ubuntu-latest
