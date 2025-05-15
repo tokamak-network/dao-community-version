@@ -48,14 +48,19 @@ Each agenda metadata file should be a JSON file with the following structure:
 ## How to Submit an Agenda Metadata
 
 1. Create a new JSON file in the `agenda/metadata/<network>` directory
-   - File name should be `<agendaID>.json`
-   - For example, if your agenda ID is 123 on mainnet, the file should be `agenda/metadata/mainnet/123.json`
+   - File name should be `<agenda-id>.json`
+   - For example, if your agenda ID is 123 and network is mainnet, the file should be `agenda/metadata/mainnet/123.json`
 2. Create a Pull Request with the following format:
 
 ### PR Title Format
 
 ```
 [Agenda #{id}] Add metadata ({network})
+```
+
+For example:
+```
+[Agenda #123] Add metadata (mainnet)
 ```
 
 ### How to Sign Your Agenda Metadata ()
@@ -97,8 +102,8 @@ To verify your ownership of the agenda registration, you need to sign a message 
   "network": "mainnet",
   "transaction": "0x4848613da5f783ae57bf489ca40d452c40c3e70b173860191922fb4dfe2626b8",
   "creator": {
-    "address": "0x...",
-    "signature": "0x..."
+    "address": "0x1234...5678",
+    "signature": "0x9876...5432"
   },
 }
 ```

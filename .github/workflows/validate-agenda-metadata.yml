@@ -1,0 +1,65 @@
+name: Validate Sepolia Agenda Metadata PR
+
+on:
+  pull_request:
+    branches: [ sample-2 ]
+    paths:
+      - 'dao_agenda/agenda/metadata/*/*.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      ETHEREUM_RPC_URL: ${{ secrets.L1_RPC_URL }}
+      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: cd dao_agenda & npm install
+
+      - name: Validate JSON format
+        run: |
+          for file in agenda/metadata/*/*.json; do
+            if ! jq . "$file" > /dev/null 2>&1; then
+              echo "Invalid JSON format in $file"
+              exit 1
+            fi
+          done
+
+      - name: Validate metadata schema
+        run: |
+          node agenda/scripts/validate-metadata.js
+
+      - name: Validate PR title format
+        run: |
+          # Extract agenda ID and network from PR title
+          if ! [[ "${{ github.event.pull_request.title }}" =~ ^\[Agenda\ #([0-9]+)\]\ Add\ metadata\ \(([a-zA-Z0-9-]+)\)$ ]]; then
+            echo "Invalid PR title format. Expected format: [Agenda #{id}] Add metadata ({network})"
+            exit 1
+          fi
+
+          AGENDA_ID="${BASH_REMATCH[1]}"
+          NETWORK="${BASH_REMATCH[2]}"
+
+          # Check if file exists in the correct path
+          EXPECTED_PATH="dao_agenda/agenda/metadata/$NETWORK/$AGENDA_ID.json"
+          if [ ! -f "$EXPECTED_PATH" ]; then
+            echo "File not found at expected path: $EXPECTED_PATH"
+            exit 1
+          fi
+
+      - name: Verify signature and transaction
+        run: |
+          # Get the agenda ID and network from PR id
+          AGENDA_ID=$(echo "${{ github.event.pull_request.id }}" | grep -oP '(?<=#)[0-9]+')
+          NETWORK=$(echo "${{ github.event.pull_request.network }}" | grep -oP '(?<=\()([a-zA-Z0-9-]+)(?=\))')
+
+          # Run verification
+          node agenda/scripts/verify-signature.js "agenda/metadata/$NETWORK/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
