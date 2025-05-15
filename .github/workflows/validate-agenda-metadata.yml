@@ -2,7 +2,7 @@ name: Validate Sepolia Agenda Metadata PR
 
 on:
   pull_request:
-    branches: [ sample-2 ]
+    branches: [ dao_agenda ]
     paths:
       - 'dao_agenda/agenda/metadata/*/*.json'
 
