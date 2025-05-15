@@ -1,5 +1,13 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { ethers } from "ethers";
+import { chain } from "@/config/chain";
+
+const GITHUB_DAO_AGENDA_URL =
+  process.env.NEXT_PUBLIC_GITHUB_DAO_AGENDA_URL ||
+  "https://raw.githubusercontent.com/tokamak-network/dao-community-version/main";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -72,7 +80,10 @@ export function getResultText(result: number): string {
   }
 }
 
-export function formatDate(timestamp: number): string {
+export function formatDate(
+  timestamp: number,
+  includeTimezone: boolean = true
+): string {
   const date = new Date(timestamp * 1000);
   const months = [
     "Jan",
@@ -93,6 +104,12 @@ export function formatDate(timestamp: number): string {
   const year = date.getFullYear();
   const hours = date.getHours().toString().padStart(2, "0");
   const minutes = date.getMinutes().toString().padStart(2, "0");
+
+  if (!includeTimezone) {
+    return `${month} ${day}${getOrdinalSuffix(
+      day
+    )}, ${year} ${hours}:${minutes}`;
+  }
 
   // Get timezone offset in minutes and convert to hours
   const timezoneOffset = -date.getTimezoneOffset();
@@ -120,6 +137,54 @@ export function getOrdinalSuffix(day: number): string {
     default:
       return "th";
   }
+}
+
+// 시간 관련 유틸리티 함수들
+export function getRemainingTime(timestamp: bigint): string {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (timestamp <= now) return "0";
+
+  const remaining = timestamp - now;
+  const days = remaining / BigInt(86400);
+  const hours = (remaining % BigInt(86400)) / BigInt(3600);
+  const minutes = (remaining % BigInt(3600)) / BigInt(60);
+
+  if (days > BigInt(0)) {
+    return `${days}d ${hours}h`;
+  } else if (hours > BigInt(0)) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
+  }
+}
+
+export function getAgendaTimeInfo(agenda: {
+  createdTimestamp: bigint;
+  noticeEndTimestamp: bigint;
+  votingStartedTimestamp: bigint;
+  votingEndTimestamp: bigint;
+  executableLimitTimestamp: bigint;
+  executedTimestamp: bigint;
+}) {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+
+  return {
+    noticePeriod: {
+      start: agenda.createdTimestamp,
+      end: agenda.noticeEndTimestamp,
+      remaining: getRemainingTime(agenda.noticeEndTimestamp),
+    },
+    votingPeriod: {
+      start: agenda.votingStartedTimestamp,
+      end: agenda.votingEndTimestamp,
+      remaining: getRemainingTime(agenda.votingEndTimestamp),
+    },
+    executionPeriod: {
+      start: agenda.votingEndTimestamp,
+      end: agenda.executableLimitTimestamp,
+      remaining: getRemainingTime(agenda.executableLimitTimestamp),
+    },
+  };
 }
 
 export function formatAddress(address: string): string {
@@ -183,19 +248,17 @@ interface AgendaMetadata {
   atomicExecute: boolean;
 }
 
-const GITHUB_RAW_BASE_URL =
-  "https://raw.githubusercontent.com/your-username/your-repo/main/agendas";
-
 export async function getAgendaMetadata(
   agendaId: number
 ): Promise<AgendaMetadata | null> {
   try {
-    const response = await fetch(`${GITHUB_RAW_BASE_URL}/${agendaId}.json`);
-    if (!response.ok) {
-      console.log(`No metadata found for agenda ${agendaId}`);
-      return null;
-    }
-    return await response.json();
+    // const response = await fetch(`${GITHUB_DAO_AGENDA_URL}/${agendaId}.json`);
+    // if (!response.ok) {
+    //   console.log(`No metadata found for agenda ${agendaId}`);
+    //   return null;
+    // }
+    // return await response.json();
+    return null;
   } catch (error) {
     console.error(`Error fetching metadata for agenda ${agendaId}:`, error);
     return null;
@@ -217,4 +280,44 @@ export async function getAllAgendaMetadata(
 
   await Promise.all(promises);
   return metadata;
+}
+
+export async function fetchAgendaEvents(
+  contract: {
+    address: `0x${string}`;
+    abi: any;
+    chainId: number;
+  },
+  fromBlock: bigint,
+  toBlock: bigint,
+  publicClient: any
+) {
+  console.log(`Fetching events from block ${fromBlock} to ${toBlock}`);
+
+  const logs = await publicClient.getLogs({
+    address: contract.address as `0x${string}`,
+    event: {
+      type: "event",
+      name: "AgendaCreated",
+      inputs: [
+        { indexed: true, name: "from", type: "address" },
+        { indexed: true, name: "id", type: "uint256" },
+        { indexed: false, name: "targets", type: "address[]" },
+        { indexed: false, name: "noticePeriodSeconds", type: "uint128" },
+        { indexed: false, name: "votingPeriodSeconds", type: "uint128" },
+        { indexed: false, name: "atomicExecute", type: "bool" },
+      ],
+    },
+    fromBlock: fromBlock,
+    toBlock: toBlock,
+  });
+
+  console.log(`Found ${logs.length} events in this range`);
+
+  return logs;
+}
+
+export async function getLatestBlockNumber(): Promise<number> {
+  const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+  return await provider.getBlockNumber();
 }

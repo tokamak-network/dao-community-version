@@ -1,9 +1,10 @@
-name: Validate Agenda Metadata PR
+name: Validate Sepolia Agenda Metadata PR
 
 on:
   pull_request:
+    branches: [ sample-2 ]
     paths:
-      - 'agenda/metadata/*/*.json'
+      - 'dao_agenda/agenda/metadata/*/*.json'
 
 jobs:
   validate:
@@ -21,7 +22,7 @@ jobs:
           node-version: '16'
 
       - name: Install dependencies
-        run: npm install
+        run: cd dao_agenda & npm install
 
       - name: Validate JSON format
         run: |
@@ -36,7 +37,7 @@ jobs:
         run: |
           node agenda/scripts/validate-metadata.js
 
-      - name: Validate PR title format and file path
+      - name: Validate PR title format
         run: |
           # Extract agenda ID and network from PR title
           if ! [[ "${{ github.event.pull_request.title }}" =~ ^\[Agenda\ #([0-9]+)\]\ Add\ metadata\ \(([a-zA-Z0-9-]+)\)$ ]]; then
@@ -48,7 +49,7 @@ jobs:
           NETWORK="${BASH_REMATCH[2]}"
 
           # Check if file exists in the correct path
-          EXPECTED_PATH="agenda/metadata/$NETWORK/$AGENDA_ID.json"
+          EXPECTED_PATH="dao_agenda/agenda/metadata/$NETWORK/$AGENDA_ID.json"
           if [ ! -f "$EXPECTED_PATH" ]; then
             echo "File not found at expected path: $EXPECTED_PATH"
             exit 1
@@ -56,9 +57,9 @@ jobs:
 
       - name: Verify signature and transaction
         run: |
-          # Get the agenda ID and network from PR title
-          AGENDA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=#)[0-9]+')
-          NETWORK=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=\()([a-zA-Z0-9-]+)(?=\))')
+          # Get the agenda ID and network from PR id
+          AGENDA_ID=$(echo "${{ github.event.pull_request.id }}" | grep -oP '(?<=#)[0-9]+')
+          NETWORK=$(echo "${{ github.event.pull_request.network }}" | grep -oP '(?<=\()([a-zA-Z0-9-]+)(?=\))')
 
           # Run verification
           node agenda/scripts/verify-signature.js "agenda/metadata/$NETWORK/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"

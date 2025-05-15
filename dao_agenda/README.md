@@ -1,52 +1,133 @@
-name: Validate Agenda Metadata PR
+# DAO Agenda Metadata Repository
 
-on:
-  pull_request:
-    paths:
-      - 'agenda/metadata/*.json'
+This repository contains agenda metadata for DAO governance proposals.
 
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    env:
-      ETHEREUM_RPC_URL: ${{ secrets.ETHEREUM_RPC_URL }}
-      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+### Agenda Metadata Structure
 
-    steps:
-      - uses: actions/checkout@v2
+Each agenda metadata file should be a JSON file with the following structure:
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '16'
+```json
+{
+  "agendaID": "123",              // (Required) Unique agenda ID
+  "title": "Proposal Title",      // (Required) Title of the agenda
+  "description": "Detailed description of the proposal...", // (Required) Detailed explanation
+  "network": "mainnet",           // (Required) mainnet or sepolia
+  "transaction": "0x4848613da5f783ae57bf489ca40d452c40c3e70b173860191922fb4dfe2626b8", // (Required)
+  "creator": {
+    "address": "0x...",          // (Required) Creator's Ethereum address
+    "signature": "0x..."         // (Required) Signature data
+  },
+  "snapshotUrl": "https://snapshot.org/#/mydao.eth/",  // (Optional)
+  "discourseUrl": "https://forum.mydao.com/t/",       // (Optional)
+  "actions": [                   // (Required)
+    {
+      "title": "updateSeigniorage()",
+      "contractAddress": "0x2320542ae933FbAdf8f5B97cA348c7CeDA90fAd7",
+      "method": "updateSeigniorage()",
+      "calldata": "0x764a7856",
+      "abi": [
+        {
+          "inputs": [],
+          "name": "updateSeigniorage",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+      ],
+    }
+  ]
+}
+```
 
-      - name: Install dependencies
-        run: npm install
+## How to Submit an Agenda Metadata
 
-      - name: Validate JSON format
-        run: |
-          for file in agenda/metadata/*.json; do
-            if ! jq . "$file" > /dev/null 2>&1; then
-              echo "Invalid JSON format in $file"
-              exit 1
-            fi
-          done
+1. Create a new JSON file in the `agenda/metadata/<network>` directory
+   - File name should be `<agenda-id>.json`
+   - For example, if your agenda ID is 123 and network is mainnet, the file should be `agenda/metadata/mainnet/123.json`
+2. Create a Pull Request with the following format:
 
-      - name: Validate metadata schema
-        run: |
-          node agenda/scripts/validate-metadata.js
+### PR Title Format
 
-      - name: Validate PR title format
-        run: |
-          if ! [[ "${{ github.event.pull_request.title }}" =~ ^\[Agenda\ #[0-9]+\]\ Add\ metadata$ ]]; then
-            echo "Invalid PR title format. Expected format: [Agenda #{id}] Add metadata"
-            exit 1
-          fi
+```
+[Agenda #{id}] Add metadata ({network})
+```
 
-      - name: Verify signature and transaction
-        run: |
-          # Get the agenda ID from PR title
-          AGENDA_ID=$(echo "${{ github.event.pull_request.title }}" | grep -o '[0-9]\+')
+For example:
+```
+[Agenda #123] Add metadata (mainnet)
+```
 
-          # Run verification
-          node agenda/scripts/verify-signature.js "agenda/metadata/$AGENDA_ID.json" "${{ github.event.pull_request.body }}"
+### How to Sign Your Agenda Metadata ()
+
+To verify your ownership of the agenda registration, you need to sign a message using the same wallet that submitted the agenda registration transaction. Here's how to do it:
+
+1. Run DAO Agenda Signature Generation Tool
+  ```
+  cd dao_agenda/agenda/sign
+  python -m http.server 8000
+  ```
+2. Visit DAO Agenda Signature Generation Tool
+  ```
+  http://localhost:8000
+  ```
+  - This is the DAO Agenda Signature Generation webpage. Enter the agenda ID and transaction hash, and click the Sign Message button.
+
+3. Connect your MetaMask wallet (make sure it's the same wallet that submitted the agenda registration transaction)
+
+4. When prompted to sign the message, MetaMask will show a popup window asking you to sign the following message (replace `<id>` with your agenda ID and `<tx-hash>` with your transaction hash):
+  ```
+  I am the one who submitted agenda #<id> via transaction <tx-hash>. This signature proves that I am the one who submitted this agenda.
+  ```
+5. Review the message in the MetaMask popup
+
+6. Click "Sign" to approve the signature
+
+7. Copy the signature that MetaMask generates (it will be a long hexadecimal string starting with "0x")
+
+8. Include this signature in your metadata file under the `creator.signature` field
+
+
+### Example Metadata File
+```json
+{
+  "id": "123",
+  "title": "Increase DAO Treasury Allocation",
+  "description": "This proposal suggests increasing the DAO treasury allocation by 20% to support more community initiatives...",
+  "network": "mainnet",
+  "transaction": "0x4848613da5f783ae57bf489ca40d452c40c3e70b173860191922fb4dfe2626b8",
+  "creator": {
+    "address": "0x1234...5678",
+    "signature": "0x9876...5432"
+  },
+}
+```
+
+## Validation Process
+
+When you submit a PR, the following validations will be performed:
+
+1. JSON format validation
+2. Metadata schema validation
+3. PR title format validation
+4. Signature and transaction verification
+
+The verification process ensures that:
+- The transaction exists and is valid
+- The transaction is an agenda registration
+- The signature matches the creator address
+- The agenda ID matches the registration
+- All required fields are present and properly formatted
+
+
+## Development
+
+### Prerequisites
+- Node.js 16 or higher
+- npm
+

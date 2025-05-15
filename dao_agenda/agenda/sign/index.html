@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAO Agenda Signature</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #signatureResult {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e8f5e9;
+            border-radius: 4px;
+            display: none;
+            word-break: break-all;
+            overflow-wrap: break-word;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .signature-text {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>DAO Agenda Signature</h1>
+    <div class="container">
+        <div class="form-group">
+            <label for="agendaId">Agenda ID:</label>
+            <input type="text" id="agendaId" placeholder="Enter agenda ID">
+        </div>
+        <div class="form-group">
+            <label for="transactionHash">Transaction Hash:</label>
+            <input type="text" id="transactionHash" placeholder="Enter transaction hash">
+        </div>
+        <button onclick="requestSignature()">Sign Message</button>
+        <div id="signatureResult"></div>
+    </div>
+
+    <script>
+        async function requestSignature() {
+            const agendaId = document.getElementById('agendaId').value;
+            const transactionHash = document.getElementById('transactionHash').value;
+            const signatureResult = document.getElementById('signatureResult');
+
+            if (!agendaId || !transactionHash) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            const message = `I am the one who submitted agenda #${agendaId} via transaction ${transactionHash}. This signature proves that I am the one who submitted this agenda.`;
+
+            try {
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed');
+                }
+
+                // Request account access
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const account = accounts[0];
+
+                // Request signature
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [message, account]
+                });
+
+                // Display result
+                signatureResult.style.display = 'block';
+                signatureResult.innerHTML = `
+                    <h3>Signature Generated Successfully!</h3>
+                    <p><strong>Signature:</strong></p>
+                    <div class="signature-text">${signature}</div>
+                    <p>Copy this signature and include it in your metadata file under the <code>creator.signature</code> field.</p>
+                `;
+            } catch (error) {
+                signatureResult.style.display = 'block';
+                signatureResult.innerHTML = `
+                    <div class="error">
+                        <h3>Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
