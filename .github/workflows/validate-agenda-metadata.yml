@@ -1,11 +1,18 @@
-name: Validate Sepolia Agenda Metadata PR
+name: Validate Sepolia Agenda Metadata PR 1
 
 on:
   pull_request:
     branches: [ dao_agenda ]
     paths:
       - 'dao_agenda/agenda/metadata/*/*.json'
-
+  workflow_dispatch:  # 수동 실행을 위한 이벤트 추가
+    inputs:
+      agenda_id:
+        description: 'Agenda ID to validate'
+        required: true
+      network:
+        description: 'Network name (e.g., mainnet)'
+        required: true
 jobs:
   validate:
     runs-on: ubuntu-latest
