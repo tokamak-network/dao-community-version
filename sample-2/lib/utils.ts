@@ -6,8 +6,7 @@ import { ethers } from "ethers";
 import { chain } from "@/config/chain";
 
 const GITHUB_DAO_AGENDA_URL =
-  process.env.NEXT_PUBLIC_GITHUB_DAO_AGENDA_URL ||
-  "https://raw.githubusercontent.com/tokamak-network/dao-community-version/main";
+  "https://raw.githubusercontent.com/tokamak-network/dao-agenda-metadata-repository/refs/heads/main/data/agendas/";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -248,17 +247,42 @@ interface AgendaMetadata {
   atomicExecute: boolean;
 }
 
+function getNetworkName(chainId: number): string {
+  switch (chainId) {
+    case 1:
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 56:
+      return "bsc";
+    case 42161:
+      return "arbitrum";
+    case 10:
+      return "optimism";
+    case 100:
+      return "gnosis";
+    case 1101:
+      return "polygon-zkevm";
+    case 11155111:
+      return "sepolia";
+    default:
+      return "ethereum";
+  }
+}
+
 export async function getAgendaMetadata(
   agendaId: number
 ): Promise<AgendaMetadata | null> {
   try {
-    // const response = await fetch(`${GITHUB_DAO_AGENDA_URL}/${agendaId}.json`);
-    // if (!response.ok) {
-    //   console.log(`No metadata found for agenda ${agendaId}`);
-    //   return null;
-    // }
-    // return await response.json();
-    return null;
+    const networkName = getNetworkName(chain.id);
+    const response = await fetch(
+      `${GITHUB_DAO_AGENDA_URL}/${networkName}/agenda-${agendaId}.json`
+    );
+    if (!response.ok) {
+      console.log(`No metadata found for agenda ${agendaId} on ${networkName}`);
+      return null;
+    }
+    return await response.json();
   } catch (error) {
     console.error(`Error fetching metadata for agenda ${agendaId}:`, error);
     return null;

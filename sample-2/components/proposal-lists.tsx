@@ -320,14 +320,16 @@ export default function ProposalLists({
                     <td className="py-4">
                       <div className="flex flex-col">
                         <h3 className="font-medium">
-                          {agenda.title || `Agenda #${agenda.id}`}
                           <span
                             className={`text-xs px-2 py-0.5 rounded ${getStatusClass(
                               currentStatus
                             )}`}
                           >
+                            {" "}
                             {getStatusText(currentStatus)}
                           </span>
+                          Agenda #${agenda.id}
+                          {agenda.title ? ". " + agenda.title : ""}
                         </h3>
                         <div className="text-sm text-gray-600 mt-1">
                           {agenda.creator ? (
@@ -343,11 +345,6 @@ export default function ProposalLists({
                             </>
                           )}
                         </div>
-                        {agenda.description && (
-                          <p className="text-sm text-gray-500 mt-2 line-clamp-2">
-                            {agenda.description}
-                          </p>
-                        )}
                         <div className="text-xs text-gray-500 mt-2">
                           {currentStatus === 1 && (
                             <span>
