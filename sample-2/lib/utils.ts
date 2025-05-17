@@ -187,7 +187,7 @@ export function getAgendaTimeInfo(agenda: {
 }
 
 export function formatAddress(address: string): string {
-  if (!address) return "";
+  if (!address || typeof address !== "string") return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
@@ -242,9 +242,14 @@ interface AgendaMetadata {
   title: string;
   description: string;
   createdAt: number;
-  creator: string;
+  creator: {
+    address: string;
+    signature: string;
+  };
   targets: string[];
   atomicExecute: boolean;
+  snapshotUrl?: string;
+  discourseUrl?: string;
 }
 
 function getNetworkName(chainId: number): string {

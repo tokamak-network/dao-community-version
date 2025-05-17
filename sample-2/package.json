@@ -43,13 +43,17 @@
     "postcss": "^8.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.1",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "viem": "^2.29.2",
     "wagmi": "^2.15.2"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.2",
     "typescript": "^5.8.3"

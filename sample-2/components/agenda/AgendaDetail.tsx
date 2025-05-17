@@ -26,12 +26,13 @@ import AgendaDescription from "./AgendaDescription";
 import AgendaActions from "./AgendaActions";
 import AgendaStatusTimeline from "./AgendaStatusTimeline";
 import AgendaVotes from "./AgendaVotes";
+import AgendaCommunity from "./AgendaCommunity";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
 }
 
-type TabType = "description" | "actions" | "votes";
+type TabType = "description" | "community" | "actions" | "votes";
 
 export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>("description");
@@ -39,7 +40,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const timeInfo = getAgendaTimeInfo(agenda);
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className=" rounded-lg overflow-hidden">
       {/* Proposal Header */}
       <div className="p-6">
         <div
@@ -106,6 +107,16 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                   </button>
                   <button
                     className={`px-4 py-2 ${
+                      activeTab === "community"
+                        ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setActiveTab("community")}
+                  >
+                    Community
+                  </button>
+                  <button
+                    className={`px-4 py-2 ${
                       activeTab === "actions"
                         ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
                         : "text-gray-600 hover:text-gray-900"
@@ -131,6 +142,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
               <div className="mt-6">
                 {activeTab === "description" ? (
                   <AgendaDescription agenda={agenda} />
+                ) : activeTab === "community" ? (
+                  <AgendaCommunity agenda={agenda} />
                 ) : activeTab === "actions" ? (
                   <AgendaActions agenda={agenda} />
                 ) : (

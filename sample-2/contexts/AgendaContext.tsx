@@ -149,6 +149,9 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           ...agenda,
           title: batchMetadata[agenda.id]?.title,
           description: batchMetadata[agenda.id]?.description,
+          creator: batchMetadata[agenda.id]?.creator?.address,
+          snapshotUrl: batchMetadata[agenda.id]?.snapshotUrl,
+          discourseUrl: batchMetadata[agenda.id]?.discourseUrl,
         }));
 
         setAgendas((prev) => [...prev, ...batchDataWithMetadata]);

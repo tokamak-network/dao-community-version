@@ -19,6 +19,8 @@ import {
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAgenda } from "@/contexts/AgendaContext";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 interface ProposalListsProps {
   agendas: AgendaWithMetadata[];
@@ -92,7 +94,13 @@ export default function ProposalLists({
 
   return (
     <div className="space-y-4">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-2">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold">Proposals</h2>
+          <Link href="/proposals/new">
+            <Button>Create Proposal</Button>
+          </Link>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
