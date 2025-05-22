@@ -1,6 +1,20 @@
 export const DAO_AGENDA_MANAGER_ABI = [
   {
     inputs: [],
+    name: "createAgendaFees",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+    constant: true,
+  },
+  {
+    inputs: [],
     name: "numAgendas",
     outputs: [{ type: "uint256", name: "" }],
     stateMutability: "view",

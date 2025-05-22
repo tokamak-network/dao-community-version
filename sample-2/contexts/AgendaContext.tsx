@@ -42,6 +42,9 @@ interface AgendaContextType {
     total: bigint;
     percentage: number;
   } | null;
+  createAgendaFees: bigint | null;
+  minimumNoticePeriodSeconds: bigint | null;
+  minimumVotingPeriodSeconds: bigint | null;
 }
 
 const AgendaContext = createContext<AgendaContextType | undefined>(undefined);
@@ -60,6 +63,13 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     percentage: number;
   } | null>(null);
   const [failureCount, setFailureCount] = useState(0);
+  const [createAgendaFees, setCreateAgendaFees] = useState<bigint | null>(null);
+  const [minimumNoticePeriodSeconds, setMinimumNoticePeriodSeconds] = useState<
+    bigint | null
+  >(null);
+  const [minimumVotingPeriodSeconds, setMinimumVotingPeriodSeconds] = useState<
+    bigint | null
+  >(null);
 
   const fetchAgendas = async () => {
     try {
@@ -88,6 +98,36 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         },
         transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
       });
+
+      // Fetch contract parameters
+      const [fees, noticePeriod, votingPeriod] = await Promise.all([
+        publicClient.readContract({
+          address: DAO_AGENDA_MANAGER_ADDRESS,
+          abi: DAO_AGENDA_MANAGER_ABI,
+          functionName: "createAgendaFees",
+        }),
+        publicClient.readContract({
+          address: DAO_AGENDA_MANAGER_ADDRESS,
+          abi: DAO_AGENDA_MANAGER_ABI,
+          functionName: "minimumNoticePeriodSeconds",
+        }),
+        publicClient.readContract({
+          address: DAO_AGENDA_MANAGER_ADDRESS,
+          abi: DAO_AGENDA_MANAGER_ABI,
+          functionName: "minimumVotingPeriodSeconds",
+        }),
+      ]);
+
+      console.log(
+        "fees, noticePeriod, votingPeriod",
+        fees,
+        noticePeriod,
+        votingPeriod
+      );
+
+      setCreateAgendaFees(fees as bigint);
+      setMinimumNoticePeriodSeconds(noticePeriod as bigint);
+      setMinimumVotingPeriodSeconds(votingPeriod as bigint);
 
       setStatusMessage("Checking total number of agendas...");
       const numAgendas = await publicClient.readContract({
@@ -329,6 +369,9 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         events,
         isPolling,
         progress,
+        createAgendaFees,
+        minimumNoticePeriodSeconds,
+        minimumVotingPeriodSeconds,
       }}
     >
       {children}

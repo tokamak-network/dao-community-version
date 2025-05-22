@@ -28,6 +28,7 @@ import {
 import { TON_ABI } from "@/lib/contracts/abis/TON";
 import { IDAOAgendaManager } from "@/lib/contracts/interfaces/IDAOAgendaManager";
 import { useRouter } from "next/navigation";
+import { useAgenda } from "@/contexts/AgendaContext";
 
 // Add type declaration for window.ethereum
 declare global {
@@ -89,7 +90,6 @@ export function ProposalPreview({
     [key: string]: boolean;
   }>({});
   const [isPublishing, setIsPublishing] = useState(false);
-  const [agendaFee, setAgendaFee] = useState<string>("");
   const [encodedData, setEncodedData] = useState<string>("");
   const [submittingDots, setSubmittingDots] = useState<string>("...");
   const [txState, setTxState] = useState<
@@ -104,52 +104,35 @@ export function ProposalPreview({
   const { address } = useAccount();
   const router = useRouter();
 
-  // Fetch agenda fee and encode parameters when component mounts or actions change
+  const {
+    createAgendaFees,
+    minimumNoticePeriodSeconds,
+    minimumVotingPeriodSeconds,
+  } = useAgenda();
+
+  // Encode parameters when component mounts or actions change
   useEffect(() => {
     const fetchData = async () => {
-      if (!window.ethereum) {
-        console.error("Ethereum provider not found");
-        setAgendaFee("Provider not found");
-        return;
-      }
-
       try {
-        const provider = new BrowserProvider(window.ethereum);
-        const daoAgendaManager = new ethers.Contract(
-          DAO_AGENDA_MANAGER_ADDRESS,
-          [
-            "function createAgendaFees() external view returns (uint256)",
-            "function minimumNoticePeriodSeconds() external view returns (uint128)",
-            "function minimumVotingPeriodSeconds() external view returns (uint128)",
-          ],
-          provider
-        );
-
-        // Fetch agenda fee
-        const fee = await daoAgendaManager.createAgendaFees();
-        const feeInTON = ethers.formatUnits(fee, 18);
-        setAgendaFee(feeInTON);
-        console.log("=== Agenda Fee ===");
-        console.log("Raw fee:", fee.toString());
-        console.log("Fee in TON:", feeInTON);
-
         // Fetch periods
-        const noticePeriod =
-          await daoAgendaManager.minimumNoticePeriodSeconds();
-        const votingPeriod =
-          await daoAgendaManager.minimumVotingPeriodSeconds();
-        console.log("\n=== Periods ===");
-        console.log("Notice Period:", noticePeriod.toString());
-        console.log("Voting Period:", votingPeriod.toString());
-
+        if (
+          !createAgendaFees ||
+          !minimumNoticePeriodSeconds ||
+          !minimumVotingPeriodSeconds
+        ) {
+          console.log(
+            "\n=== createAgendaFees ||  minimumNoticePeriodSeconds || minimumVotingPeriodSeconds are null"
+          );
+          return;
+        }
         // Prepare parameters for encoding
         const targetAddresses = actions.map((a) => a.contractAddress);
         const calldataArray = actions.map((a) => a.calldata || "0x");
 
         console.log("\n=== Parameters for Encoding ===");
         console.log("Target Addresses:", targetAddresses);
-        console.log("Notice Period:", noticePeriod.toString());
-        console.log("Voting Period:", votingPeriod.toString());
+        console.log("Notice Period:", minimumNoticePeriodSeconds.toString());
+        console.log("Voting Period:", minimumVotingPeriodSeconds.toString());
         console.log("Is Emergency:", true);
         console.log("Calldata Array:", calldataArray);
 
@@ -158,8 +141,8 @@ export function ProposalPreview({
         const types = ["address[]", "uint128", "uint128", "bool", "bytes[]"];
         const values = [
           targetAddresses,
-          noticePeriod,
-          votingPeriod,
+          minimumNoticePeriodSeconds,
+          minimumVotingPeriodSeconds,
           true,
           calldataArray,
         ];
@@ -178,7 +161,6 @@ export function ProposalPreview({
         if (error.code) console.error("Error code:", error.code);
         if (error.message) console.error("Error message:", error.message);
         if (error.data) console.error("Error data:", error.data);
-        setAgendaFee("Error fetching fee");
       }
     };
 
@@ -287,32 +269,21 @@ export function ProposalPreview({
       }
     }
 
-    // Get DAO Agenda Manager contract
-    const provider = new BrowserProvider(window.ethereum);
-    const daoAgendaManager = new ethers.Contract(
-      DAO_AGENDA_MANAGER_ADDRESS,
-      [
-        "function minimumNoticePeriodSeconds() view returns (uint128)",
-        "function minimumVotingPeriodSeconds() view returns (uint128)",
-        "function createAgendaFees() view returns (uint256)",
-        "function numAgendas() view returns (uint256)",
-        "function getExecutionInfo(uint256) view returns (address[], bytes[], uint128, uint128, bool)",
-      ],
-      provider
-    );
-
-    // Get required parameters
-    const noticePeriod = await daoAgendaManager.minimumNoticePeriodSeconds();
-    const votingPeriod = await daoAgendaManager.minimumVotingPeriodSeconds();
-    const agendaFee = await daoAgendaManager.createAgendaFees();
-
     // Encode parameters
     const param = AbiCoder.defaultAbiCoder().encode(
       ["address[]", "uint128", "uint128", "bool", "bytes[]"],
-      [targets, noticePeriod, votingPeriod, true, params]
+      [
+        targets,
+        minimumNoticePeriodSeconds,
+        minimumVotingPeriodSeconds,
+        true,
+        params,
+      ]
     ) as `0x${string}`;
 
-    return { param, agendaFee };
+    return {
+      param,
+    };
   };
 
   const handlePublish = async () => {
@@ -324,9 +295,15 @@ export function ProposalPreview({
       alert("Invalid wallet address. Please reconnect your wallet.");
       return;
     }
+
+    if (!createAgendaFees) {
+      alert("Invalid createAgendaFees. Please reconnect your wallet.");
+      return;
+    }
+
     try {
       setTxState("submitting");
-      const { param, agendaFee } = await prepareAgenda();
+      const { param } = await prepareAgenda();
 
       // Check TON balance
       const provider = new BrowserProvider(window.ethereum);
@@ -337,7 +314,7 @@ export function ProposalPreview({
       );
       const tonBalanceRaw = await tonContract.balanceOf(address);
       const balanceInTon = Number(ethers.formatUnits(tonBalanceRaw, 18));
-      const feeInTon = Number(ethers.formatUnits(agendaFee, 18));
+      const feeInTon = Number(ethers.formatUnits(createAgendaFees, 18));
       if (balanceInTon < feeInTon) {
         alert(
           `The agenda fee is ${feeInTon} TON, but your wallet TON balance is insufficient. Current TON balance: ${balanceInTon} TON`
@@ -527,10 +504,7 @@ export function ProposalPreview({
 
   // Check if all DAO Agenda parameters are valid
   const hasValidAgendaParams =
-    agendaFee &&
-    encodedData &&
-    agendaFee !== "Error fetching fee" &&
-    encodedData !== "Encoding parameters...";
+    createAgendaFees && encodedData && encodedData !== "Encoding parameters...";
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -777,7 +751,9 @@ export function ProposalPreview({
                     <div>
                       <div className="text-sm text-gray-500 mb-1">amount</div>
                       <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                        {agendaFee ? `${agendaFee} TON` : "Loading..."}
+                        {createAgendaFees
+                          ? `${ethers.formatUnits(createAgendaFees, 18)} TON`
+                          : "Loading..."}
                       </div>
                     </div>
 
