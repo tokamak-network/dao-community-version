@@ -1,3 +1,10 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { AgendaWithMetadata } from "@/types/agenda";
+import { Components } from "react-markdown";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +26,7 @@ import {
   parseUnits,
   AbiCoder,
   BrowserProvider,
+  getAddress,
 } from "ethers";
 import {
   useAccount,
@@ -29,6 +37,7 @@ import { TON_ABI } from "@/lib/contracts/abis/TON";
 import { IDAOAgendaManager } from "@/lib/contracts/interfaces/IDAOAgendaManager";
 import { useRouter } from "next/navigation";
 import { useAgenda } from "@/contexts/AgendaContext";
+import { chain } from "@/config/chain";
 
 // Add type declaration for window.ethereum
 declare global {
@@ -109,6 +118,26 @@ export function ProposalPreview({
     minimumNoticePeriodSeconds,
     minimumVotingPeriodSeconds,
   } = useAgenda();
+
+  const components: Components = {
+    code({ node, inline, className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || "");
+      return !inline && match ? (
+        <SyntaxHighlighter
+          style={vscDarkPlus as any}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, "")}
+        </SyntaxHighlighter>
+      ) : (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+  };
 
   // Encode parameters when component mounts or actions change
   useEffect(() => {
@@ -215,10 +244,10 @@ export function ProposalPreview({
     }));
   };
 
-  const openEtherscan = (address: string) => {
+  const openEtherscan = (userAddress: string) => {
     const explorerUrl =
       process.env.NEXT_PUBLIC_EXPLORER_URL || "https://etherscan.io";
-    window.open(`${explorerUrl}/address/${address}`, "_blank");
+    window.open(`${explorerUrl}/address/${userAddress}`, "_blank");
   };
 
   const decodeCalldata = (action: any) => {
@@ -331,7 +360,11 @@ export function ProposalPreview({
         address: TON_CONTRACT_ADDRESS as `0x${string}`,
         abi: TON_ABI,
         functionName: "approveAndCall",
-        args: [DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`, agendaFee, param],
+        args: [
+          DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`,
+          createAgendaFees,
+          param,
+        ],
       });
     } catch (error) {
       console.error("Error publishing proposal:", error);
@@ -378,14 +411,15 @@ export function ProposalPreview({
         try {
           // Get agenda number immediately
           const ethersProvider = new BrowserProvider(window.ethereum);
-          const daoAgendaManager = new ethers.Contract(
-            DAO_AGENDA_MANAGER_ADDRESS,
-            ["function numAgendas() view returns (uint256)"],
-            ethersProvider
-          );
-          const numAgendas = await daoAgendaManager.numAgendas();
-          setAgendaNumber(numAgendas.toString());
-          setIsTransactionPending(false);
+
+          // const daoAgendaManager = new ethers.Contract(
+          //   DAO_AGENDA_MANAGER_ADDRESS,
+          //   ["function numAgendas() view returns (uint256)"],
+          //   ethersProvider
+          // );
+          // const numAgendas = await daoAgendaManager.numAgendas();
+          // setAgendaNumber(numAgendas.toString());
+          // setIsTransactionPending(false);
 
           // Wait for transaction confirmation in the background
           const receipt = await ethersProvider.waitForTransaction(
@@ -395,6 +429,7 @@ export function ProposalPreview({
           if (receipt) {
             setTxStatus("confirmed");
             setTxState("success");
+            // get agenda
           }
         } catch (err) {
           console.error("Error processing transaction:", err);
@@ -407,32 +442,69 @@ export function ProposalPreview({
     processTx();
   }, [publishData]);
 
-  const handleSaveAgenda = () => {
-    const explorerUrl =
-      process.env.NEXT_PUBLIC_EXPLORER_URL || "https://etherscan.io";
+  const getAgendaData = () => {
     const agendaData = {
+      id: agendaNumber ? parseInt(agendaNumber) : "",
+      network: chain.network?.toLowerCase(),
+      transaction: txHash,
+      creator: {
+        address: address,
+        signature: "",
+      },
       title,
       description,
       actions,
-      transaction: {
-        hash: txHash,
-        explorerUrl: `${explorerUrl}/tx/${txHash}`,
-      },
-      agendaNumber,
       timestamp: new Date().toISOString(),
     };
+    return agendaData;
+  };
 
+  const saveAgendaData = (agendaData: any) => {
     const blob = new Blob([JSON.stringify(agendaData, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `agenda-${agendaNumber}.json`;
+    a.download = `agenda-${agendaData.id}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const signMessage = async (message: string, account: string) => {
+    try {
+      const signature = await window.ethereum.request({
+        method: "personal_sign",
+        params: [message, account],
+      });
+      return signature;
+    } catch (error) {
+      console.error("Error signing message:", error);
+      alert("Failed to sign message. Please try again.");
+    }
+  };
+
+  const handleSaveAgendaWithSignature = async () => {
+    // console.log("handleSaveAgendaWithSignature");
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
+    const agendaData = getAgendaData();
+    const message = `I am the one who submitted agenda #${agendaData.id} via transaction ${agendaData.transaction}. This signature proves that I am the one who submitted this agenda.`;
+    const signature = await signMessage(message, address);
+    agendaData.creator.signature = signature;
+    saveAgendaData(agendaData);
+  };
+
+  const handleSaveAgenda = () => {
+    saveAgendaData(getAgendaData());
   };
 
   const handleCloseModal = () => {
@@ -528,7 +600,6 @@ export function ProposalPreview({
         )}
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">{title}</h2>
-          <p className="text-gray-600">{description}</p>
         </div>
         <div>
           <Button
@@ -773,7 +844,29 @@ export function ProposalPreview({
           </div>
         )}
       </div>
+      <p></p>
+      <div className="mt-8">
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+          Description
+        </h2>
 
+        <div className="bg-gray-50 rounded-lg shadow-xl border border-gray-200 relative mt-8">
+          <div className="absolute top-0 right-0 w-32 h-32 overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200 transform rotate-45 translate-x-16 -translate-y-16 shadow-lg border-b-2 border-r-2 border-gray-300"></div>
+          </div>
+
+          <div className="p-6">
+            <div className="prose max-w-none overflow-x-auto">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={components}
+              >
+                {description || "No description available"}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      </div>
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -844,14 +937,22 @@ export function ProposalPreview({
 
               <div className="flex justify-end space-x-3 pt-4">
                 {txStatus === "confirmed" && (
-                  <Button
-                    onClick={handleSaveAgenda}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Agenda Locally
-                  </Button>
-                )}
+                    <Button
+                      onClick={handleSaveAgenda}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Agenda Locally
+                    </Button>
+                  ) && (
+                    <Button
+                      onClick={handleSaveAgendaWithSignature}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Agenda Locally With Signature
+                    </Button>
+                  )}
                 <Button onClick={handleCloseModal} variant="outline">
                   Close
                 </Button>
