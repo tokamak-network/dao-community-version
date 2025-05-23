@@ -36,6 +36,9 @@ export default function ProposalDetail() {
             creator: existingAgenda.creator,
             snapshotUrl: existingAgenda.snapshotUrl,
             discourseUrl: existingAgenda.discourseUrl,
+            network: existingAgenda.network,
+            transaction: existingAgenda.transaction,
+            actions: existingAgenda.actions,
           });
           setLocalAgenda(existingAgenda);
           return;
@@ -68,6 +71,9 @@ export default function ProposalDetail() {
           id: agendaId,
           title: metadata[agendaId]?.title,
           description: metadata[agendaId]?.description,
+          transaction: metadata[agendaId]?.transaction,
+          network: metadata[agendaId]?.network,
+          actions: metadata[agendaId]?.actions,
         };
         console.log("agendaWithMetadata", agendaWithMetadata);
         setLocalAgenda(agendaWithMetadata);

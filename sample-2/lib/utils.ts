@@ -250,6 +250,15 @@ interface AgendaMetadata {
   atomicExecute: boolean;
   snapshotUrl?: string;
   discourseUrl?: string;
+  network?: string;
+  transaction?: string;
+  actions?: {
+    title: string;
+    contractAddress: string;
+    method: string;
+    calldata: string;
+    abi: any[];
+  }[];
 }
 
 function getNetworkName(chainId: number): string {

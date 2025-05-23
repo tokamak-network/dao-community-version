@@ -65,7 +65,7 @@ export function ProposalAddInfo({
   setDiscourseUrl,
   ...props
 }: ProposalAddInfoProps) {
-  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(true);
 
   const editor = useEditor({
     extensions: [
@@ -127,14 +127,6 @@ export function ProposalAddInfo({
             <label className="block text-lg font-semibold text-gray-900">
               Description
             </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMarkdownMode(!isMarkdownMode)}
-              className="text-sm"
-            >
-              {isMarkdownMode ? "Rich Text" : "Markdown"}
-            </Button>
           </div>
 
           {isMarkdownMode ? (

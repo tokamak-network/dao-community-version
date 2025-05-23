@@ -21,12 +21,9 @@ import { useState, useEffect } from "react";
 import {
   ethers,
   Interface,
-  JsonRpcProvider,
   isAddress,
-  parseUnits,
   AbiCoder,
   BrowserProvider,
-  getAddress,
 } from "ethers";
 import {
   useAccount,
@@ -34,21 +31,22 @@ import {
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { TON_ABI } from "@/lib/contracts/abis/TON";
-import { IDAOAgendaManager } from "@/lib/contracts/interfaces/IDAOAgendaManager";
 import { useRouter } from "next/navigation";
 import { useAgenda } from "@/contexts/AgendaContext";
 import { chain } from "@/config/chain";
 
-// Add type declaration for window.ethereum
-declare global {
-  interface Window {
-    ethereum: any;
-  }
-}
+// // Add type declaration for window.ethereum
+// declare global {
+//   interface Window {
+//     ethereum: any;
+//   }
+// }
 
 interface ProposalPreviewProps {
   title: string;
   description: string;
+  snapshotUrl: string;
+  discourseUrl: string;
   actions: Array<{
     id: string;
     title: string;
@@ -86,6 +84,8 @@ const DAO_AGENDA_MANAGER_ADDRESS =
 export function ProposalPreview({
   title,
   description,
+  snapshotUrl,
+  discourseUrl,
   actions,
   onModeChange,
   onActionSelect,
@@ -335,7 +335,7 @@ export function ProposalPreview({
       const { param } = await prepareAgenda();
 
       // Check TON balance
-      const provider = new BrowserProvider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum as any);
       const tonContract = new ethers.Contract(
         TON_CONTRACT_ADDRESS,
         TON_ABI,
@@ -410,16 +410,16 @@ export function ProposalPreview({
 
         try {
           // Get agenda number immediately
-          const ethersProvider = new BrowserProvider(window.ethereum);
+          const ethersProvider = new BrowserProvider(window.ethereum as any);
 
-          // const daoAgendaManager = new ethers.Contract(
-          //   DAO_AGENDA_MANAGER_ADDRESS,
-          //   ["function numAgendas() view returns (uint256)"],
-          //   ethersProvider
-          // );
-          // const numAgendas = await daoAgendaManager.numAgendas();
-          // setAgendaNumber(numAgendas.toString());
-          // setIsTransactionPending(false);
+          const daoAgendaManager = new ethers.Contract(
+            DAO_AGENDA_MANAGER_ADDRESS,
+            ["function numAgendas() view returns (uint256)"],
+            ethersProvider
+          );
+          const numAgendas = await daoAgendaManager.numAgendas();
+          setAgendaNumber(numAgendas.toString());
+          setIsTransactionPending(false);
 
           // Wait for transaction confirmation in the background
           const receipt = await ethersProvider.waitForTransaction(
@@ -443,6 +443,7 @@ export function ProposalPreview({
   }, [publishData]);
 
   const getAgendaData = () => {
+    console.log("getAgendaData agendaNumber", agendaNumber);
     const agendaData = {
       id: agendaNumber ? parseInt(agendaNumber) : "",
       network: chain.network?.toLowerCase(),
@@ -600,6 +601,30 @@ export function ProposalPreview({
         )}
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">{title}</h2>
+          <div className="flex gap-3 mt-2">
+            {snapshotUrl && (
+              <a
+                href={snapshotUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-100 rounded-full hover:bg-purple-200 transition"
+              >
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Snapshot
+              </a>
+            )}
+            {discourseUrl && (
+              <a
+                href={discourseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition"
+              >
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Discourse
+              </a>
+            )}
+          </div>
         </div>
         <div>
           <Button
@@ -937,22 +962,25 @@ export function ProposalPreview({
 
               <div className="flex justify-end space-x-3 pt-4">
                 {txStatus === "confirmed" && (
-                    <Button
-                      onClick={handleSaveAgenda}
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Agenda Locally
-                    </Button>
-                  ) && (
-                    <Button
-                      onClick={handleSaveAgendaWithSignature}
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Agenda Locally With Signature
-                    </Button>
-                  )}
+                  <Button
+                    onClick={handleSaveAgenda}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Save className="w-4 h-7 mr-2" />
+                    Save Agenda Locally
+                  </Button>
+                )}
+
+                {txStatus === "confirmed" && (
+                  <Button
+                    onClick={handleSaveAgendaWithSignature}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Save className="w-4 h-7 mr-2" />
+                    Save Agenda Locally With Signature
+                  </Button>
+                )}
+
                 <Button onClick={handleCloseModal} variant="outline">
                   Close
                 </Button>

@@ -29,6 +29,15 @@ export interface AgendaWithMetadata extends Agenda {
   creator?: string;
   snapshotUrl?: string;
   discourseUrl?: string;
+  network?: string;
+  transaction?: string;
+  actions?: {
+    title: string;
+    contractAddress: string;
+    method: string;
+    calldata: string;
+    abi: any[];
+  }[];
 }
 
 export interface AgendaCreatedEvent {

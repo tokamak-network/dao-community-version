@@ -749,6 +749,8 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                 <ProposalPreview
                   title={this.state.title}
                   description={this.state.description}
+                  snapshotUrl={this.state.snapshotUrl}
+                  discourseUrl={this.state.discourseUrl}
                   actions={this.state.actions}
                   onModeChange={(mode, section) => {
                     this.setState({

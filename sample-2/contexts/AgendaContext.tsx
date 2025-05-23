@@ -196,6 +196,9 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           creator: batchMetadata[agenda.id]?.creator?.address,
           snapshotUrl: batchMetadata[agenda.id]?.snapshotUrl,
           discourseUrl: batchMetadata[agenda.id]?.discourseUrl,
+          network: batchMetadata[agenda.id]?.network,
+          transaction: batchMetadata[agenda.id]?.transaction,
+          actions: batchMetadata[agenda.id]?.actions,
         }));
 
         setAgendas((prev) => {
