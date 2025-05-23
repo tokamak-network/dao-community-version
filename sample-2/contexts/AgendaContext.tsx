@@ -50,6 +50,7 @@ interface AgendaContextType {
 const AgendaContext = createContext<AgendaContextType | undefined>(undefined);
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
+  const [totalAgendaCount, setTotalAgendaCount] = useState<number>(0);
   const [agendas, setAgendas] = useState<AgendaWithMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +144,9 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       }
 
       const totalAgendas = Number(numAgendas);
+
+      setTotalAgendaCount(totalAgendas);
+
       const agendaData: AgendaWithMetadata[] = [];
 
       for (let i = totalAgendas - 1; i >= 0; i -= BATCH_SIZE) {
@@ -194,7 +198,34 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           discourseUrl: batchMetadata[agenda.id]?.discourseUrl,
         }));
 
-        setAgendas((prev) => [...prev, ...batchDataWithMetadata]);
+        setAgendas((prev) => {
+          const existingAgendas = new Map(prev.map((a) => [a.id, a]));
+          let hasChanges = false;
+
+          batchDataWithMetadata.forEach((newAgenda) => {
+            const existingAgenda = existingAgendas.get(newAgenda.id);
+            if (!existingAgenda) {
+              existingAgendas.set(newAgenda.id, newAgenda);
+              hasChanges = true;
+            } else {
+              // BigInt 값을 문자열로 변환하여 비교
+              const existingStr = JSON.stringify(existingAgenda, (key, value) =>
+                typeof value === "bigint" ? value.toString() : value
+              );
+              const newStr = JSON.stringify(newAgenda, (key, value) =>
+                typeof value === "bigint" ? value.toString() : value
+              );
+
+              if (existingStr !== newStr) {
+                existingAgendas.set(newAgenda.id, newAgenda);
+                hasChanges = true;
+              }
+            }
+          });
+
+          return hasChanges ? Array.from(existingAgendas.values()) : prev;
+        });
+
         agendaData.push(...batchDataWithMetadata);
 
         if (startIndex > 0) {

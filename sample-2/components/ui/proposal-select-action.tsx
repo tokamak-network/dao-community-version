@@ -37,6 +37,7 @@ import {
   predefinedMethods,
   PredefinedMethod,
 } from "@/config/predefined-methods";
+import { findMethodAbi } from "@/lib/utils";
 
 // Action 타입 정의 (ProposalForm.tsx와 일치해야 함)
 interface Action {
@@ -706,7 +707,7 @@ export function ProposalSelectAction({
         contractAddress,
         method,
         calldata,
-        abi: currentAbi,
+        abi: [findMethodAbi(currentAbi, method)],
         sendEth,
       };
       onAddAction(newActionData);

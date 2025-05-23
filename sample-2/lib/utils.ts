@@ -350,3 +350,13 @@ export async function getLatestBlockNumber(): Promise<number> {
   const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
   return await provider.getBlockNumber();
 }
+
+export function findMethodAbi(
+  abiArray: any[],
+  methodSignature: string
+): any | undefined {
+  return abiArray.find((func: any) => {
+    const paramTypes = func.inputs.map((input: any) => input.type).join(",");
+    return `${func.name}(${paramTypes})` === methodSignature;
+  });
+}
