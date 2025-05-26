@@ -6,6 +6,8 @@ import {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
+  useMemo,
 } from "react";
 import { AgendaWithMetadata, AgendaCreatedEvent } from "@/types/agenda";
 import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
@@ -20,12 +22,18 @@ import {
 } from "@/lib/utils";
 import { createPublicClient, http } from "viem";
 import { CONTRACT_READ_SETTINGS } from "@/config/contracts";
+import { useContractRead, useContractWrite } from "wagmi";
+import { DAO_COMMITTEE_PROXY_ADDRESS } from "@/config/contracts";
+import { DAO_ABI } from "@/abis/dao";
+import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 
 interface AgendaContextType {
   agendas: AgendaWithMetadata[];
   isLoading: boolean;
   error: string | null;
   refreshAgendas: () => Promise<void>;
+  refreshAgenda: (agendaId: number) => Promise<void>;
+  getAgenda: (agendaId: number) => Promise<AgendaWithMetadata | null>;
   statusMessage: string;
   contract: {
     address: `0x${string}`;
@@ -47,9 +55,44 @@ interface AgendaContextType {
   createAgendaFees: bigint | null;
   minimumNoticePeriodSeconds: bigint | null;
   minimumVotingPeriodSeconds: bigint | null;
+  quorum: bigint | null;
+  isCommitteeMember: (address: string) => boolean;
+  getVoterInfos: (
+    agendaId: number,
+    voters: string[]
+  ) => Promise<
+    {
+      isVoter: boolean;
+      hasVoted: boolean;
+      vote: bigint;
+    }[]
+  >;
 }
 
 const AgendaContext = createContext<AgendaContextType | undefined>(undefined);
+
+const voterInfosAbi = [
+  {
+    name: "voterInfos",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "_agendaID", type: "uint256" },
+      { name: "_voter", type: "address" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "isVoter", type: "bool" },
+          { name: "hasVoted", type: "bool" },
+          { name: "vote", type: "uint256" },
+        ],
+      },
+    ],
+  },
+] as const;
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
   const [totalAgendaCount, setTotalAgendaCount] = useState<number>(0);
@@ -73,9 +116,97 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   const [minimumVotingPeriodSeconds, setMinimumVotingPeriodSeconds] = useState<
     bigint | null
   >(null);
+  const [quorum, setQuorum] = useState<bigint | null>(null);
   const [updateInterval, setUpdateInterval] = useState<NodeJS.Timeout | null>(
     null
   );
+  const [committeeMembers, setCommitteeMembers] = useState<string[] | null>(
+    null
+  );
+  const { address } = useAccount();
+
+  // Get max member count from DAO Committee
+  const { data: maxMemberCount } = useContractRead({
+    address: DAO_COMMITTEE_PROXY_ADDRESS,
+    abi: DAO_ABI,
+    functionName: "maxMember",
+    chainId: chain.id,
+  });
+
+  // Get quorum from DAO Committee
+  const { data: quorumData } = useContractRead({
+    address: DAO_COMMITTEE_PROXY_ADDRESS,
+    abi: DAO_ABI,
+    functionName: "quorum",
+    chainId: chain.id,
+  });
+
+  useEffect(() => {
+    if (quorumData) {
+      setQuorum(quorumData);
+    }
+  }, [quorumData]);
+
+  // Fetch all committee members
+  useEffect(() => {
+    const fetchCommitteeMembers = async () => {
+      if (!maxMemberCount) return;
+
+      const publicClient = createPublicClient({
+        chain: {
+          ...chain,
+          id: chain.id,
+        },
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+      });
+      console.log("maxMemberCount", maxMemberCount);
+      const members = await Promise.all(
+        Array.from({ length: Number(maxMemberCount) }, (_, i) =>
+          publicClient.readContract({
+            address: DAO_COMMITTEE_PROXY_ADDRESS,
+            abi: DAO_ABI,
+            functionName: "members",
+            args: [BigInt(i)],
+          })
+        )
+      );
+      console.log("members", members);
+      setCommitteeMembers(members as string[]);
+    };
+
+    fetchCommitteeMembers();
+  }, [maxMemberCount]);
+
+  // Helper function to check if an address is a committee member
+  const isCommitteeMember = useCallback(
+    (address: string) => {
+      return committeeMembers?.includes(address) || false;
+    },
+    [committeeMembers]
+  );
+
+  const getVoterInfos = async (agendaId: number, voters: string[]) => {
+    const publicClient = createPublicClient({
+      chain: {
+        ...chain,
+        id: chain.id,
+      },
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+    });
+
+    const results = await Promise.all(
+      voters.map((voter) =>
+        publicClient.readContract({
+          address: DAO_AGENDA_MANAGER_ADDRESS,
+          abi: voterInfosAbi,
+          functionName: "voterInfos",
+          args: [BigInt(agendaId), voter as `0x${string}`],
+        })
+      )
+    );
+
+    return results;
+  };
 
   const fetchAgendas = async () => {
     try {
@@ -368,6 +499,52 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     };
   };
 
+  // 아젠다 데이터 업데이트 함수
+  const updateAgendaData = async (agendaId: number) => {
+    const publicClient = createPublicClient({
+      chain: {
+        ...chain,
+        id: chain.id,
+      },
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+    });
+
+    // 아젠다 데이터 가져오기
+    const agendaData = await publicClient.readContract({
+      address: DAO_AGENDA_MANAGER_ADDRESS,
+      abi: DAO_AGENDA_MANAGER_ABI,
+      functionName: "agendas",
+      args: [BigInt(agendaId)],
+    });
+
+    console.log("Updated agenda agendaData:", agendaData);
+
+    // 메타데이터 가져오기
+    const metadata = await getAllAgendaMetadata([agendaId]);
+    console.log("Updated agenda data:", agendaData);
+    // 아젠다 데이터와 메타데이터 결합
+    const updatedAgenda: AgendaWithMetadata = {
+      ...(agendaData as unknown as AgendaWithMetadata),
+      id: agendaId,
+      title: metadata[agendaId]?.title,
+      description: metadata[agendaId]?.description,
+      creator: metadata[agendaId]?.creator?.address,
+      snapshotUrl: metadata[agendaId]?.snapshotUrl,
+      discourseUrl: metadata[agendaId]?.discourseUrl,
+      network: metadata[agendaId]?.network,
+      transaction: metadata[agendaId]?.transaction,
+      actions: metadata[agendaId]?.actions,
+    };
+    console.log("Updated agenda metadata:", metadata);
+    // 기존 아젠다 목록 업데이트
+    setAgendas((prevAgendas) => {
+      const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
+      existingAgendas.set(agendaId, updatedAgenda);
+      // ID를 기준으로 내림차순 정렬하여 최신 아젠다가 맨 앞에 오도록 함
+      return Array.from(existingAgendas.values()).sort((a, b) => b.id - a.id);
+    });
+  };
+
   // 아젠다 이벤트 모니터링 함수
   const monitorAgendaEvents = () => {
     const publicClient = createPublicClient({
@@ -378,9 +555,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
     });
 
+    console.log("monitorAgendaEvents start");
     // 아젠다 생성 이벤트 모니터링
     const unwatchCreated = publicClient.watchEvent({
-      address: DAO_AGENDA_MANAGER_ADDRESS,
+      address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
         type: "event",
         name: "AgendaCreated",
@@ -394,46 +572,17 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
+        console.log("unwatchCreated", logs);
         for (const log of logs) {
           if (log.args) {
             const agendaId = Number(log.args.id);
 
-            // 아젠다 데이터 가져오기
-            const agendaData = await publicClient.readContract({
-              address: DAO_AGENDA_MANAGER_ADDRESS,
-              abi: DAO_AGENDA_MANAGER_ABI,
-              functionName: "agendas",
-              args: [BigInt(agendaId)],
+            await updateAgendaData(agendaId);
+            // 투표 상태 갱신을 위한 이벤트 발생
+            const event = new CustomEvent("agendaCreated", {
+              detail: { agendaId },
             });
-
-            // 메타데이터 가져오기
-            const metadata = await getAllAgendaMetadata([agendaId]);
-
-            // 아젠다 데이터와 메타데이터 결합
-            const updatedAgenda: AgendaWithMetadata = {
-              ...(agendaData as unknown as AgendaWithMetadata),
-              id: agendaId,
-              title: metadata[agendaId]?.title,
-              description: metadata[agendaId]?.description,
-              creator: metadata[agendaId]?.creator?.address,
-              snapshotUrl: metadata[agendaId]?.snapshotUrl,
-              discourseUrl: metadata[agendaId]?.discourseUrl,
-              network: metadata[agendaId]?.network,
-              transaction: metadata[agendaId]?.transaction,
-              actions: metadata[agendaId]?.actions,
-            };
-
-            // 기존 아젠다 목록 업데이트
-            setAgendas((prevAgendas) => {
-              const existingAgendas = new Map(
-                prevAgendas.map((a) => [a.id, a])
-              );
-              existingAgendas.set(agendaId, updatedAgenda);
-              // ID를 기준으로 내림차순 정렬하여 최신 아젠다가 맨 앞에 오도록 함
-              return Array.from(existingAgendas.values()).sort(
-                (a, b) => b.id - a.id
-              );
-            });
+            window.dispatchEvent(event);
           }
         }
       },
@@ -441,7 +590,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 아젠다 투표 이벤트 모니터링
     const unwatchVoteCasted = publicClient.watchEvent({
-      address: DAO_AGENDA_MANAGER_ADDRESS,
+      address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
         type: "event",
         name: "AgendaVoteCasted",
@@ -453,46 +602,26 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
+        console.log("unwatchVoteCasted", logs);
         for (const log of logs) {
           if (log.args) {
+            console.log("unwatchVoteCasted", log.args);
             const agendaId = Number(log.args.id);
 
-            // 아젠다 데이터 가져오기
-            const agendaData = await publicClient.readContract({
-              address: DAO_AGENDA_MANAGER_ADDRESS,
-              abi: DAO_AGENDA_MANAGER_ABI,
-              functionName: "agendas",
-              args: [BigInt(agendaId)],
+            // 아젠다 데이터 업데이트
+            await updateAgendaData(agendaId);
+
+            // 투표 상태 갱신을 위한 이벤트 발생
+            const event = new CustomEvent("agendaVoteUpdated", {
+              detail: { agendaId },
             });
+            window.dispatchEvent(event);
 
-            // 메타데이터 가져오기
-            const metadata = await getAllAgendaMetadata([agendaId]);
-
-            // 아젠다 데이터와 메타데이터 결합
-            const updatedAgenda: AgendaWithMetadata = {
-              ...(agendaData as unknown as AgendaWithMetadata),
-              id: agendaId,
-              title: metadata[agendaId]?.title,
-              description: metadata[agendaId]?.description,
-              creator: metadata[agendaId]?.creator?.address,
-              snapshotUrl: metadata[agendaId]?.snapshotUrl,
-              discourseUrl: metadata[agendaId]?.discourseUrl,
-              network: metadata[agendaId]?.network,
-              transaction: metadata[agendaId]?.transaction,
-              actions: metadata[agendaId]?.actions,
-            };
-
-            // 기존 아젠다 목록 업데이트
-            setAgendas((prevAgendas) => {
-              const existingAgendas = new Map(
-                prevAgendas.map((a) => [a.id, a])
-              );
-              existingAgendas.set(agendaId, updatedAgenda);
-              // ID를 기준으로 내림차순 정렬하여 최신 아젠다가 맨 앞에 오도록 함
-              return Array.from(existingAgendas.values()).sort(
-                (a, b) => b.id - a.id
-              );
+            // voterInfos 갱신을 위한 이벤트 발생
+            const voterInfosEvent = new CustomEvent("voterInfosUpdated", {
+              detail: { agendaId },
             });
+            window.dispatchEvent(voterInfosEvent);
           }
         }
       },
@@ -500,7 +629,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 아젠다 실행 이벤트 모니터링
     const unwatchExecuted = publicClient.watchEvent({
-      address: DAO_AGENDA_MANAGER_ADDRESS,
+      address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
         type: "event",
         name: "AgendaExecuted",
@@ -510,46 +639,25 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
+        console.log("unwatchExecuted - Event logs received:", logs);
         for (const log of logs) {
           if (log.args) {
+            console.log("unwatchExecuted - Event args:", log.args);
             const agendaId = Number(log.args.id);
+            console.log("unwatchExecuted - Agenda ID:", agendaId);
 
-            // 아젠다 데이터 가져오기
-            const agendaData = await publicClient.readContract({
-              address: DAO_AGENDA_MANAGER_ADDRESS,
-              abi: DAO_AGENDA_MANAGER_ABI,
-              functionName: "agendas",
-              args: [BigInt(agendaId)],
+            // 아젠다 데이터 업데이트
+            console.log("unwatchExecuted - Updating agenda data...");
+            await updateAgendaData(agendaId);
+            console.log("unwatchExecuted - Agenda data updated");
+
+            // 아젠다 실행 이벤트 발생
+            console.log("unwatchExecuted - Dispatching agendaExecuted event");
+            const event = new CustomEvent("agendaExecuted", {
+              detail: { agendaId },
             });
-
-            // 메타데이터 가져오기
-            const metadata = await getAllAgendaMetadata([agendaId]);
-
-            // 아젠다 데이터와 메타데이터 결합
-            const updatedAgenda: AgendaWithMetadata = {
-              ...(agendaData as unknown as AgendaWithMetadata),
-              id: agendaId,
-              title: metadata[agendaId]?.title,
-              description: metadata[agendaId]?.description,
-              creator: metadata[agendaId]?.creator?.address,
-              snapshotUrl: metadata[agendaId]?.snapshotUrl,
-              discourseUrl: metadata[agendaId]?.discourseUrl,
-              network: metadata[agendaId]?.network,
-              transaction: metadata[agendaId]?.transaction,
-              actions: metadata[agendaId]?.actions,
-            };
-
-            // 기존 아젠다 목록 업데이트
-            setAgendas((prevAgendas) => {
-              const existingAgendas = new Map(
-                prevAgendas.map((a) => [a.id, a])
-              );
-              existingAgendas.set(agendaId, updatedAgenda);
-              // ID를 기준으로 내림차순 정렬하여 최신 아젠다가 맨 앞에 오도록 함
-              return Array.from(existingAgendas.values()).sort(
-                (a, b) => b.id - a.id
-              );
-            });
+            window.dispatchEvent(event);
+            console.log("unwatchExecuted - Event dispatched");
           }
         }
       },
@@ -584,7 +692,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     setAgendas((prevAgendas) => {
       return prevAgendas.map((agenda) => {
-        const status = calculateAgendaStatus(agenda);
+        const status = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
         let updatedAgenda = { ...agenda };
 
         // Notice Period → Voting Period
@@ -668,34 +776,183 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // 특정 아젠다만 갱신하는 함수
+  const refreshAgenda = async (agendaId: number) => {
+    try {
+      const publicClient = createPublicClient({
+        chain: {
+          ...chain,
+          id: chain.id,
+        },
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+      });
+
+      // 아젠다 데이터 가져오기
+      const agendaData = await publicClient.readContract({
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_AGENDA_MANAGER_ABI,
+        functionName: "agendas",
+        args: [BigInt(agendaId)],
+      });
+
+      console.log("refreshAgenda - Contract data:", agendaData);
+      console.log(
+        "refreshAgenda - Contract agendaData.voters:",
+        agendaData.voters
+      );
+
+      // 기존 아젠다 데이터 가져오기
+      const existingAgenda = agendas.find((a) => a.id === agendaId);
+      console.log("refreshAgenda - Existing agenda:", existingAgenda);
+
+      // 아젠다 데이터와 메타데이터 결합
+      const updatedAgenda1: AgendaWithMetadata = {
+        ...(agendaData as unknown as AgendaWithMetadata),
+        id: agendaId,
+      };
+
+      console.log("refreshAgenda - updatedAgenda1:", updatedAgenda1);
+
+      // 메타데이터 가져오기
+      const metadata = await getAllAgendaMetadata([agendaId]);
+      console.log("refreshAgenda - Metadata:", metadata);
+
+      // 아젠다 데이터와 메타데이터 결합
+      const updatedAgenda: AgendaWithMetadata = {
+        ...(updatedAgenda1 as unknown as AgendaWithMetadata),
+        title: metadata[agendaId]?.title || existingAgenda?.title,
+        description:
+          metadata[agendaId]?.description || existingAgenda?.description,
+        creator:
+          metadata[agendaId]?.creator?.address || existingAgenda?.creator,
+        snapshotUrl:
+          metadata[agendaId]?.snapshotUrl || existingAgenda?.snapshotUrl,
+        discourseUrl:
+          metadata[agendaId]?.discourseUrl || existingAgenda?.discourseUrl,
+        network: metadata[agendaId]?.network || existingAgenda?.network,
+        transaction:
+          metadata[agendaId]?.transaction || existingAgenda?.transaction,
+        actions: metadata[agendaId]?.actions || existingAgenda?.actions,
+      };
+
+      console.log("refreshAgenda - Final updated agenda:", updatedAgenda);
+
+      // 기존 아젠다 목록 업데이트
+      setAgendas((prevAgendas) => {
+        const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
+        existingAgendas.set(agendaId, updatedAgenda);
+        return Array.from(existingAgendas.values()).sort((a, b) => b.id - a.id);
+      });
+    } catch (err) {
+      console.error("Error refreshing agenda:", err);
+    }
+  };
+
+  // 아젠다 가져오기 함수
+  const getAgenda = async (
+    agendaId: number
+  ): Promise<AgendaWithMetadata | null> => {
+    try {
+      // 1. 먼저 컨텍스트에서 아젠다 찾기
+      const existingAgenda = agendas.find((a) => a.id === agendaId);
+      if (existingAgenda) {
+        console.log("Found agenda in context:", existingAgenda);
+        return existingAgenda;
+      }
+
+      // 2. 컨텍스트에 없으면 컨트랙트에서 조회
+      console.log("Agenda not found in context, fetching from contract...");
+      const publicClient = createPublicClient({
+        chain: {
+          ...chain,
+          id: chain.id,
+        },
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+      });
+
+      // 아젠다 데이터 가져오기
+      const agendaData = await publicClient.readContract({
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_AGENDA_MANAGER_ABI,
+        functionName: "agendas",
+        args: [BigInt(agendaId)],
+      });
+
+      // 메타데이터 가져오기
+      const metadata = await getAllAgendaMetadata([agendaId]);
+
+      // 아젠다 데이터와 메타데이터 결합
+      const newAgenda: AgendaWithMetadata = {
+        ...(agendaData as unknown as AgendaWithMetadata),
+        id: agendaId,
+        title: metadata[agendaId]?.title,
+        description: metadata[agendaId]?.description,
+        creator: metadata[agendaId]?.creator?.address,
+        snapshotUrl: metadata[agendaId]?.snapshotUrl,
+        discourseUrl: metadata[agendaId]?.discourseUrl,
+        network: metadata[agendaId]?.network,
+        transaction: metadata[agendaId]?.transaction,
+        actions: metadata[agendaId]?.actions,
+      };
+
+      return newAgenda;
+    } catch (err) {
+      console.error("Error fetching agenda:", err);
+      return null;
+    }
+  };
+
+  const value = useMemo(
+    () => ({
+      agendas,
+      isLoading,
+      error,
+      refreshAgendas: fetchAgendas,
+      refreshAgenda,
+      getAgenda,
+      statusMessage,
+      contract: {
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_AGENDA_MANAGER_ABI,
+        chainId: chain.id,
+      },
+      daoContract: {
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_AGENDA_MANAGER_ABI,
+        chainId: chain.id,
+      },
+      events,
+      isPolling,
+      progress,
+      createAgendaFees,
+      minimumNoticePeriodSeconds,
+      minimumVotingPeriodSeconds,
+      quorum,
+      isCommitteeMember,
+      getVoterInfos,
+    }),
+    [
+      agendas,
+      isLoading,
+      error,
+      fetchAgendas,
+      refreshAgenda,
+      getAgenda,
+      statusMessage,
+      events,
+      isPolling,
+      progress,
+      createAgendaFees,
+      minimumNoticePeriodSeconds,
+      minimumVotingPeriodSeconds,
+      quorum,
+      isCommitteeMember,
+      getVoterInfos,
+    ]
+  );
+
   return (
-    <AgendaContext.Provider
-      value={{
-        agendas,
-        isLoading,
-        error,
-        refreshAgendas: fetchAgendas,
-        statusMessage,
-        contract: {
-          address: DAO_AGENDA_MANAGER_ADDRESS,
-          abi: DAO_AGENDA_MANAGER_ABI,
-          chainId: chain.id,
-        },
-        daoContract: {
-          address: DAO_AGENDA_MANAGER_ADDRESS,
-          abi: DAO_AGENDA_MANAGER_ABI,
-          chainId: chain.id,
-        },
-        events,
-        isPolling,
-        progress,
-        createAgendaFees,
-        minimumNoticePeriodSeconds,
-        minimumVotingPeriodSeconds,
-      }}
-    >
-      {children}
-    </AgendaContext.Provider>
+    <AgendaContext.Provider value={value}>{children}</AgendaContext.Provider>
   );
 }
 

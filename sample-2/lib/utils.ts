@@ -4,6 +4,7 @@ import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 import { ethers } from "ethers";
 import { chain } from "@/config/chain";
+import { AgendaWithMetadata } from "@/types/agenda";
 
 const GITHUB_DAO_AGENDA_URL =
   "https://raw.githubusercontent.com/tokamak-network/dao-agenda-metadata-repository/refs/heads/main/data/agendas/";
@@ -191,19 +192,25 @@ export function formatAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export function calculateAgendaStatus(agenda: {
-  status: number;
-  createdTimestamp: bigint;
-  noticeEndTimestamp: bigint;
-  votingStartedTimestamp: bigint;
-  votingEndTimestamp: bigint;
-  executableLimitTimestamp: bigint;
-  executedTimestamp: bigint;
-  executed: boolean;
-}): number {
+export function calculateAgendaStatus(
+  agenda: {
+    status: number;
+    createdTimestamp: bigint;
+    noticeEndTimestamp: bigint;
+    votingStartedTimestamp: bigint;
+    votingEndTimestamp: bigint;
+    executableLimitTimestamp: bigint;
+    executedTimestamp: bigint;
+    executed: boolean;
+    countingYes: bigint;
+    countingNo: bigint;
+    countingAbstain: bigint;
+  },
+  quorum: bigint
+): number {
   const now = BigInt(Math.floor(Date.now() / 1000));
 
-  // If already executed, return EXECUTED status
+  // 이미 실행된 경우
   if (agenda.executed || agenda.executedTimestamp > BigInt(0)) {
     return AgendaStatus.EXECUTED;
   }
@@ -229,16 +236,22 @@ export function calculateAgendaStatus(agenda: {
     return AgendaStatus.VOTING;
   }
 
-  // If current time is after voting end but before executable limit
-  if (now < agenda.executableLimitTimestamp) {
+  // 투표가 종료된 경우, quorum 체크
+  const totalVotes =
+    agenda.countingYes + agenda.countingNo + agenda.countingAbstain;
+  const hasQuorum = totalVotes >= quorum;
+
+  // 실행 대기 상태: 투표 종료 후 실행 가능 시간 이전이고 quorum을 만족한 경우
+  if (now < agenda.executableLimitTimestamp && hasQuorum) {
     return AgendaStatus.WAITING_EXEC;
   }
 
-  // If current time is after executable limit, it's ENDED
+  // 종료 상태: 실행 가능 시간이 지났거나 quorum을 만족하지 못한 경우
   return AgendaStatus.ENDED;
 }
 
 interface AgendaMetadata {
+  id: number
   title: string;
   description: string;
   createdAt: number;
@@ -368,4 +381,63 @@ export function findMethodAbi(
     const paramTypes = func.inputs.map((input: any) => input.type).join(",");
     return `${func.name}(${paramTypes})` === methodSignature;
   });
+}
+
+export function getStatusMessage(
+  agenda: AgendaWithMetadata,
+  currentStatus: number
+) {
+  const now = Math.floor(Date.now() / 1000);
+  const totalVotes =
+    Number(agenda.countingYes) +
+    Number(agenda.countingNo) +
+    Number(agenda.countingAbstain);
+
+  switch (currentStatus) {
+    case AgendaStatus.NONE:
+      return "Proposal created";
+
+    case AgendaStatus.NOTICE:
+      const noticeTimeLeft = Number(agenda.noticeEndTimestamp) - now;
+      const noticeDays = Math.floor(noticeTimeLeft / 86400);
+      const noticeHours = Math.floor((noticeTimeLeft % 86400) / 3600);
+      return `${noticeDays}d ${noticeHours}h until voting starts`;
+
+    case AgendaStatus.VOTING:
+      const votingTimeLeft = Number(agenda.votingEndTimestamp) - now;
+      const votingDays = Math.floor(votingTimeLeft / 86400);
+      const votingHours = Math.floor((votingTimeLeft % 86400) / 3600);
+      const votingMinutes = Math.floor((votingTimeLeft % 3600) / 60);
+
+      if (votingTimeLeft <= 0) {
+        return "Voting ending soon";
+      } else if (votingDays > 0) {
+        return `Voting in progress (${votingDays}d ${votingHours}h remaining)`;
+      } else if (votingHours > 0) {
+        return `Voting in progress (${votingHours}h ${votingMinutes}m remaining)`;
+      } else {
+        return `Voting in progress (${votingMinutes}m remaining)`;
+      }
+
+    case AgendaStatus.WAITING_EXEC:
+      if (agenda.executed) {
+        return "Proposal executed";
+      }
+      const execTimeLeft = Number(agenda.executableLimitTimestamp) - now;
+      const execDays = Math.floor(execTimeLeft / 86400);
+      const execHours = Math.floor((execTimeLeft % 86400) / 3600);
+      return `${execDays}d ${execHours}h until execution`;
+
+    case AgendaStatus.EXECUTED:
+      return "Proposal executed";
+
+    case AgendaStatus.ENDED:
+      if (totalVotes < 2) {
+        // quorum이 2인 경우
+        return "Proposal not approved";
+      }
+      return Number(agenda.countingYes) > Number(agenda.countingNo)
+        ? "Proposal passed but not executed"
+        : "Proposal rejected by majority";
+  }
 }

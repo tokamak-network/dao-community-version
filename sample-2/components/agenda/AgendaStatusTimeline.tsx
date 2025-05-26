@@ -18,6 +18,7 @@ import { useContractRead } from "wagmi";
 import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
 import { DAO_AGENDA_MANAGER_ABI } from "@/abis/dao-agenda-manager";
 import { chain } from "@/config/chain";
+import { useAgenda } from "@/contexts/AgendaContext";
 
 interface AgendaStatusTimelineProps {
   agenda: AgendaWithMetadata;
@@ -27,7 +28,8 @@ export default function AgendaStatusTimeline({
   agenda,
 }: AgendaStatusTimelineProps) {
   const timeInfo = getAgendaTimeInfo(agenda);
-  const currentStatus = calculateAgendaStatus(agenda);
+  const { quorum } = useAgenda();
+  const currentStatus = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
 
   // Get period information from contract
   const { data: noticePeriod } = useContractRead({

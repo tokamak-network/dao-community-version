@@ -1,5 +1,72 @@
 export const DAO_AGENDA_MANAGER_ABI = [
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_agendaID",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "_voter",
+        type: "address",
+      },
+    ],
+    name: "voterInfos",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "bool",
+            name: "isVoter",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "hasVoted",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "vote",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct LibAgenda.Voter",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+    constant: true,
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_agendaID",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "_user",
+        type: "address",
+      },
+    ],
+    name: "hasVoted",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+    constant: true,
+  },
+  {
     inputs: [],
     name: "createAgendaFees",
     outputs: [

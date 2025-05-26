@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import { AgendaWithMetadata } from "@/types/agenda";
 import {
@@ -8,6 +8,7 @@ import {
   formatAddress,
   calculateAgendaStatus,
   getAgendaTimeInfo,
+  getStatusMessage,
   AgendaStatus,
 } from "@/lib/utils";
 import {
@@ -24,9 +25,18 @@ import {
   Timer,
   Vote,
   PlayCircle,
+  ExternalLink,
 } from "lucide-react";
-import { useAccount, useContractRead } from "wagmi";
-import { DAO_COMMITTEE_PROXY_ADDRESS } from "@/config/contracts";
+import {
+  useAccount,
+  useContractRead,
+  useContractWrite,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import {
+  DAO_COMMITTEE_PROXY_ADDRESS,
+  DAO_AGENDA_MANAGER_ADDRESS,
+} from "@/config/contracts";
 import { DAO_ABI } from "@/abis/dao";
 import { chain } from "@/config/chain";
 import AgendaDescription from "./AgendaDescription";
@@ -34,6 +44,8 @@ import AgendaActions from "./AgendaActions";
 import AgendaStatusTimeline from "./AgendaStatusTimeline";
 import AgendaVotes from "./AgendaVotes";
 import AgendaCommunity from "./AgendaCommunity";
+import { useAgenda } from "@/contexts/AgendaContext";
+import { toast } from "sonner";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
@@ -43,63 +55,202 @@ type TabType = "description" | "community" | "actions" | "votes";
 
 export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>("description");
-  const currentStatus = calculateAgendaStatus(agenda);
+  const [voteComment, setVoteComment] = useState("");
+  const [showVoteModal, setShowVoteModal] = useState(false);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const { quorum, refreshAgenda } = useAgenda();
+  const currentStatus = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
   const timeInfo = getAgendaTimeInfo(agenda);
   const { address } = useAccount();
+  const { isCommitteeMember } = useAgenda();
 
-  // Get DAO Committee members
-  const { data: committeeMembers } = useContractRead({
+  // Get candidate contract address
+  const { data: candidateContractAddress } = useContractRead({
     address: DAO_COMMITTEE_PROXY_ADDRESS,
     abi: DAO_ABI,
-    functionName: "members",
+    functionName: "candidateContract",
+    args: [address as `0x${string}`],
     chainId: chain.id,
   });
-  console.log("DAO_COMMITTEE_PROXY_ADDRESS", DAO_COMMITTEE_PROXY_ADDRESS);
-  console.log("committeeMembers", committeeMembers);
+
+  // Check if user has already voted
+  const { data: hasVotedData, refetch } = useContractRead({
+    address: DAO_AGENDA_MANAGER_ADDRESS,
+    abi: [
+      {
+        name: "hasVoted",
+        type: "function",
+        stateMutability: "view",
+        inputs: [
+          { name: "_agendaID", type: "uint256" },
+          { name: "_user", type: "address" },
+        ],
+        outputs: [{ name: "", type: "bool" }],
+      },
+    ],
+    functionName: "hasVoted",
+    args: address ? [BigInt(agenda.id), address as `0x${string}`] : undefined,
+    chainId: chain.id,
+  });
+
+  // Memoize hasVoted value
+  const hasVoted = useMemo(() => {
+    return hasVotedData ?? false;
+  }, [hasVotedData]);
+
+  // Prepare vote transaction
+  const { writeContract, data: voteData } = useContractWrite();
+
+  // Prepare execute transaction
+  const {
+    writeContract: writeExecuteContract,
+    data: executeData,
+    isError: isExecuteError,
+  } = useContractWrite();
+
+  // Wait for transaction
+  const {
+    isLoading: isVoting,
+    isSuccess,
+    isError,
+    error,
+  } = useWaitForTransactionReceipt({
+    hash: voteData || executeData,
+  });
+
+  // Handle transaction success/error
+  useEffect(() => {
+    if (isSuccess) {
+      if (voteData) {
+        toast.success("Vote cast successfully!");
+        setShowTransactionModal(false);
+        setShowVoteModal(false);
+        setVoteComment("");
+      } else if (executeData) {
+        toast.success("Agenda executed successfully!");
+        setShowTransactionModal(false);
+      }
+    }
+    if (isError || isExecuteError) {
+      toast.error(
+        `Transaction failed: ${error?.message || "Transaction was cancelled"}`
+      );
+      setShowTransactionModal(false);
+    }
+  }, [isSuccess, isError, isExecuteError, error, voteData, executeData]);
+
+  // 아젠다 실행 이벤트 구독
+  useEffect(() => {
+    const handleAgendaExecuted = (event: CustomEvent<{ agendaId: number }>) => {
+      if (event.detail.agendaId === agenda.id) {
+        // 아젠다 데이터 갱신
+        refreshAgenda(agenda.id);
+      }
+    };
+
+    window.addEventListener(
+      "agendaExecuted",
+      handleAgendaExecuted as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "agendaExecuted",
+        handleAgendaExecuted as EventListener
+      );
+    };
+  }, [agenda.id, refreshAgenda]);
 
   // Check if the current address is a voter
-  const isVoter =
-    address &&
-    // Check if address is in agenda voters list
-    (agenda.voters?.includes(address) ||
-      // If no voters list, check if address is in DAO Committee members
-      (Array.isArray(committeeMembers) && committeeMembers.includes(address)));
+  const isVoter = useMemo(
+    () =>
+      address &&
+      // Check if address is in agenda voters list
+      (agenda.voters?.includes(address) ||
+        // If no voters list, check if address is a committee member
+        isCommitteeMember(address as string)),
+    [address, agenda.voters, isCommitteeMember]
+  );
 
-  console.log("agenda", agenda);
-  console.log("isVoter", isVoter);
-  console.log("committeeMembers", committeeMembers);
+  const handleVote = (vote: number) => {
+    if (!writeContract || !candidateContractAddress) return;
 
-  const getStatusMessage = () => {
-    const now = Math.floor(Date.now() / 1000);
+    writeContract({
+      abi: [
+        {
+          name: "castVote",
+          type: "function",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "_agendaID", type: "uint256" },
+            { name: "_vote", type: "uint256" },
+            { name: "_comment", type: "string" },
+          ],
+          outputs: [],
+        },
+      ],
+      address: candidateContractAddress as `0x${string}`,
+      functionName: "castVote",
+      args: [BigInt(agenda.id), BigInt(vote), voteComment],
+    });
 
-    switch (currentStatus) {
-      case AgendaStatus.NONE:
-        return "Proposal created";
+    setShowVoteModal(false);
+    setShowTransactionModal(true);
+  };
 
-      case AgendaStatus.NOTICE:
-        const noticeTimeLeft = Number(agenda.noticeEndTimestamp) - now;
-        const noticeDays = Math.floor(noticeTimeLeft / 86400);
-        const noticeHours = Math.floor((noticeTimeLeft % 86400) / 3600);
-        return `${noticeDays}d ${noticeHours}h until voting starts`;
+  // 투표 상태 갱신을 위한 이벤트 리스너
+  useEffect(() => {
+    const handleVoteUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ agendaId: number }>;
+      console.log("handleVoteUpdate", customEvent.detail);
+      if (customEvent.detail.agendaId === agenda.id) {
+        // 투표 상태 갱신
+        await refetch();
+        // 현재 아젠다 정보만 갱신
+        await refreshAgenda(agenda.id);
+      }
+    };
 
-      case AgendaStatus.VOTING:
-        return "Voting in progress";
+    const handleExecutedUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ agendaId: number }>;
+      console.log("handleExecutedUpdate", customEvent.detail);
+      if (customEvent.detail.agendaId === agenda.id) {
+        // 아젠다 실행 상태 갱신
+        await refreshAgenda(agenda.id);
+      }
+    };
 
-      case AgendaStatus.WAITING_EXEC:
-        if (agenda.executed) {
-          return "Proposal executed";
-        }
-        const execTimeLeft = Number(agenda.executableLimitTimestamp) - now;
-        const execDays = Math.floor(execTimeLeft / 86400);
-        const execHours = Math.floor((execTimeLeft % 86400) / 3600);
-        return `${execDays}d ${execHours}h until execution`;
+    window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
+    window.addEventListener("agendaExecuted", handleExecutedUpdate);
 
-      case AgendaStatus.EXECUTED:
-        return "Proposal executed";
+    return () => {
+      window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
+      window.removeEventListener("agendaExecuted", handleExecutedUpdate);
+    };
+  }, [agenda.id, refetch, refreshAgenda]);
 
-      case AgendaStatus.ENDED:
-        return "Proposal rejected";
+  const handleExecute = async () => {
+    try {
+      setShowTransactionModal(true);
+      await writeContract({
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_ABI,
+        functionName: "executeAgenda",
+        args: [BigInt(agenda.id)],
+      });
+    } catch (error: any) {
+      console.error("Error executing agenda:", error);
+      toast.error(
+        `Transaction failed: ${error?.message || "Transaction was cancelled"}`
+      );
+      setShowTransactionModal(false);
     }
+  };
+
+  // Add getEtherscanUrl function
+  const getEtherscanUrl = (hash: string) => {
+    return `https://sepolia.etherscan.io/tx/${hash}`;
   };
 
   const renderActionButton = () => {
@@ -108,32 +259,29 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         return (
           <button
             className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-              isVoter
+              isVoter && !hasVoted
                 ? "bg-indigo-600 text-white hover:bg-indigo-700"
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
-            disabled={!isVoter}
-            onClick={() => {
-              if (isVoter) {
-                // TODO: Implement vote action
-                console.log("Vote clicked");
-              }
-            }}
+            disabled={!isVoter || isVoting || hasVoted}
+            onClick={() => setShowVoteModal(true)}
           >
             <Vote className="h-4 w-4" />
-            <span className="text-sm font-medium">Vote</span>
+            <span className="text-sm font-medium">
+              {isVoting ? "Voting..." : hasVoted ? "Already Voted" : "Vote"}
+            </span>
           </button>
         );
 
       case AgendaStatus.WAITING_EXEC:
-        if (!agenda.executed) {
+        if (
+          !agenda.executed &&
+          Number(agenda.countingYes) > Number(agenda.countingNo)
+        ) {
           return (
             <button
               className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-              onClick={() => {
-                // TODO: Implement execute action
-                console.log("Execute clicked");
-              }}
+              onClick={handleExecute}
             >
               <PlayCircle className="h-4 w-4" />
               <span className="text-sm font-medium">Execute</span>
@@ -156,7 +304,10 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             currentStatus
           )} text-xs font-medium rounded-md mb-4`}
         >
-          {getStatusText(currentStatus)}
+          {currentStatus === AgendaStatus.WAITING_EXEC &&
+          Number(agenda.countingYes) <= Number(agenda.countingNo)
+            ? "NOT APPROVED"
+            : getStatusText(currentStatus)}
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">
@@ -165,7 +316,17 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md">
               <Zap className="h-4 w-4 mr-1.5" />
-              <span className="text-sm font-medium">{getStatusMessage()}</span>
+              <span className="text-sm font-medium">
+                {!agenda.voters || agenda.voters.length === 0
+                  ? "Voting not started"
+                  : currentStatus === AgendaStatus.WAITING_EXEC &&
+                    Number(agenda.countingYes) <= Number(agenda.countingNo)
+                  ? "Proposal not approved"
+                  : currentStatus === AgendaStatus.ENDED &&
+                    Number(agenda.countingYes) <= Number(agenda.countingNo)
+                  ? "Proposal not approved"
+                  : getStatusMessage(agenda, currentStatus)}
+              </span>
             </div>
             {renderActionButton()}
           </div>
@@ -347,6 +508,110 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           </div>
         </div>
       </div>
+
+      {/* Vote Modal */}
+      {showVoteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">Cast Your Vote</h3>
+            <textarea
+              className="w-full p-2 border rounded-md mb-4"
+              placeholder="Add a comment (optional)"
+              value={voteComment}
+              onChange={(e) => setVoteComment(e.target.value)}
+              rows={3}
+            />
+            <div className="flex gap-4">
+              <button
+                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                onClick={() => handleVote(1)}
+                disabled={isVoting}
+              >
+                For
+              </button>
+              <button
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
+                onClick={() => handleVote(2)}
+                disabled={isVoting}
+              >
+                Against
+              </button>
+              <button
+                className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:opacity-50"
+                onClick={() => handleVote(0)}
+                disabled={isVoting}
+              >
+                Abstain
+              </button>
+            </div>
+            <button
+              className="mt-4 w-full text-gray-600 hover:text-gray-800"
+              onClick={() => setShowVoteModal(false)}
+              disabled={isVoting}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction Modal */}
+      {showTransactionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">
+              Transaction in Progress
+            </h3>
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              <p className="text-gray-600 text-center">
+                {voteData
+                  ? "Your vote is being processed on the blockchain..."
+                  : "Your agenda execution is being processed on the blockchain..."}
+              </p>
+              {(voteData || executeData) && (
+                <div className="w-full space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Transaction Hash
+                    </p>
+                    <div className="flex items-center justify-between bg-white rounded-md p-2 border">
+                      <code className="text-sm text-gray-600 break-all">
+                        {voteData || executeData}
+                      </code>
+                      <button
+                        className="ml-2 text-gray-400 hover:text-gray-600 p-1"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            voteData || executeData || ""
+                          );
+                          toast.success(
+                            "Transaction hash copied to clipboard!"
+                          );
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <a
+                    href={getEtherscanUrl(voteData || executeData || "")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-md transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      View on Etherscan
+                    </span>
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

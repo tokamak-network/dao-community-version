@@ -15,6 +15,8 @@ import {
   getAgendaMetadata,
   getAllAgendaMetadata,
   getAgendaTimeInfo,
+  getStatusMessage,
+  AgendaStatus,
 } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -44,7 +46,7 @@ export default function ProposalLists({
   isLoading,
 }: ProposalListsProps) {
   const router = useRouter();
-  const { events } = useAgenda();
+  const { events, quorum } = useAgenda();
   const [agendasWithMetadata, setAgendasWithMetadata] = useState<
     AgendaWithMetadata[]
   >([]);
@@ -113,7 +115,10 @@ export default function ProposalLists({
             </thead>
             <tbody>
               {agendasWithMetadata.map((agenda, index) => {
-                const currentStatus = calculateAgendaStatus(agenda);
+                const currentStatus = calculateAgendaStatus(
+                  agenda,
+                  quorum ?? BigInt(2)
+                );
                 const timeInfo = getAgendaTimeInfo(agenda);
                 return (
                   <tr
@@ -129,7 +134,11 @@ export default function ProposalLists({
                               currentStatus
                             )}`}
                           >
-                            {getStatusText(currentStatus)}
+                            {currentStatus === AgendaStatus.WAITING_EXEC &&
+                            Number(agenda.countingYes) <=
+                              Number(agenda.countingNo)
+                              ? "NOT APPROVED"
+                              : getStatusText(currentStatus)}
                           </span>{" "}
                           Agenda #{agenda.id}
                           {agenda.title ? ". " + agenda.title : ""}
@@ -175,7 +184,14 @@ export default function ProposalLists({
                           currentStatus
                         )}`}
                       >
-                        {getStatusText(currentStatus)}
+                        {!agenda.voters || agenda.voters.length === 0
+                          ? "Voting not started"
+                          : (currentStatus === AgendaStatus.WAITING_EXEC ||
+                              currentStatus === AgendaStatus.ENDED) &&
+                            Number(agenda.countingYes) <=
+                              Number(agenda.countingNo)
+                          ? "Proposal not approved"
+                          : getStatusMessage(agenda, currentStatus)}
                       </span>
                     </td>
                     <td className="py-4 text-right">
