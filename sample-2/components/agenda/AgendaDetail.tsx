@@ -8,6 +8,7 @@ import {
   formatAddress,
   calculateAgendaStatus,
   getAgendaTimeInfo,
+  AgendaStatus,
 } from "@/lib/utils";
 import {
   Zap,
@@ -21,7 +22,13 @@ import {
   ChevronRight,
   Circle,
   Timer,
+  Vote,
+  PlayCircle,
 } from "lucide-react";
+import { useAccount, useContractRead } from "wagmi";
+import { DAO_COMMITTEE_PROXY_ADDRESS } from "@/config/contracts";
+import { DAO_ABI } from "@/abis/dao";
+import { chain } from "@/config/chain";
 import AgendaDescription from "./AgendaDescription";
 import AgendaActions from "./AgendaActions";
 import AgendaStatusTimeline from "./AgendaStatusTimeline";
@@ -38,9 +45,110 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>("description");
   const currentStatus = calculateAgendaStatus(agenda);
   const timeInfo = getAgendaTimeInfo(agenda);
+  const { address } = useAccount();
+
+  // Get DAO Committee members
+  const { data: committeeMembers } = useContractRead({
+    address: DAO_COMMITTEE_PROXY_ADDRESS,
+    abi: DAO_ABI,
+    functionName: "members",
+    chainId: chain.id,
+  });
+  console.log("DAO_COMMITTEE_PROXY_ADDRESS", DAO_COMMITTEE_PROXY_ADDRESS);
+  console.log("committeeMembers", committeeMembers);
+
+  // Check if the current address is a voter
+  const isVoter =
+    address &&
+    // Check if address is in agenda voters list
+    (agenda.voters?.includes(address) ||
+      // If no voters list, check if address is in DAO Committee members
+      (Array.isArray(committeeMembers) && committeeMembers.includes(address)));
+
+  console.log("agenda", agenda);
+  console.log("isVoter", isVoter);
+  console.log("committeeMembers", committeeMembers);
+
+  const getStatusMessage = () => {
+    const now = Math.floor(Date.now() / 1000);
+
+    switch (currentStatus) {
+      case AgendaStatus.NONE:
+        return "Proposal created";
+
+      case AgendaStatus.NOTICE:
+        const noticeTimeLeft = Number(agenda.noticeEndTimestamp) - now;
+        const noticeDays = Math.floor(noticeTimeLeft / 86400);
+        const noticeHours = Math.floor((noticeTimeLeft % 86400) / 3600);
+        return `${noticeDays}d ${noticeHours}h until voting starts`;
+
+      case AgendaStatus.VOTING:
+        return "Voting in progress";
+
+      case AgendaStatus.WAITING_EXEC:
+        if (agenda.executed) {
+          return "Proposal executed";
+        }
+        const execTimeLeft = Number(agenda.executableLimitTimestamp) - now;
+        const execDays = Math.floor(execTimeLeft / 86400);
+        const execHours = Math.floor((execTimeLeft % 86400) / 3600);
+        return `${execDays}d ${execHours}h until execution`;
+
+      case AgendaStatus.EXECUTED:
+        return "Proposal executed";
+
+      case AgendaStatus.ENDED:
+        return "Proposal rejected";
+    }
+  };
+
+  const renderActionButton = () => {
+    switch (currentStatus) {
+      case AgendaStatus.VOTING:
+        return (
+          <button
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
+              isVoter
+                ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed"
+            }`}
+            disabled={!isVoter}
+            onClick={() => {
+              if (isVoter) {
+                // TODO: Implement vote action
+                console.log("Vote clicked");
+              }
+            }}
+          >
+            <Vote className="h-4 w-4" />
+            <span className="text-sm font-medium">Vote</span>
+          </button>
+        );
+
+      case AgendaStatus.WAITING_EXEC:
+        if (!agenda.executed) {
+          return (
+            <button
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={() => {
+                // TODO: Implement execute action
+                console.log("Execute clicked");
+              }}
+            >
+              <PlayCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Execute</span>
+            </button>
+          );
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className=" rounded-lg overflow-hidden">
+    <div className="rounded-lg overflow-hidden">
       {/* Proposal Header */}
       <div className="p-6">
         <div
@@ -54,16 +162,12 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           <h1 className="text-2xl font-bold text-gray-900">
             {agenda.title || `Agenda #${agenda.id}`}
           </h1>
-          <div className="flex items-center">
-            <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md mr-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md">
               <Zap className="h-4 w-4 mr-1.5" />
-              <span className="text-sm font-medium">
-                {agenda.executed ? "Proposal executed" : "Proposal active"}
-              </span>
+              <span className="text-sm font-medium">{getStatusMessage()}</span>
             </div>
-            <button className="text-gray-500 hover:text-gray-700">
-              <MoreVertical className="h-5 w-5" />
-            </button>
+            {renderActionButton()}
           </div>
         </div>
 
