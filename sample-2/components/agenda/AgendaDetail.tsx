@@ -59,11 +59,17 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
-  const { quorum, refreshAgenda } = useAgenda();
-  const currentStatus = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
-  const timeInfo = getAgendaTimeInfo(agenda);
+  const { quorum, refreshAgenda, getAgenda } = useAgenda();
+  const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata>(agenda);
+  const currentStatus = calculateAgendaStatus(localAgenda, quorum ?? BigInt(2));
+  const timeInfo = getAgendaTimeInfo(localAgenda);
   const { address } = useAccount();
   const { isCommitteeMember } = useAgenda();
+
+  // agenda prop이 변경될 때 localAgenda 업데이트
+  useEffect(() => {
+    setLocalAgenda(agenda);
+  }, [agenda]);
 
   // Get candidate contract address
   const { data: candidateContractAddress } = useContractRead({
@@ -90,7 +96,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       },
     ],
     functionName: "hasVoted",
-    args: address ? [BigInt(agenda.id), address as `0x${string}`] : undefined,
+    args: address
+      ? [BigInt(localAgenda.id), address as `0x${string}`]
+      : undefined,
     chainId: chain.id,
   });
 
@@ -142,35 +150,90 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
   // 아젠다 실행 이벤트 구독
   useEffect(() => {
-    const handleAgendaExecuted = (event: CustomEvent<{ agendaId: number }>) => {
-      if (event.detail.agendaId === agenda.id) {
-        // 아젠다 데이터 갱신
-        refreshAgenda(agenda.id);
+    const handleAgendaExecuted = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ agendaId: number }>;
+      if (customEvent.detail.agendaId === localAgenda.id) {
+        console.log(
+          "[AgendaDetail] agendaExecuted event received:",
+          customEvent.detail
+        );
+        // 컨트랙트에서 최신 아젠다 데이터 가져오기
+        const latestAgenda = await getAgenda(localAgenda.id);
+        if (latestAgenda) {
+          console.log(
+            "[AgendaDetail] Latest agenda data received:",
+            latestAgenda
+          );
+          setLocalAgenda(latestAgenda);
+        }
       }
     };
 
-    window.addEventListener(
-      "agendaExecuted",
-      handleAgendaExecuted as EventListener
+    console.log(
+      "[AgendaDetail] Setting up agendaExecuted event listener for agenda ID:",
+      localAgenda.id
     );
+    window.addEventListener("agendaExecuted", handleAgendaExecuted);
 
     return () => {
-      window.removeEventListener(
-        "agendaExecuted",
-        handleAgendaExecuted as EventListener
+      console.log(
+        "[AgendaDetail] Removing agendaExecuted event listener for agenda ID:",
+        localAgenda.id
       );
+      window.removeEventListener("agendaExecuted", handleAgendaExecuted);
     };
-  }, [agenda.id, refreshAgenda]);
+  }, [localAgenda.id, getAgenda]);
+
+  // 투표 상태 갱신을 위한 이벤트 리스너
+  useEffect(() => {
+    const handleVoteUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ agendaId: number }>;
+      console.log(
+        "[AgendaDetail] agendaVoteUpdated event received:",
+        customEvent.detail
+      );
+      if (customEvent.detail.agendaId === localAgenda.id) {
+        console.log(
+          "[AgendaDetail] Fetching latest agenda data for ID:",
+          localAgenda.id
+        );
+        // 컨트랙트에서 최신 아젠다 데이터 가져오기
+        const latestAgenda = await getAgenda(localAgenda.id);
+        if (latestAgenda) {
+          console.log(
+            "[AgendaDetail] Latest agenda data received:",
+            latestAgenda
+          );
+          setLocalAgenda(latestAgenda);
+          // 투표 상태도 갱신
+          await refetch();
+        }
+      }
+    };
+
+    console.log(
+      "[AgendaDetail] Setting up agendaVoteUpdated event listener for agenda ID:",
+      localAgenda.id
+    );
+    window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
+    return () => {
+      console.log(
+        "[AgendaDetail] Removing agendaVoteUpdated event listener for agenda ID:",
+        localAgenda.id
+      );
+      window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
+    };
+  }, [localAgenda.id, getAgenda, refetch]);
 
   // Check if the current address is a voter
   const isVoter = useMemo(
     () =>
       address &&
       // Check if address is in agenda voters list
-      (agenda.voters?.includes(address) ||
+      (localAgenda.voters?.includes(address) ||
         // If no voters list, check if address is a committee member
         isCommitteeMember(address as string)),
-    [address, agenda.voters, isCommitteeMember]
+    [address, localAgenda.voters, isCommitteeMember]
   );
 
   const handleVote = (vote: number) => {
@@ -192,43 +255,12 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       ],
       address: candidateContractAddress as `0x${string}`,
       functionName: "castVote",
-      args: [BigInt(agenda.id), BigInt(vote), voteComment],
+      args: [BigInt(localAgenda.id), BigInt(vote), voteComment],
     });
 
     setShowVoteModal(false);
     setShowTransactionModal(true);
   };
-
-  // 투표 상태 갱신을 위한 이벤트 리스너
-  useEffect(() => {
-    const handleVoteUpdate = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ agendaId: number }>;
-      console.log("handleVoteUpdate", customEvent.detail);
-      if (customEvent.detail.agendaId === agenda.id) {
-        // 투표 상태 갱신
-        await refetch();
-        // 현재 아젠다 정보만 갱신
-        await refreshAgenda(agenda.id);
-      }
-    };
-
-    const handleExecutedUpdate = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ agendaId: number }>;
-      console.log("handleExecutedUpdate", customEvent.detail);
-      if (customEvent.detail.agendaId === agenda.id) {
-        // 아젠다 실행 상태 갱신
-        await refreshAgenda(agenda.id);
-      }
-    };
-
-    window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
-    window.addEventListener("agendaExecuted", handleExecutedUpdate);
-
-    return () => {
-      window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
-      window.removeEventListener("agendaExecuted", handleExecutedUpdate);
-    };
-  }, [agenda.id, refetch, refreshAgenda]);
 
   const handleExecute = async () => {
     try {
@@ -237,7 +269,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         address: DAO_AGENDA_MANAGER_ADDRESS,
         abi: DAO_ABI,
         functionName: "executeAgenda",
-        args: [BigInt(agenda.id)],
+        args: [BigInt(localAgenda.id)],
       });
     } catch (error: any) {
       console.error("Error executing agenda:", error);
@@ -311,21 +343,23 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">
-            {agenda.title || `Agenda #${agenda.id}`}
+            {localAgenda.title || `Agenda #${localAgenda.id}`}
           </h1>
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md">
               <Zap className="h-4 w-4 mr-1.5" />
               <span className="text-sm font-medium">
-                {!agenda.voters || agenda.voters.length === 0
+                {!localAgenda.voters || localAgenda.voters.length === 0
                   ? "Voting not started"
                   : currentStatus === AgendaStatus.WAITING_EXEC &&
-                    Number(agenda.countingYes) <= Number(agenda.countingNo)
+                    Number(localAgenda.countingYes) <=
+                      Number(localAgenda.countingNo)
                   ? "Proposal not approved"
                   : currentStatus === AgendaStatus.ENDED &&
-                    Number(agenda.countingYes) <= Number(agenda.countingNo)
+                    Number(localAgenda.countingYes) <=
+                      Number(localAgenda.countingNo)
                   ? "Proposal not approved"
-                  : getStatusMessage(agenda, currentStatus)}
+                  : getStatusMessage(localAgenda, currentStatus)}
               </span>
             </div>
             {renderActionButton()}
@@ -337,17 +371,20 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           <div className="flex items-center">
             <div className="h-8 w-8 rounded-full bg-gray-300 mr-2 overflow-hidden"></div>
             <span className="text-gray-700">
-              by {agenda.creator ? formatAddress(agenda.creator) : "Unknown"}
+              by{" "}
+              {localAgenda.creator
+                ? formatAddress(localAgenda.creator)
+                : "Unknown"}
             </span>
           </div>
           <div className="flex items-center ml-4">
-            <span className="text-gray-500">ID {agenda.id}</span>
+            <span className="text-gray-500">ID {localAgenda.id}</span>
             <button className="ml-1 text-gray-400 hover:text-gray-600">
               <Copy className="h-4 w-4" />
             </button>
           </div>
           <div className="ml-4 text-gray-500">
-            • Proposed on: {formatDate(Number(agenda.createdTimestamp))}
+            • Proposed on: {formatDate(Number(localAgenda.createdTimestamp))}
           </div>
         </div>
       </div>
@@ -406,13 +443,13 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
               {/* Tab Content */}
               <div className="mt-6">
                 {activeTab === "description" ? (
-                  <AgendaDescription agenda={agenda} />
+                  <AgendaDescription agenda={localAgenda} />
                 ) : activeTab === "community" ? (
-                  <AgendaCommunity agenda={agenda} />
+                  <AgendaCommunity agenda={localAgenda} />
                 ) : activeTab === "actions" ? (
-                  <AgendaActions agenda={agenda} />
+                  <AgendaActions agenda={localAgenda} />
                 ) : (
-                  <AgendaVotes agenda={agenda} />
+                  <AgendaVotes agenda={localAgenda} />
                 )}
               </div>
             </div>
@@ -432,9 +469,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     <span className="text-gray-700">Quorum</span>
                   </div>
                   <span className="text-gray-700">
-                    {Number(agenda.countingYes) +
-                      Number(agenda.countingNo) +
-                      Number(agenda.countingAbstain)}{" "}
+                    {Number(localAgenda.countingYes) +
+                      Number(localAgenda.countingNo) +
+                      Number(localAgenda.countingAbstain)}{" "}
                     votes
                   </span>
                 </div>
@@ -445,7 +482,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     <span className="text-gray-700">Majority support</span>
                   </div>
                   <span className="text-gray-700">
-                    {Number(agenda.countingYes) > Number(agenda.countingNo)
+                    {Number(localAgenda.countingYes) >
+                    Number(localAgenda.countingNo)
                       ? "Yes"
                       : "No"}
                   </span>
@@ -458,10 +496,10 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                   className="h-2 bg-emerald-500 rounded-full"
                   style={{
                     width: `${
-                      (Number(agenda.countingYes) /
-                        (Number(agenda.countingYes) +
-                          Number(agenda.countingNo) +
-                          Number(agenda.countingAbstain))) *
+                      (Number(localAgenda.countingYes) /
+                        (Number(localAgenda.countingYes) +
+                          Number(localAgenda.countingNo) +
+                          Number(localAgenda.countingAbstain))) *
                       100
                     }%`,
                   }}
@@ -475,7 +513,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     <span className="text-gray-700">For</span>
                   </div>
                   <span className="text-gray-700">
-                    {Number(agenda.countingYes)}
+                    {Number(localAgenda.countingYes)}
                   </span>
                 </div>
 
@@ -485,7 +523,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     <span className="text-gray-700">Against</span>
                   </div>
                   <span className="text-gray-700">
-                    {Number(agenda.countingNo)}
+                    {Number(localAgenda.countingNo)}
                   </span>
                 </div>
 
@@ -495,14 +533,14 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     <span className="text-gray-700">Abstain</span>
                   </div>
                   <span className="text-gray-700">
-                    {Number(agenda.countingAbstain)}
+                    {Number(localAgenda.countingAbstain)}
                   </span>
                 </div>
               </div>
 
               {/* Status Timeline */}
               <div className="border-t border-gray-200 pt-6">
-                <AgendaStatusTimeline agenda={agenda} />
+                <AgendaStatusTimeline agenda={localAgenda} />
               </div>
             </div>
           </div>

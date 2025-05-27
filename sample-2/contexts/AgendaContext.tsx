@@ -500,7 +500,12 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   };
 
   // 아젠다 데이터 업데이트 함수
-  const updateAgendaData = async (agendaId: number) => {
+  const updateAgendaData = async (
+    agendaId: number,
+    shouldSort: boolean = false
+  ) => {
+    console.log("updateAgendaData - Starting update for agenda ID:", agendaId);
+
     const publicClient = createPublicClient({
       chain: {
         ...chain,
@@ -510,18 +515,20 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     });
 
     // 아젠다 데이터 가져오기
+    console.log("updateAgendaData - Fetching contract data...");
     const agendaData = await publicClient.readContract({
       address: DAO_AGENDA_MANAGER_ADDRESS,
       abi: DAO_AGENDA_MANAGER_ABI,
       functionName: "agendas",
       args: [BigInt(agendaId)],
     });
-
-    console.log("Updated agenda agendaData:", agendaData);
+    console.log("updateAgendaData - Contract data received:", agendaData);
 
     // 메타데이터 가져오기
+    console.log("updateAgendaData - Fetching metadata...");
     const metadata = await getAllAgendaMetadata([agendaId]);
-    console.log("Updated agenda data:", agendaData);
+    console.log("updateAgendaData - Metadata received:", metadata);
+
     // 아젠다 데이터와 메타데이터 결합
     const updatedAgenda: AgendaWithMetadata = {
       ...(agendaData as unknown as AgendaWithMetadata),
@@ -535,18 +542,22 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       transaction: metadata[agendaId]?.transaction,
       actions: metadata[agendaId]?.actions,
     };
-    console.log("Updated agenda metadata:", metadata);
-    // 기존 아젠다 목록 업데이트
+    console.log("updateAgendaData - Combined data:", updatedAgenda);
+
+    // 상태 업데이트
     setAgendas((prevAgendas) => {
       const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
       existingAgendas.set(agendaId, updatedAgenda);
-      // ID를 기준으로 내림차순 정렬하여 최신 아젠다가 맨 앞에 오도록 함
-      return Array.from(existingAgendas.values()).sort((a, b) => b.id - a.id);
+      const newAgendas = Array.from(existingAgendas.values());
+      // 정렬 여부에 따라 처리
+      return shouldSort ? newAgendas.sort((a, b) => b.id - a.id) : newAgendas;
     });
   };
 
-  // 아젠다 이벤트 모니터링 함수
-  const monitorAgendaEvents = () => {
+  // 이벤트 모니터링을 위한 useEffect
+  useEffect(() => {
+    console.log("[useEffect] Setting up event monitoring");
+
     const publicClient = createPublicClient({
       chain: {
         ...chain,
@@ -555,8 +566,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
     });
 
-    console.log("monitorAgendaEvents start");
     // 아젠다 생성 이벤트 모니터링
+    console.log("[monitorAgendaEvents] Setting up AgendaCreated event watcher");
     const unwatchCreated = publicClient.watchEvent({
       address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
@@ -572,23 +583,21 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
-        console.log("unwatchCreated", logs);
+        console.log("[AgendaCreated] Event logs received:", logs);
         for (const log of logs) {
           if (log.args) {
             const agendaId = Number(log.args.id);
-
-            await updateAgendaData(agendaId);
-            // 투표 상태 갱신을 위한 이벤트 발생
-            const event = new CustomEvent("agendaCreated", {
-              detail: { agendaId },
-            });
-            window.dispatchEvent(event);
+            console.log("[AgendaCreated] Processing agenda ID:", agendaId);
+            await updateAgendaData(agendaId, true);
           }
         }
       },
     });
 
     // 아젠다 투표 이벤트 모니터링
+    console.log(
+      "[monitorAgendaEvents] Setting up AgendaVoteCasted event watcher"
+    );
     const unwatchVoteCasted = publicClient.watchEvent({
       address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
@@ -602,32 +611,35 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
-        console.log("unwatchVoteCasted", logs);
+        console.log("[AgendaVoteCasted] Event logs received:", logs);
         for (const log of logs) {
           if (log.args) {
-            console.log("unwatchVoteCasted", log.args);
+            console.log("[AgendaVoteCasted] Event args:", log.args);
             const agendaId = Number(log.args.id);
-
-            // 아젠다 데이터 업데이트
+            console.log("[AgendaVoteCasted] Processing agenda ID:", agendaId);
             await updateAgendaData(agendaId);
 
-            // 투표 상태 갱신을 위한 이벤트 발생
-            const event = new CustomEvent("agendaVoteUpdated", {
+            // 커스텀 이벤트 발생
+            console.log(
+              "[AgendaVoteCasted] Dispatching agendaVoteUpdated event for agenda ID:",
+              agendaId
+            );
+            const voteEvent = new CustomEvent("agendaVoteUpdated", {
               detail: { agendaId },
             });
-            window.dispatchEvent(event);
-
-            // voterInfos 갱신을 위한 이벤트 발생
-            const voterInfosEvent = new CustomEvent("voterInfosUpdated", {
-              detail: { agendaId },
-            });
-            window.dispatchEvent(voterInfosEvent);
+            window.dispatchEvent(voteEvent);
+            console.log(
+              "[AgendaVoteCasted] agendaVoteUpdated event dispatched"
+            );
           }
         }
       },
     });
 
     // 아젠다 실행 이벤트 모니터링
+    console.log(
+      "[monitorAgendaEvents] Setting up AgendaExecuted event watcher"
+    );
     const unwatchExecuted = publicClient.watchEvent({
       address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
@@ -639,43 +651,31 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         ],
       },
       onLogs: async (logs) => {
-        console.log("unwatchExecuted - Event logs received:", logs);
+        console.log("[AgendaExecuted] Event logs received:", logs);
         for (const log of logs) {
           if (log.args) {
-            console.log("unwatchExecuted - Event args:", log.args);
+            console.log("[AgendaExecuted] Event args:", log.args);
             const agendaId = Number(log.args.id);
-            console.log("unwatchExecuted - Agenda ID:", agendaId);
-
-            // 아젠다 데이터 업데이트
-            console.log("unwatchExecuted - Updating agenda data...");
+            console.log("[AgendaExecuted] Processing agenda ID:", agendaId);
             await updateAgendaData(agendaId);
-            console.log("unwatchExecuted - Agenda data updated");
 
-            // 아젠다 실행 이벤트 발생
-            console.log("unwatchExecuted - Dispatching agendaExecuted event");
-            const event = new CustomEvent("agendaExecuted", {
+            // 커스텀 이벤트 발생
+            const executedEvent = new CustomEvent("agendaExecuted", {
               detail: { agendaId },
             });
-            window.dispatchEvent(event);
-            console.log("unwatchExecuted - Event dispatched");
+            window.dispatchEvent(executedEvent);
           }
         }
       },
     });
 
-    // 언마운트 시 이벤트 감시 중지
     return () => {
+      console.log("[useEffect] Cleaning up event monitoring");
       unwatchCreated();
       unwatchVoteCasted();
       unwatchExecuted();
     };
-  };
-
-  // 이벤트 모니터링 시작
-  useEffect(() => {
-    const cleanup = monitorAgendaEvents();
-    return cleanup;
-  }, []);
+  }, []); // agendas 의존성 제거
 
   // 아젠다 상태 업데이트 함수
   const updateAgendaStatus = async () => {
@@ -841,7 +841,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       setAgendas((prevAgendas) => {
         const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
         existingAgendas.set(agendaId, updatedAgenda);
-        return Array.from(existingAgendas.values()).sort((a, b) => b.id - a.id);
+        return Array.from(existingAgendas.values());
       });
     } catch (err) {
       console.error("Error refreshing agenda:", err);
@@ -853,13 +853,6 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     agendaId: number
   ): Promise<AgendaWithMetadata | null> => {
     try {
-      // 1. 먼저 컨텍스트에서 아젠다 찾기
-      const existingAgenda = agendas.find((a) => a.id === agendaId);
-      if (existingAgenda) {
-        console.log("Found agenda in context:", existingAgenda);
-        return existingAgenda;
-      }
-
       // 2. 컨텍스트에 없으면 컨트랙트에서 조회
       console.log("Agenda not found in context, fetching from contract...");
       const publicClient = createPublicClient({
@@ -894,6 +887,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         transaction: metadata[agendaId]?.transaction,
         actions: metadata[agendaId]?.actions,
       };
+      console.log("getAgenda", agendaId, newAgenda);
 
       return newAgenda;
     } catch (err) {

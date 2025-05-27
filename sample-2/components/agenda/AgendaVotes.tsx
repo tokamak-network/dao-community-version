@@ -44,7 +44,8 @@ const voterInfosAbi = [
 ] as const;
 
 function AgendaVotesContent({ agenda }: AgendaVotesProps) {
-  const { refreshAgendas, getVoterInfos, getAgenda } = useAgenda();
+  const { refreshAgendas, getVoterInfos, getAgenda, refreshAgenda } =
+    useAgenda();
   const [votes, setVotes] = useState<VoteInfo[]>([]);
   const [voterInfos, setVoterInfos] = useState<any[]>([]);
 
@@ -92,26 +93,21 @@ function AgendaVotesContent({ agenda }: AgendaVotesProps) {
 
   // 투표 상태 갱신을 위한 이벤트 리스너
   useEffect(() => {
-    const handleVoteUpdate = async (event: Event) => {
+    const handleExecutedUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent<{ agendaId: number }>;
+      console.log("handleExecutedUpdate", customEvent.detail);
       if (customEvent.detail.agendaId === agenda.id) {
-        // 아젠다 컨텍스트에서 최신 데이터 가져오기
-        const updatedAgenda = await getAgenda(agenda.id);
-        console.log("Agenda Votes updatedAgenda", updatedAgenda);
-        if (updatedAgenda && updatedAgenda.voters) {
-          // 최신 voterInfos 가져오기
-          const results = await getVoterInfos(agenda.id, updatedAgenda.voters);
-          console.log("Agenda Votes results", results);
-          setVoterInfos(results);
-        }
+        // 아젠다 실행 상태 갱신
+        await refreshAgenda(agenda.id);
       }
     };
 
-    window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
+    window.addEventListener("agendaExecuted", handleExecutedUpdate);
+
     return () => {
-      window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
+      window.removeEventListener("agendaExecuted", handleExecutedUpdate);
     };
-  }, [agenda.id, getAgenda, getVoterInfos]);
+  }, [agenda.id, refreshAgenda]);
 
   const totalVotes =
     Number(agenda.countingYes) +
