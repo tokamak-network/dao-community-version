@@ -1,85 +1,75 @@
 # DAO Community Version
 
-A decentralized autonomous organization (DAO) system with proposal management, voting, and execution capabilities.
+A decentralized governance platform for managing community proposals and voting.
 
-## Documentation
+## Table of Contents
 
-- [System Architecture](docs/architecture.md) - System design and components
-- [Features](docs/features.md) - Detailed feature descriptions
-- [Environment Setup](docs/environment-setup.md) - Configuration and setup guide
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Development](#development)
+- [Documentation](#documentation)
+- [License](#license)
 
-## Quick Start
+## Features
 
-1. Clone the repository
-   ```bash
-   git clone [repository-url]
-   cd dao-community-version
-   cd sample-2
-   ```
+### Proposal Management
+- Create and manage proposals
+- Support for various proposal types
+- Proposal status tracking
 
-2. Install dependencies
-   ```bash
-   npm install
-   ```
+### Voting System
+- For/Against/Abstain voting
+- Real-time vote tracking
+- Vote result visualization
 
-3. Set up environment variables
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your configuration
-   ```
+### Execution Process
+- Execution condition verification
+- Execution status monitoring
+- Execution result tracking
+- Transaction confirmation monitoring
 
-4. Start local development server
-   ```bash
-   npm run dev
-   ```
-
-## Development
+## Getting Started
 
 ### Prerequisites
 - Node.js v16 or higher
 - MetaMask or compatible Web3 wallet
 - Access to Ethereum network (Mainnet/Testnet)
 
-### Available Scripts
+### Installation
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Copy the environment file:
+   ```bash
+   # For Mainnet
+   cp .env.example.mainnet .env.local
 
+   # For Sepolia
+   cp .env.example.sepolia .env.local
+   ```
+4. Start the development server: `npm run dev`
+
+For detailed setup instructions and configuration, please refer to [Environment Setup Guide](docs/environment-setup.md).
+
+## Development
+
+### Tech Stack
+- Built with Next.js and TypeScript
+- Uses ethers.js for blockchain interaction
+- Implements event-based state management
+- Supports both Mainnet and Sepolia networks
+
+### Available Scripts
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run linting
 
-## Tech Stack
+## Documentation
 
-- Frontend: Next.js, React, TypeScript
-- Smart Contracts: Solidity
-- Web3: wagmi, viem
-- UI: Tailwind CSS, shadcn/ui
-
-## Testing
-
-See [Environment Setup](docs/environment-setup.md#network-specific-setup) for testnet configuration.
-
-## Deployment
-
-1. Build the application
-   ```bash
-   npm run build
-   ```
-
-2. Start the production server
-   ```bash
-   npm start
-   ```
-
-3. Configure environment variables for production
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch
-3. Commit changes
-4. Push to branch
-5. Create Pull Request
+- [Environment Setup](docs/environment-setup.md) - Detailed configuration guide
+- [Features](docs/features.md) - Complete feature documentation
+- [Architecture](docs/architecture.md) - System design and components
 
 ## License
 
-[License Type] - See LICENSE file for details
+MIT
