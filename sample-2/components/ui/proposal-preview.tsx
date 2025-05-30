@@ -34,6 +34,7 @@ import { TON_ABI } from "@/lib/contracts/abis/TON";
 import { useRouter } from "next/navigation";
 import { useAgenda } from "@/contexts/AgendaContext";
 import { chain } from "@/config/chain";
+import { createAgendaSignatureMessage, signMessage } from "@/lib/signature";
 
 // // Add type declaration for window.ethereum
 // declare global {
@@ -452,8 +453,8 @@ export function ProposalPreview({
         address: address,
         signature: "",
       },
-      title,
-      description,
+      title: title?.trim(),
+      description: description?.trim(),
       actions,
       timestamp: new Date().toISOString(),
     };
@@ -474,21 +475,7 @@ export function ProposalPreview({
     URL.revokeObjectURL(url);
   };
 
-  const signMessage = async (message: string, account: string) => {
-    try {
-      const signature = await window.ethereum.request({
-        method: "personal_sign",
-        params: [message, account],
-      });
-      return signature;
-    } catch (error) {
-      console.error("Error signing message:", error);
-      alert("Failed to sign message. Please try again.");
-    }
-  };
-
   const handleSaveAgendaWithSignature = async () => {
-    // console.log("handleSaveAgendaWithSignature");
     if (!address) {
       alert("Wallet not connected. Please connect your wallet first.");
       return;
@@ -498,14 +485,17 @@ export function ProposalPreview({
       return;
     }
     const agendaData = getAgendaData();
-    const message = `I am the one who submitted agenda #${agendaData.id} via transaction ${agendaData.transaction}. This signature proves that I am the one who submitted this agenda.`;
+    if (!agendaData.id || !agendaData.transaction) {
+      alert("Invalid agenda data. Missing ID or transaction hash.");
+      return;
+    }
+    const message = createAgendaSignatureMessage(
+      agendaData.id,
+      agendaData.transaction
+    );
     const signature = await signMessage(message, address);
     agendaData.creator.signature = signature;
     saveAgendaData(agendaData);
-  };
-
-  const handleSaveAgenda = () => {
-    saveAgendaData(getAgendaData());
   };
 
   const handleCloseModal = () => {
@@ -961,16 +951,6 @@ export function ProposalPreview({
               )}
 
               <div className="flex justify-end space-x-3 pt-4">
-                {txStatus === "confirmed" && (
-                  <Button
-                    onClick={handleSaveAgenda}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Save className="w-4 h-7 mr-2" />
-                    Save Agenda Locally
-                  </Button>
-                )}
-
                 {txStatus === "confirmed" && (
                   <Button
                     onClick={handleSaveAgendaWithSignature}

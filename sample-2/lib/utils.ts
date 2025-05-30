@@ -187,9 +187,13 @@ export function getAgendaTimeInfo(agenda: {
   };
 }
 
-export function formatAddress(address: string): string {
-  if (!address || typeof address !== "string") return "";
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+export function formatAddress(address: string | { address: string }): string {
+  if (!address) return "";
+
+  const addressStr = typeof address === "string" ? address : address.address;
+  if (!addressStr || typeof addressStr !== "string") return "";
+
+  return `${addressStr.slice(0, 6)}...${addressStr.slice(-4)}`;
 }
 
 export function calculateAgendaStatus(
@@ -251,7 +255,7 @@ export function calculateAgendaStatus(
 }
 
 interface AgendaMetadata {
-  id: number
+  id: number;
   title: string;
   description: string;
   createdAt: number;
@@ -274,7 +278,7 @@ interface AgendaMetadata {
   }[];
 }
 
-function getNetworkName(chainId: number): string {
+export function getNetworkName(chainId: number): string {
   switch (chainId) {
     case 1:
       return "ethereum";
@@ -297,14 +301,21 @@ function getNetworkName(chainId: number): string {
   }
 }
 
+// 메타데이터 URL 생성 함수
+export function getMetadataUrl(
+  agendaId: number,
+  network: string = "mainnet"
+): string {
+  return `${GITHUB_DAO_AGENDA_URL}${network}/agenda-${agendaId}.json`;
+}
+
 export async function getAgendaMetadata(
   agendaId: number
 ): Promise<AgendaMetadata | null> {
   try {
     const networkName = getNetworkName(chain.id);
-    const response = await fetch(
-      `${GITHUB_DAO_AGENDA_URL}/${networkName}/agenda-${agendaId}.json`
-    );
+    const metadataUrl = getMetadataUrl(agendaId, networkName);
+    const response = await fetch(metadataUrl);
     if (!response.ok) {
       console.log(`No metadata found for agenda ${agendaId} on ${networkName}`);
       return null;

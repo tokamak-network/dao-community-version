@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { AgendaWithMetadata } from "@/types/agenda";
 import { formatAddress } from "@/lib/utils";
-import { CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { CheckCircle2, XCircle, MinusCircle, Circle } from "lucide-react";
 import { useAgenda } from "@/contexts/AgendaContext";
-import { useContractRead } from "wagmi";
+import { useContractRead, useAccount } from "wagmi";
 import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
 import { chain } from "@/config/chain";
 import dynamic from "next/dynamic";
@@ -44,10 +44,17 @@ const voterInfosAbi = [
 ] as const;
 
 function AgendaVotesContent({ agenda }: AgendaVotesProps) {
-  const { refreshAgendas, getVoterInfos, getAgenda, refreshAgenda } =
-    useAgenda();
+  const {
+    refreshAgendas,
+    getVoterInfos,
+    getAgenda,
+    refreshAgenda,
+    refreshAgendaWithoutCache,
+  } = useAgenda();
   const [votes, setVotes] = useState<VoteInfo[]>([]);
   const [voterInfos, setVoterInfos] = useState<any[]>([]);
+  const [showAllVotes, setShowAllVotes] = useState(false);
+  const { address } = useAccount();
 
   // Get vote information for each voter
   useEffect(() => {

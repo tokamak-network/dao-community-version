@@ -19,6 +19,9 @@ import {
   getLatestBlockNumber,
   calculateAgendaStatus,
   AgendaStatus,
+  getAgendaMetadata,
+  getMetadataUrl,
+  getNetworkName,
 } from "@/lib/utils";
 import { createPublicClient, http } from "viem";
 import { CONTRACT_READ_SETTINGS } from "@/config/contracts";
@@ -33,6 +36,9 @@ interface AgendaContextType {
   error: string | null;
   refreshAgendas: () => Promise<void>;
   refreshAgenda: (agendaId: number) => Promise<void>;
+  refreshAgendaWithoutCache: (
+    agendaId: number
+  ) => Promise<AgendaWithMetadata | null>;
   getAgenda: (agendaId: number) => Promise<AgendaWithMetadata | null>;
   statusMessage: string;
   contract: {
@@ -526,26 +532,42 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 메타데이터 가져오기
     console.log("updateAgendaData - Fetching metadata...");
-    const metadata = await getAllAgendaMetadata([agendaId]);
-    console.log("updateAgendaData - Metadata received:", metadata);
+    const networkName = getNetworkName(chain.id);
+    const metadataUrl = getMetadataUrl(agendaId, networkName);
+    console.log("updateAgendaData - Metadata URL:", metadataUrl);
 
-    // 아젠다 데이터와 메타데이터 결합
-    const updatedAgenda: AgendaWithMetadata = {
-      ...(agendaData as unknown as AgendaWithMetadata),
-      id: agendaId,
-      title: metadata[agendaId]?.title,
-      description: metadata[agendaId]?.description,
-      creator: metadata[agendaId]?.creator?.address,
-      snapshotUrl: metadata[agendaId]?.snapshotUrl,
-      discourseUrl: metadata[agendaId]?.discourseUrl,
-      network: metadata[agendaId]?.network,
-      transaction: metadata[agendaId]?.transaction,
-      actions: metadata[agendaId]?.actions,
-    };
-    console.log("updateAgendaData - Combined data:", updatedAgenda);
+    const response = await fetch(metadataUrl, {
+      cache: "no-store", // 캐시 비활성화
+    });
+
+    let metadata = null;
+    if (response.ok) {
+      metadata = await response.json();
+      console.log("updateAgendaData - Metadata received:", metadata);
+    } else {
+      console.log("updateAgendaData - No metadata found");
+    }
 
     // 상태 업데이트
     setAgendas((prevAgendas) => {
+      // 기존 아젠다 데이터 가져오기
+      const existingAgenda = prevAgendas.find((a) => a.id === agendaId);
+
+      // 아젠다 데이터와 메타데이터 결합
+      const updatedAgenda: AgendaWithMetadata = {
+        ...(agendaData as unknown as AgendaWithMetadata),
+        id: agendaId,
+        title: metadata?.title || existingAgenda?.title,
+        description: metadata?.description || existingAgenda?.description,
+        creator: metadata?.creator?.address || existingAgenda?.creator,
+        snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
+        discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
+        network: metadata?.network || existingAgenda?.network,
+        transaction: metadata?.transaction || existingAgenda?.transaction,
+        actions: metadata?.actions || existingAgenda?.actions,
+      };
+      console.log("updateAgendaData - Combined data:", updatedAgenda);
+
       const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
       existingAgendas.set(agendaId, updatedAgenda);
       const newAgendas = Array.from(existingAgendas.values());
@@ -675,7 +697,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       unwatchVoteCasted();
       unwatchExecuted();
     };
-  }, []); // agendas 의존성 제거
+  }, [agendas]); // agendas 의존성 추가
 
   // 아젠다 상태 업데이트 함수
   const updateAgendaStatus = async () => {
@@ -779,6 +801,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   // 특정 아젠다만 갱신하는 함수
   const refreshAgenda = async (agendaId: number) => {
     try {
+      console.log("[refreshAgenda] Starting refresh for agenda ID:", agendaId);
+
       const publicClient = createPublicClient({
         chain: {
           ...chain,
@@ -787,64 +811,170 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
       });
 
-      // 아젠다 데이터 가져오기
+      // 1. 아젠다 데이터 가져오기
+      console.log("[refreshAgenda] Fetching contract data...");
       const agendaData = await publicClient.readContract({
         address: DAO_AGENDA_MANAGER_ADDRESS,
         abi: DAO_AGENDA_MANAGER_ABI,
         functionName: "agendas",
         args: [BigInt(agendaId)],
       });
+      console.log("[refreshAgenda] Contract data received:", agendaData);
 
-      console.log("refreshAgenda - Contract data:", agendaData);
-      console.log(
-        "refreshAgenda - Contract agendaData.voters:",
-        agendaData.voters
-      );
-
-      // 기존 아젠다 데이터 가져오기
+      // 2. 기존 아젠다 데이터 가져오기
       const existingAgenda = agendas.find((a) => a.id === agendaId);
-      console.log("refreshAgenda - Existing agenda:", existingAgenda);
+      console.log("[refreshAgenda] Existing agenda data:", existingAgenda);
 
-      // 아젠다 데이터와 메타데이터 결합
-      const updatedAgenda1: AgendaWithMetadata = {
+      // 3. 메타데이터 가져오기
+      console.log("[refreshAgenda] Fetching metadata...");
+      const network = process.env.NEXT_PUBLIC_NETWORK || "mainnet";
+      const metadataUrl = getMetadataUrl(agendaId, network);
+      console.log("[refreshAgenda] Metadata URL:", metadataUrl);
+
+      const response = await fetch(metadataUrl, {
+        cache: "no-store", // 캐시 비활성화
+      });
+
+      let metadata = null;
+      if (response.ok) {
+        metadata = await response.json();
+        console.log(
+          "[refreshAgenda] Metadata received from repository:",
+          metadata
+        );
+      } else {
+        console.log("[refreshAgenda] No metadata found in repository");
+      }
+
+      // 4. 아젠다 데이터와 메타데이터 결합
+      const updatedAgenda: AgendaWithMetadata = {
         ...(agendaData as unknown as AgendaWithMetadata),
         id: agendaId,
+        title: metadata?.title || existingAgenda?.title,
+        description: metadata?.description || existingAgenda?.description,
+        creator: metadata?.creator?.address || existingAgenda?.creator,
+        snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
+        discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
+        network: metadata?.network || existingAgenda?.network,
+        transaction: metadata?.transaction || existingAgenda?.transaction,
+        actions: metadata?.actions || existingAgenda?.actions,
       };
+      console.log("[refreshAgenda] Combined data:", updatedAgenda);
 
-      console.log("refreshAgenda - updatedAgenda1:", updatedAgenda1);
-
-      // 메타데이터 가져오기
-      const metadata = await getAllAgendaMetadata([agendaId]);
-      console.log("refreshAgenda - Metadata:", metadata);
-
-      // 아젠다 데이터와 메타데이터 결합
-      const updatedAgenda: AgendaWithMetadata = {
-        ...(updatedAgenda1 as unknown as AgendaWithMetadata),
-        title: metadata[agendaId]?.title || existingAgenda?.title,
-        description:
-          metadata[agendaId]?.description || existingAgenda?.description,
-        creator:
-          metadata[agendaId]?.creator?.address || existingAgenda?.creator,
-        snapshotUrl:
-          metadata[agendaId]?.snapshotUrl || existingAgenda?.snapshotUrl,
-        discourseUrl:
-          metadata[agendaId]?.discourseUrl || existingAgenda?.discourseUrl,
-        network: metadata[agendaId]?.network || existingAgenda?.network,
-        transaction:
-          metadata[agendaId]?.transaction || existingAgenda?.transaction,
-        actions: metadata[agendaId]?.actions || existingAgenda?.actions,
-      };
-
-      console.log("refreshAgenda - Final updated agenda:", updatedAgenda);
-
-      // 기존 아젠다 목록 업데이트
+      // 5. 기존 아젠다 목록 업데이트
       setAgendas((prevAgendas) => {
         const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
         existingAgendas.set(agendaId, updatedAgenda);
         return Array.from(existingAgendas.values());
       });
+      console.log("[refreshAgenda] Agenda list updated");
     } catch (err) {
-      console.error("Error refreshing agenda:", err);
+      console.error("[refreshAgenda] Error refreshing agenda:", err);
+    }
+  };
+
+  // 특정 아젠다만 캐시 없이 갱신하는 함수
+  const refreshAgendaWithoutCache = async (agendaId: number) => {
+    try {
+      console.log(
+        "[refreshAgendaWithoutCache] Starting refresh for agenda ID:",
+        agendaId
+      );
+
+      const publicClient = createPublicClient({
+        chain: {
+          ...chain,
+          id: chain.id,
+        },
+        transport: http(process.env.NEXT_PUBLIC_RPC_URL as string),
+      });
+
+      // 1. 아젠다 데이터 가져오기
+      console.log("[refreshAgendaWithoutCache] Fetching contract data...");
+      const agendaData = await publicClient.readContract({
+        address: DAO_AGENDA_MANAGER_ADDRESS,
+        abi: DAO_AGENDA_MANAGER_ABI,
+        functionName: "agendas",
+        args: [BigInt(agendaId)],
+      });
+      console.log(
+        "[refreshAgendaWithoutCache] Contract data received:",
+        agendaData
+      );
+
+      // 2. 기존 아젠다 데이터 가져오기
+      const existingAgenda = agendas.find((a) => a.id === agendaId);
+      console.log(
+        "[refreshAgendaWithoutCache] Existing agenda data:",
+        existingAgenda
+      );
+
+      // 3. 메타데이터 가져오기 (최대 2번 시도)
+      console.log("[refreshAgendaWithoutCache] Fetching metadata...");
+      const networkName = getNetworkName(chain.id);
+      const metadataUrl = getMetadataUrl(agendaId, networkName);
+      console.log("[refreshAgendaWithoutCache] Metadata URL:", metadataUrl);
+
+      let metadata = null;
+      let retryCount = 0;
+      const maxRetries = 1;
+
+      while (retryCount <= maxRetries) {
+        const response = await fetch(metadataUrl, {
+          cache: "no-store", // 캐시 비활성화
+        });
+
+        if (response.ok) {
+          metadata = await response.json();
+          console.log(
+            "[refreshAgendaWithoutCache] Metadata received from repository:",
+            metadata
+          );
+          break;
+        } else {
+          console.log(
+            `[refreshAgendaWithoutCache] No metadata found in repository (attempt ${
+              retryCount + 1
+            }/${maxRetries + 1})`
+          );
+          if (retryCount < maxRetries) {
+            console.log("[refreshAgendaWithoutCache] Retrying in 2 second...");
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+          retryCount++;
+        }
+      }
+
+      // 4. 아젠다 데이터와 메타데이터 결합
+      const updatedAgenda: AgendaWithMetadata = {
+        ...(agendaData as unknown as AgendaWithMetadata),
+        id: agendaId,
+        title: metadata?.title || existingAgenda?.title,
+        description: metadata?.description || existingAgenda?.description,
+        creator: metadata?.creator?.address || existingAgenda?.creator,
+        snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
+        discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
+        network: metadata?.network || existingAgenda?.network,
+        transaction: metadata?.transaction || existingAgenda?.transaction,
+        actions: metadata?.actions || existingAgenda?.actions,
+      };
+      console.log("[refreshAgendaWithoutCache] Combined data:", updatedAgenda);
+
+      // 5. 기존 아젠다 목록 업데이트
+      setAgendas((prevAgendas) => {
+        const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
+        existingAgendas.set(agendaId, updatedAgenda);
+        return Array.from(existingAgendas.values());
+      });
+      console.log("[refreshAgendaWithoutCache] Agenda list updated");
+
+      return updatedAgenda;
+    } catch (err) {
+      console.error(
+        "[refreshAgendaWithoutCache] Error refreshing agenda:",
+        err
+      );
+      return null;
     }
   };
 
@@ -903,6 +1033,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       error,
       refreshAgendas: fetchAgendas,
       refreshAgenda,
+      refreshAgendaWithoutCache,
       getAgenda,
       statusMessage,
       contract: {
@@ -931,6 +1062,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       error,
       fetchAgendas,
       refreshAgenda,
+      refreshAgendaWithoutCache,
       getAgenda,
       statusMessage,
       events,

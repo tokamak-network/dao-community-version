@@ -26,6 +26,10 @@ import {
   Vote,
   PlayCircle,
   ExternalLink,
+  GitPullRequest,
+  Upload,
+  Download,
+  RefreshCw,
 } from "lucide-react";
 import {
   useAccount,
@@ -46,6 +50,20 @@ import AgendaVotes from "./AgendaVotes";
 import AgendaCommunity from "./AgendaCommunity";
 import { useAgenda } from "@/contexts/AgendaContext";
 import { toast } from "sonner";
+import { SubmitPRButton } from "@/components/ui/submit-pr-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
@@ -59,12 +77,17 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
-  const { quorum, refreshAgenda, getAgenda } = useAgenda();
+  const { quorum, refreshAgenda, refreshAgendaWithoutCache, getAgenda } =
+    useAgenda();
   const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata>(agenda);
   const currentStatus = calculateAgendaStatus(localAgenda, quorum ?? BigInt(2));
   const timeInfo = getAgendaTimeInfo(localAgenda);
   const { address } = useAccount();
   const { isCommitteeMember } = useAgenda();
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [uploadedMetadata, setUploadedMetadata] =
+    useState<AgendaWithMetadata | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // agenda prop이 변경될 때 localAgenda 업데이트
   useEffect(() => {
@@ -122,7 +145,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     isLoading: isVoting,
     isSuccess,
     isError,
-    error,
+    error: waitError,
   } = useWaitForTransactionReceipt({
     hash: voteData || executeData,
   });
@@ -142,11 +165,13 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     }
     if (isError || isExecuteError) {
       toast.error(
-        `Transaction failed: ${error?.message || "Transaction was cancelled"}`
+        `Transaction failed: ${
+          waitError?.message || "Transaction was cancelled"
+        }`
       );
       setShowTransactionModal(false);
     }
-  }, [isSuccess, isError, isExecuteError, error, voteData, executeData]);
+  }, [isSuccess, isError, isExecuteError, waitError, voteData, executeData]);
 
   // 아젠다 실행 이벤트 구독
   useEffect(() => {
@@ -266,7 +291,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     try {
       setShowTransactionModal(true);
       await writeContract({
-        address: DAO_AGENDA_MANAGER_ADDRESS,
+        address: DAO_COMMITTEE_PROXY_ADDRESS,
         abi: DAO_ABI,
         functionName: "executeAgenda",
         args: [BigInt(localAgenda.id)],
@@ -285,24 +310,72 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     return `https://sepolia.etherscan.io/tx/${hash}`;
   };
 
+  const handleRefresh = async () => {
+    const updatedAgenda = await refreshAgendaWithoutCache(localAgenda.id);
+    if (updatedAgenda) {
+      setLocalAgenda(updatedAgenda);
+    }
+  };
+
   const renderActionButton = () => {
     switch (currentStatus) {
       case AgendaStatus.VOTING:
         return (
-          <button
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-              isVoter && !hasVoted
-                ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            }`}
-            disabled={!isVoter || isVoting || hasVoted}
-            onClick={() => setShowVoteModal(true)}
-          >
-            <Vote className="h-4 w-4" />
-            <span className="text-sm font-medium">
-              {isVoting ? "Voting..." : hasVoted ? "Already Voted" : "Vote"}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
+                isVoter && !hasVoted
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+              disabled={!isVoter || isVoting || hasVoted}
+              onClick={() => setShowVoteModal(true)}
+            >
+              <Vote className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {isVoting ? "Voting..." : hasVoted ? "Already Voted" : "Vote"}
+              </span>
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-1.5 rounded-md hover:bg-gray-100">
+                  <MoreVertical className="h-4 w-4 text-gray-500" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuItem
+                        onClick={() => setShowPRModal(true)}
+                        disabled={localAgenda.transaction !== undefined}
+                        className={
+                          localAgenda.transaction !== undefined
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }
+                      >
+                        <GitPullRequest className="h-4 w-4 mr-2" />
+                        <span>PR to Repository</span>
+                      </DropdownMenuItem>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        {localAgenda.transaction
+                          ? "This agenda has already been submitted to the repository."
+                          : "Submit this agenda to the community repository. This will create a pull request with the agenda data."}
+                        {!address && " Please connect your wallet to submit."}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <DropdownMenuItem onClick={handleRefresh}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
 
       case AgendaStatus.WAITING_EXEC:
@@ -311,19 +384,140 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           Number(agenda.countingYes) > Number(agenda.countingNo)
         ) {
           return (
-            <button
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-              onClick={handleExecute}
-            >
-              <PlayCircle className="h-4 w-4" />
-              <span className="text-sm font-medium">Execute</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={handleExecute}
+              >
+                <PlayCircle className="h-4 w-4" />
+                <span className="text-sm font-medium">Execute</span>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-1.5 rounded-md hover:bg-gray-100">
+                    <MoreVertical className="h-4 w-4 text-gray-500" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuItem
+                          onClick={() => setShowPRModal(true)}
+                          disabled={localAgenda.transaction !== undefined}
+                          className={
+                            localAgenda.transaction !== undefined
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }
+                        >
+                          <GitPullRequest className="h-4 w-4 mr-2" />
+                          <span>PR to Repository</span>
+                        </DropdownMenuItem>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">
+                          {localAgenda.transaction
+                            ? "This agenda has already been submitted to the repository."
+                            : "Submit this agenda to the community repository. This will create a pull request with the agenda data."}
+                          {!address && " Please connect your wallet to submit."}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <DropdownMenuItem onClick={handleRefresh}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           );
         }
-        return null;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 rounded-md hover:bg-gray-100">
+                <MoreVertical className="h-4 w-4 text-gray-500" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuItem
+                      onClick={() => setShowPRModal(true)}
+                      disabled={localAgenda.transaction !== undefined}
+                      className={
+                        localAgenda.transaction !== undefined
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }
+                    >
+                      <GitPullRequest className="h-4 w-4 mr-2" />
+                      <span>PR to Repository</span>
+                    </DropdownMenuItem>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      {localAgenda.transaction
+                        ? "This agenda has already been submitted to the repository."
+                        : "Submit this agenda to the community repository. This will create a pull request with the agenda data."}
+                      {!address && " Please connect your wallet to submit."}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenuItem onClick={handleRefresh}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
 
       default:
-        return null;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 rounded-md hover:bg-gray-100">
+                <MoreVertical className="h-4 w-4 text-gray-500" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuItem
+                      onClick={() => setShowPRModal(true)}
+                      disabled={localAgenda.transaction !== undefined}
+                      className={
+                        localAgenda.transaction !== undefined
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }
+                    >
+                      <GitPullRequest className="h-4 w-4 mr-2" />
+                      <span>PR to Repository</span>
+                    </DropdownMenuItem>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      {localAgenda.transaction
+                        ? "This agenda has already been submitted to the repository."
+                        : "Submit this agenda to the community repository. This will create a pull request with the agenda data."}
+                      {!address && " Please connect your wallet to submit."}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenuItem onClick={handleRefresh}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
     }
   };
 
@@ -342,9 +536,12 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             : getStatusText(currentStatus)}
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {localAgenda.title || `Agenda #${localAgenda.id}`}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">
+              <span className="text-gray-500">Agenda #{localAgenda.id}</span>
+              <span className="ml-2">{localAgenda.title}</span>
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md">
               <Zap className="h-4 w-4 mr-1.5" />
@@ -647,6 +844,192 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PR Modal */}
+      {showPRModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">PR to Repository</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Submit this agenda to the community repository. This will create a
+              pull request with the agenda data.
+              {!address && " Please connect your wallet to submit."}
+            </p>
+
+            {/* File Selection Section */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Agenda Metadata File
+                </label>
+                <span className="text-xs text-red-500">Required</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  id="metadata-file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // Handle file selection
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        try {
+                          const metadata = JSON.parse(
+                            event.target?.result as string
+                          );
+                          console.log(
+                            "[AgendaDetail] Uploaded metadata:",
+                            JSON.stringify(metadata, null, 2)
+                          );
+
+                          // ID 검증
+                          console.log("[AgendaDetail] Checking metadata ID:", {
+                            metadataId: metadata.id,
+                            agendaId: localAgenda.id,
+                            type: {
+                              metadataId: typeof metadata.id,
+                              agendaId: typeof localAgenda.id,
+                            },
+                          });
+
+                          if (Number(metadata.id) !== Number(localAgenda.id)) {
+                            console.error("[AgendaDetail] ID mismatch:", {
+                              metadataId: metadata.id,
+                              agendaId: localAgenda.id,
+                            });
+                            setError(
+                              `Metadata ID (${metadata.id}) does not match current agenda ID (${localAgenda.id}). Please upload the correct metadata file.`
+                            );
+                            setUploadedMetadata(null);
+                            // 파일 입력 초기화
+                            const fileInput = document.getElementById(
+                              "metadata-file"
+                            ) as HTMLInputElement;
+                            if (fileInput) {
+                              fileInput.value = "";
+                            }
+                            return;
+                          }
+
+                          // 트랜잭션 정보 체크
+                          if (!metadata.transaction) {
+                            console.error(
+                              "[AgendaDetail] Missing transaction info"
+                            );
+                            setError(
+                              "Metadata file must include transaction information. Please upload a valid metadata file."
+                            );
+                            setUploadedMetadata(null);
+                            // 파일 입력 초기화
+                            const fileInput = document.getElementById(
+                              "metadata-file"
+                            ) as HTMLInputElement;
+                            if (fileInput) {
+                              fileInput.value = "";
+                            }
+                            return;
+                          }
+
+                          // Store uploaded metadata separately
+                          setUploadedMetadata(metadata);
+                          setError(null);
+                          console.log(
+                            "[AgendaDetail] Metadata set to state:",
+                            JSON.stringify(metadata, null, 2)
+                          );
+
+                          // 서명값이 없을 때만 creator 주소 검증
+                          if (
+                            !metadata.creator?.signature &&
+                            address &&
+                            metadata.creator?.address?.toLowerCase() !==
+                              address.toLowerCase()
+                          ) {
+                            setError(
+                              "Only the creator can submit PR without signature. Please connect with the creator's wallet."
+                            );
+                            setUploadedMetadata(null);
+                            const fileInput = document.getElementById(
+                              "metadata-file"
+                            ) as HTMLInputElement;
+                            if (fileInput) {
+                              fileInput.value = "";
+                            }
+                            return;
+                          }
+                        } catch (error) {
+                          console.error(
+                            "[AgendaDetail] Error parsing metadata file:",
+                            error
+                          );
+                          setError(
+                            "Invalid metadata file format. Please upload a valid JSON file."
+                          );
+                          setUploadedMetadata(null);
+                        }
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="metadata-file"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Choose File</span>
+                </label>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Upload the metadata file that was generated when the agenda was
+                created
+              </p>
+              {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            </div>
+
+            {!uploadedMetadata ? (
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white w-full opacity-50 cursor-not-allowed"
+                disabled
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Submit PR
+              </Button>
+            ) : !address ? (
+              <div className="text-sm text-gray-600 text-center py-4">
+                Please connect your wallet to sign before submitting PR
+              </div>
+            ) : (
+              <>
+                <SubmitPRButton
+                  agendaData={uploadedMetadata}
+                  onSuccess={(prUrl) => {
+                    toast.success("PR submitted successfully!");
+                    setShowPRModal(false);
+                  }}
+                  onError={(error) => {
+                    setError(error.message || "Failed to submit PR");
+                  }}
+                />
+                {error && (
+                  <p className="mt-2 text-sm text-red-600 text-center">
+                    {error}
+                  </p>
+                )}
+              </>
+            )}
+            <button
+              className="mt-4 w-full text-gray-600 hover:text-gray-800"
+              onClick={() => setShowPRModal(false)}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
