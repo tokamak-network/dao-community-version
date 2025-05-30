@@ -275,7 +275,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       expandedActionLogs: {},
     });
 
-    const daoAddress = process.env.NEXT_PUBLIC_DAO_CONTRACT_ADDRESS;
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
     const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
     const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
 
