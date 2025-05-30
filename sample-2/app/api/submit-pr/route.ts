@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         owner: forkOwner,
         repo: forkRepo,
         path: filePath,
-        message: `Add agenda ${agendaData.id}`,
+        message: `Add agenda ${agendaData.id}: ${agendaData.title}`,
         content: Buffer.from(JSON.stringify(agendaData, null, 2)).toString(
           "base64"
         ),

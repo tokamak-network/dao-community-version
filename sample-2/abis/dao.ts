@@ -140,4 +140,31 @@ export const DAO_ABI = [
     name: "AgendaCreated",
     type: "event",
   },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        name: "from",
+        type: "address",
+      },
+      {
+        indexed: true,
+        name: "id",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        name: "voting",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        name: "comment",
+        type: "string",
+      },
+    ],
+    name: "AgendaVoteCasted",
+    type: "event",
+  },
 ] as const;

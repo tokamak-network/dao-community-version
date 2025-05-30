@@ -1128,7 +1128,9 @@ export function ProposalPreview({
                 <div className="flex items-center justify-center space-x-2 py-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
                   <span className="text-sm text-gray-600">
-                    Waiting for confirmation...
+                    {prStatus === PrSubmissionStatus.SUBMITTING
+                      ? "Creating pull request..."
+                      : "Waiting for transaction confirmation..."}
                   </span>
                 </div>
               )}

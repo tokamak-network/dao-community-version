@@ -634,9 +634,14 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
       onLogs: async (logs) => {
         console.log("[AgendaVoteCasted] Event logs received:", logs);
+        console.log(
+          "[AgendaVoteCasted] Contract address:",
+          DAO_COMMITTEE_PROXY_ADDRESS
+        );
         for (const log of logs) {
           if (log.args) {
             console.log("[AgendaVoteCasted] Event args:", log.args);
+            console.log("[AgendaVoteCasted] Event topics:", log.topics);
             const agendaId = Number(log.args.id);
             console.log("[AgendaVoteCasted] Processing agenda ID:", agendaId);
             await updateAgendaData(agendaId);
