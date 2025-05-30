@@ -23,12 +23,26 @@ export interface Agenda {
   atomicExecute?: boolean;
 }
 
+export interface AgendaCreator {
+  address: string;
+  signature?: string;
+}
+
 export interface AgendaWithMetadata extends Agenda {
   title?: string;
   description?: string;
   creator?: string;
   snapshotUrl?: string;
   discourseUrl?: string;
+  network?: string;
+  transaction?: string;
+  actions?: {
+    title: string;
+    contractAddress: string;
+    method: string;
+    calldata: string;
+    abi: any[];
+  }[];
 }
 
 export interface AgendaCreatedEvent {

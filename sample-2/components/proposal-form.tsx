@@ -275,7 +275,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       expandedActionLogs: {},
     });
 
-    const daoAddress = process.env.NEXT_PUBLIC_DAO_CONTRACT_ADDRESS;
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
     const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
     const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
 
@@ -749,6 +749,8 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                 <ProposalPreview
                   title={this.state.title}
                   description={this.state.description}
+                  snapshotUrl={this.state.snapshotUrl}
+                  discourseUrl={this.state.discourseUrl}
                   actions={this.state.actions}
                   onModeChange={(mode, section) => {
                     this.setState({

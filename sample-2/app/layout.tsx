@@ -3,6 +3,7 @@ import "./globals.css";
 
 import Navbar from "@/components/navbar";
 import { Providers } from "./providers";
+import StatusMessage from "@/components/status-message";
 
 export const metadata: Metadata = {
   title: "Tokamak Network Governance",
@@ -32,6 +33,7 @@ export default function RootLayout({
           <div className="min-h-screen flex flex-col bg-white">
             <Navbar />
             {children}
+            <StatusMessage />
           </div>
         </Providers>
       </body>

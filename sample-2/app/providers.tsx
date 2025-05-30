@@ -1,12 +1,13 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
+import { AgendaProvider } from "@/contexts/AgendaContext";
 
-const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL;
+import { chain } from "@/config/chain";
 
 const config = createConfig({
   chains: [mainnet, sepolia],
@@ -15,7 +16,9 @@ const config = createConfig({
     [mainnet.id]: http(RPC_URL),
     [sepolia.id]: http(RPC_URL),
   },
-  defaultChain: CHAIN_ID === sepolia.id ? sepolia : mainnet,
+  // defaultConfig: {
+  //   chain: chain.id === sepolia.id ? sepolia : mainnet,
+  // },
 });
 
 const queryClient = new QueryClient();
@@ -23,7 +26,9 @@ const queryClient = new QueryClient();
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <AgendaProvider>{children}</AgendaProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }
