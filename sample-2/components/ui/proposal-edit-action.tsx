@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Abi } from "@/types/abi";
 
 // Action 타입 정의 (ProposalFormState와 일치해야 함)
 interface Action {
@@ -52,7 +53,7 @@ interface ProposalEditActionProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 interface CalldataComponentProps {
-  abi: any[];
+  abi: Abi;
   selectedFunction: string;
   initialParams?: { [key: string]: string };
   onCalldataChange: (calldata: string) => void;

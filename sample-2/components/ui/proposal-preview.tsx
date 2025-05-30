@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { useAgenda } from "@/contexts/AgendaContext";
 import { chain } from "@/config/chain";
 import { createAgendaSignatureMessage, signMessage } from "@/lib/signature";
+import { AgendaMetadata } from "@/lib/utils";
 
 // // Add type declaration for window.ethereum
 // declare global {
@@ -109,17 +110,6 @@ interface AgendaData {
     abi?: any[];
   }>;
   timestamp: string;
-}
-
-interface AgendaMetadata {
-  id: number;
-  network: string;
-  title: string;
-  transaction: string;
-  creator: {
-    address: string;
-    signature: string;
-  };
 }
 
 export function ProposalPreview({

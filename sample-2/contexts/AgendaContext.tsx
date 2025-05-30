@@ -9,7 +9,11 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { AgendaWithMetadata, AgendaCreatedEvent } from "@/types/agenda";
+import {
+  AgendaWithMetadata,
+  AgendaCreatedEvent,
+  AgendaAction,
+} from "@/types/agenda";
 import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
 import { DAO_AGENDA_MANAGER_ABI } from "@/abis/dao-agenda-manager";
 import { chain } from "@/config/chain";
@@ -99,6 +103,39 @@ const voterInfosAbi = [
     ],
   },
 ] as const;
+
+const isCreatorString = (creator: unknown): creator is `0x${string}` => {
+  return typeof creator === "string" && creator.startsWith("0x");
+};
+
+const isCreatorObject = (
+  creator: unknown
+): creator is { address: `0x${string}`; signature?: string } => {
+  return (
+    typeof creator === "object" &&
+    creator !== null &&
+    "address" in creator &&
+    typeof (creator as any).address === "string" &&
+    (creator as any).address.startsWith("0x")
+  );
+};
+
+const getCreatorAddress = (creator: unknown): `0x${string}` => {
+  if (isCreatorString(creator)) {
+    return creator as `0x${string}`;
+  }
+  if (isCreatorObject(creator)) {
+    return creator.address as `0x${string}`;
+  }
+  return "0x0000000000000000000000000000000000000000" as `0x${string}`;
+};
+
+const getCreatorSignature = (creator: unknown): string | undefined => {
+  if (isCreatorObject(creator)) {
+    return creator.signature;
+  }
+  return undefined;
+};
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
   const [totalAgendaCount, setTotalAgendaCount] = useState<number>(0);
@@ -335,7 +372,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           ...agenda,
           title: batchMetadata[agenda.id]?.title,
           description: batchMetadata[agenda.id]?.description,
-          creator: batchMetadata[agenda.id]?.creator?.address,
+          creator: {
+            address: getCreatorAddress(batchMetadata[agenda.id]?.creator),
+            signature: getCreatorSignature(batchMetadata[agenda.id]?.creator),
+          },
           snapshotUrl: batchMetadata[agenda.id]?.snapshotUrl,
           discourseUrl: batchMetadata[agenda.id]?.discourseUrl,
           network: batchMetadata[agenda.id]?.network,
@@ -559,12 +599,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("updateAgendaData - Combined data:", updatedAgenda);
 
@@ -857,12 +900,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("[refreshAgenda] Combined data:", updatedAgenda);
 
@@ -956,12 +1002,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("[refreshAgendaWithoutCache] Combined data:", updatedAgenda);
 
@@ -1015,7 +1064,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata[agendaId]?.title,
         description: metadata[agendaId]?.description,
-        creator: metadata[agendaId]?.creator?.address,
+        creator: {
+          address: getCreatorAddress(metadata[agendaId]?.creator),
+          signature: getCreatorSignature(metadata[agendaId]?.creator),
+        },
         snapshotUrl: metadata[agendaId]?.snapshotUrl,
         discourseUrl: metadata[agendaId]?.discourseUrl,
         network: metadata[agendaId]?.network,
@@ -1029,6 +1081,25 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       console.error("Error fetching agenda:", err);
       return null;
     }
+  };
+
+  const updateAgendasWithCreatorInfo = (
+    agendas: AgendaWithMetadata[],
+    events: AgendaCreatedEvent[]
+  ) => {
+    return agendas.map((agenda) => {
+      const event = events.find((e) => Number(e.id) === agenda.id);
+      if (event) {
+        return {
+          ...agenda,
+          creator: {
+            address: event.from,
+            signature: agenda.creator?.signature,
+          },
+        } as AgendaWithMetadata;
+      }
+      return agenda;
+    });
   };
 
   const value = useMemo(

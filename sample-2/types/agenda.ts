@@ -14,7 +14,10 @@ export interface Agenda {
   result: number;
   voters: string[];
   executed: boolean;
-  creator?: string;
+  creator: {
+    address: `0x${string}`;
+    signature?: string;
+  };
   targets?: {
     type: string;
     address: string;
@@ -23,26 +26,23 @@ export interface Agenda {
   atomicExecute?: boolean;
 }
 
-export interface AgendaCreator {
-  address: string;
-  signature?: string;
+export interface AgendaAction {
+  id?: string;
+  title: string;
+  contractAddress: string;
+  method: string;
+  calldata: string;
+  abi?: any[];
 }
 
 export interface AgendaWithMetadata extends Agenda {
   title?: string;
   description?: string;
-  creator?: string;
   snapshotUrl?: string;
   discourseUrl?: string;
   network?: string;
   transaction?: string;
-  actions?: {
-    title: string;
-    contractAddress: string;
-    method: string;
-    calldata: string;
-    abi: any[];
-  }[];
+  actions?: AgendaAction[];
 }
 
 export interface AgendaCreatedEvent {
@@ -69,5 +69,8 @@ export type AgendaContractResult = {
   result: number;
   voters: string[];
   executed: boolean;
-  creator: string;
+  creator: {
+    address: string;
+    signature?: string;
+  };
 };

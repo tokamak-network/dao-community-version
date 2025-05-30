@@ -16,7 +16,9 @@ export default function AgendaCommunity({ agenda }: AgendaCommunityProps) {
           <h3 className="text-sm font-medium text-gray-500">Creator</h3>
         </div>
         <p className="text-gray-900 font-mono">
-          {agenda.creator ? formatAddress(agenda.creator) : "Unknown"}
+          {agenda.creator?.address
+            ? formatAddress(agenda.creator.address)
+            : "Unknown"}
         </p>
       </div>
 

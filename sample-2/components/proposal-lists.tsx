@@ -62,8 +62,11 @@ export default function ProposalLists({
       if (event) {
         return {
           ...agenda,
-          creator: event.from,
-        };
+          creator: {
+            address: event.from,
+            signature: agenda.creator?.signature,
+          },
+        } as AgendaWithMetadata;
       }
       return agenda;
     });
@@ -144,10 +147,10 @@ export default function ProposalLists({
                           {agenda.title ? ". " + agenda.title : ""}
                         </h3>
                         <div className="text-sm text-gray-600 mt-1">
-                          {agenda.creator ? (
+                          {agenda.creator?.address ? (
                             <>
                               This agenda was made by{" "}
-                              {formatAddress(agenda.creator)} on{" "}
+                              {formatAddress(agenda.creator.address)} on{" "}
                               {formatDate(Number(agenda.createdTimestamp))}
                             </>
                           ) : (

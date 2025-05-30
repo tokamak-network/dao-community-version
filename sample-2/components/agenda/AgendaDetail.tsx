@@ -569,8 +569,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             <div className="h-8 w-8 rounded-full bg-gray-300 mr-2 overflow-hidden"></div>
             <span className="text-gray-700">
               by{" "}
-              {localAgenda.creator
-                ? formatAddress(localAgenda.creator)
+              {localAgenda.creator?.address
+                ? formatAddress(localAgenda.creator.address)
                 : "Unknown"}
             </span>
           </div>
