@@ -87,6 +87,24 @@
 ## System Optimization
 - Event-Based State Management
   - Smart contract event monitoring
+    - `AgendaCreated`: New agenda creation events
+      - Parameters:
+        - `from`: Creator's address
+        - `id`: Agenda ID
+        - `targets`: Array of target contract addresses
+        - `noticePeriodSeconds`: Notice period duration
+        - `votingPeriodSeconds`: Voting period duration
+        - `atomicExecute`: Whether to execute all actions atomically
+    - `AgendaVoteCasted`: Vote casting events
+      - Parameters:
+        - `from`: Voter's address
+        - `id`: Agenda ID
+        - `voting`: Vote value (0: Abstain, 1: Yes, 2: No)
+        - `comment`: Voter's comment
+    - `AgendaExecuted`: Agenda execution events
+      - Parameters:
+        - `id`: Agenda ID
+        - `target`: Array of target contract addresses
   - Real-time state updates
   - Efficient UI refresh
 - RPC Call Optimization
@@ -94,4 +112,35 @@
   - Event-driven updates
   - Cached state management
   - Polling interval configuration
+
+## Metadata Management
+- GitHub Repository Integration
+  - Metadata storage in GitHub repository
+  - Pull request based submission process
+  - Automatic metadata file generation
+- Metadata Structure
+  - Location: `data/agendas/{network}/agenda-{id}.json`
+  - Format: JSON
+  - Required fields:
+    - `id`: Agenda ID
+    - `title`: Agenda title
+    - `description`: Detailed description
+    - `createdAt`: Unix timestamp of creation
+    - `creator`: Creator information
+      - `address`: Creator's wallet address
+      - `signature`: Creator's signature
+    - `targets`: Array of target contract addresses
+    - `atomicExecute`: Whether to execute all actions atomically
+    - `network`: Network name (mainnet/sepolia)
+    - `transaction`: Transaction hash of agenda creation
+    - `snapshotUrl`: URL to the Snapshot proposal (optional)
+    - `discourseUrl`: URL to the Discourse discussion (optional)
+    - `actions`: Array of contract actions (if applicable)
+      - `title`: Action title
+      - `contractAddress`: Target contract address
+      - `method`: Contract method name
+      - `calldata`: Encoded function call data
+      - `abi`: Contract ABI for the method
+      - `type`: Action type (e.g., "contract")
+      - `sendEth`: Whether to send ETH with the action (default: false)
 

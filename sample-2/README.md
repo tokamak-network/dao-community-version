@@ -16,6 +16,10 @@ A decentralized governance platform for managing community proposals and voting.
 - Create and manage proposals
 - Support for various proposal types
 - Proposal status tracking
+- Repository-based metadata registration
+  - Store agenda metadata in repository after submission
+  - Track proposal history and changes
+  - Maintain transparency and auditability
 
 ### Voting System
 - For/Against/Abstain voting
@@ -34,6 +38,7 @@ A decentralized governance platform for managing community proposals and voting.
 - Node.js v16 or higher
 - MetaMask or compatible Web3 wallet
 - Access to Ethereum network (Mainnet/Testnet)
+- Git repository access for metadata registration
 
 ### Installation
 1. Clone the repository
@@ -57,6 +62,7 @@ For detailed setup instructions and configuration, please refer to [Environment 
 - Uses ethers.js for blockchain interaction
 - Implements event-based state management
 - Supports both Mainnet and Sepolia networks
+- Git integration for metadata management
 
 ### Available Scripts
 - `npm run dev` - Start development server
