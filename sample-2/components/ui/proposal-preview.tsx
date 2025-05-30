@@ -43,6 +43,14 @@ import { createAgendaSignatureMessage, signMessage } from "@/lib/signature";
 //   }
 // }
 
+// PR 제출 상태를 나타내는 enum 추가
+enum PrSubmissionStatus {
+  IDLE = "idle",
+  SUBMITTING = "submitting",
+  SUCCESS = "success",
+  ERROR = "error",
+}
+
 interface ProposalPreviewProps {
   title: string;
   description: string;
@@ -82,6 +90,38 @@ const DAO_AGENDA_MANAGER_ADDRESS =
   process.env.NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS ||
   "0xcD4421d082752f363E1687544a09d5112cD4f484";
 
+interface AgendaData {
+  id: number;
+  network: string;
+  title: string;
+  description: string;
+  transaction: string | null;
+  creator: {
+    address: `0x${string}` | undefined;
+    signature: string;
+  };
+  actions: Array<{
+    id: string;
+    title: string;
+    contractAddress: string;
+    method: string;
+    calldata: string;
+    abi?: any[];
+  }>;
+  timestamp: string;
+}
+
+interface AgendaMetadata {
+  id: number;
+  network: string;
+  title: string;
+  transaction: string;
+  creator: {
+    address: string;
+    signature: string;
+  };
+}
+
 export function ProposalPreview({
   title,
   description,
@@ -111,6 +151,14 @@ export function ProposalPreview({
   const [agendaNumber, setAgendaNumber] = useState<string | null>(null);
   const [isTransactionPending, setIsTransactionPending] = useState(false);
   const [txStatus, setTxStatus] = useState<"pending" | "confirmed">("pending");
+  const [shouldSubmitPR, setShouldSubmitPR] = useState(false);
+  const [shouldSaveLocally, setShouldSaveLocally] = useState(false);
+  const [prStatus, setPrStatus] = useState<PrSubmissionStatus>(
+    PrSubmissionStatus.IDLE
+  );
+  const [prError, setPrError] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | null>(null);
+  const [isPrSubmitted, setIsPrSubmitted] = useState(false);
   const { address } = useAccount();
   const router = useRouter();
 
@@ -353,6 +401,18 @@ export function ProposalPreview({
         return;
       }
 
+      // Get agenda number before transaction
+      console.log("Getting agenda number before transaction...");
+      const daoAgendaManager = new ethers.Contract(
+        DAO_AGENDA_MANAGER_ADDRESS,
+        ["function numAgendas() view returns (uint256)"],
+        provider
+      );
+      const numAgendas = await daoAgendaManager.numAgendas();
+      const agendaNumber = numAgendas.toString();
+      console.log("Current agenda number:", agendaNumber);
+      setAgendaNumber(agendaNumber);
+
       if (!writeContract) {
         throw new Error("Contract write not ready");
       }
@@ -392,6 +452,8 @@ export function ProposalPreview({
     }
   };
 
+  const [submittedAgendaData, setSubmittedAgendaData] = useState<any>(null);
+
   // Handle txHash and confirmations when publishData changes
   useEffect(() => {
     const processTx = async () => {
@@ -410,43 +472,76 @@ export function ProposalPreview({
         setTxStatus("pending");
 
         try {
-          // Get agenda number immediately
+          // Wait for transaction confirmation
           const ethersProvider = new BrowserProvider(window.ethereum as any);
-
-          const daoAgendaManager = new ethers.Contract(
-            DAO_AGENDA_MANAGER_ADDRESS,
-            ["function numAgendas() view returns (uint256)"],
-            ethersProvider
-          );
-          const numAgendas = await daoAgendaManager.numAgendas();
-          setAgendaNumber(numAgendas.toString());
-          setIsTransactionPending(false);
-
-          // Wait for transaction confirmation in the background
           const receipt = await ethersProvider.waitForTransaction(
             txHashValue,
             1
           );
+
           if (receipt) {
             setTxStatus("confirmed");
             setTxState("success");
-            // get agenda
+
+            // 아젠다 제목 길이 제한 (100자)
+            const MAX_TITLE_LENGTH = 100;
+            const truncatedTitle =
+              title && title.length > MAX_TITLE_LENGTH
+                ? title.substring(0, MAX_TITLE_LENGTH)
+                : title;
+
+            // Save the original agenda data with all fields
+            const originalAgendaData = {
+              id: parseInt(agendaNumber || "0"),
+              network: chain.network?.toLowerCase(),
+              transaction: txHashValue,
+              creator: {
+                address: address,
+                signature: "",
+              },
+              title: truncatedTitle?.trim(),
+              description: description?.trim(),
+              snapshotUrl: snapshotUrl?.trim(),
+              discourseUrl: discourseUrl?.trim(),
+              actions: actions.map((action) => ({
+                id: action.id,
+                title: action.title,
+                contractAddress: action.contractAddress,
+                method: action.method,
+                calldata: action.calldata,
+                abi: action.abi,
+                sendEth: false,
+                type: "contract",
+              })),
+              timestamp: new Date().toISOString(),
+            };
+            setSubmittedAgendaData(originalAgendaData);
+            setIsTransactionPending(false);
           }
         } catch (err) {
           console.error("Error processing transaction:", err);
           setTxState("idle");
           setShowSuccessModal(false);
           setIsTransactionPending(false);
+          alert("Failed to process transaction. Please try again.");
         }
       }
     };
     processTx();
   }, [publishData]);
 
+  // Add effect to track agendaNumber changes
+  useEffect(() => {
+    console.log("agendaNumber changed:", agendaNumber);
+  }, [agendaNumber]);
+
   const getAgendaData = () => {
     console.log("getAgendaData agendaNumber", agendaNumber);
+    if (!agendaNumber) {
+      throw new Error("Agenda number is not available. Please try again.");
+    }
     const agendaData = {
-      id: agendaNumber ? parseInt(agendaNumber) : "",
+      id: parseInt(agendaNumber),
       network: chain.network?.toLowerCase(),
       transaction: txHash,
       creator: {
@@ -484,18 +579,23 @@ export function ProposalPreview({
       alert("Invalid wallet address. Please reconnect your wallet.");
       return;
     }
-    const agendaData = getAgendaData();
-    if (!agendaData.id || !agendaData.transaction) {
-      alert("Invalid agenda data. Missing ID or transaction hash.");
+    if (!submittedAgendaData) {
+      alert("No agenda data available. Please submit the agenda first.");
       return;
     }
     const message = createAgendaSignatureMessage(
-      agendaData.id,
-      agendaData.transaction
+      submittedAgendaData.id,
+      submittedAgendaData.transaction
     );
     const signature = await signMessage(message, address);
-    agendaData.creator.signature = signature;
-    saveAgendaData(agendaData);
+    const signedAgendaData = {
+      ...submittedAgendaData,
+      creator: {
+        ...submittedAgendaData.creator,
+        signature,
+      },
+    };
+    saveAgendaData(signedAgendaData);
   };
 
   const handleCloseModal = () => {
@@ -568,6 +668,117 @@ export function ProposalPreview({
   // Check if all DAO Agenda parameters are valid
   const hasValidAgendaParams =
     createAgendaFees && encodedData && encodedData !== "Encoding parameters...";
+
+  const handleSubmitPR = async (signedAgendaData: any) => {
+    try {
+      setTxStatus("pending");
+      setPrStatus(PrSubmissionStatus.SUBMITTING);
+
+      // 데이터 검증
+      if (!signedAgendaData.id) {
+        throw new Error("Agenda ID is missing");
+      }
+      if (!signedAgendaData.network) {
+        throw new Error("Network is missing");
+      }
+      if (!signedAgendaData.title) {
+        throw new Error("Title is missing");
+      }
+      if (!signedAgendaData.transaction) {
+        throw new Error("Transaction hash is missing");
+      }
+      if (!signedAgendaData.creator?.address) {
+        throw new Error("Creator address is missing");
+      }
+      if (!signedAgendaData.creator?.signature) {
+        throw new Error("Creator signature is missing");
+      }
+
+      const response = await fetch("/api/submit-pr", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          agendaData: signedAgendaData,
+          message: "Agenda metadata submission",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("PR submission failed");
+      }
+
+      const responseData = await response.json();
+
+      if (responseData?.error) {
+        throw new Error(responseData.error);
+      }
+
+      // PR 제출 성공 시 상태 업데이트 및 PR URL 열기
+      setTxStatus("confirmed");
+      setPrStatus(PrSubmissionStatus.SUCCESS);
+      if (responseData.prUrl) {
+        console.log("PR URL received:", responseData.prUrl);
+        setPrUrl(responseData.prUrl);
+        window.open(responseData.prUrl, "_blank");
+      } else {
+        console.warn("No PR URL in response:", responseData);
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error("Error submitting PR:", error);
+      setPrStatus(PrSubmissionStatus.ERROR);
+      throw error;
+    }
+  };
+
+  // PR 제출 부분 수정
+  const handleSaveAndSubmit = async () => {
+    if (!submittedAgendaData) {
+      alert("No agenda data available. Please submit the agenda first.");
+      return;
+    }
+
+    if (shouldSubmitPR) {
+      setPrStatus(PrSubmissionStatus.SUBMITTING);
+      setPrError(null);
+      try {
+        if (!address) {
+          throw new Error("No wallet address found");
+        }
+
+        const message = createAgendaSignatureMessage(
+          submittedAgendaData.id,
+          submittedAgendaData.transaction
+        );
+        const signature = await signMessage(message, address);
+        const signedAgendaData = {
+          ...submittedAgendaData,
+          creator: {
+            ...submittedAgendaData.creator,
+            signature,
+          },
+        };
+
+        // Save agenda data locally first if selected
+        if (shouldSaveLocally) {
+          saveAgendaData(signedAgendaData);
+        }
+
+        // Then submit PR with metadata
+        const responseData = await handleSubmitPR(signedAgendaData);
+      } catch (error) {
+        console.error("Error submitting PR:", error);
+        setPrError(
+          error instanceof Error ? error.message : "Failed to submit PR"
+        );
+      }
+    } else if (shouldSaveLocally) {
+      handleSaveAgendaWithSignature();
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -885,38 +1096,12 @@ export function ProposalPreview({
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-2">
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {txStatus === "confirmed"
-                    ? "Transaction Confirmed"
-                    : "Transaction in Progress"}
-                </h3>
-                {txStatus !== "confirmed" && (
-                  <div className="flex space-x-1">
-                    <div
-                      className="animate-bounce w-2 h-2 rounded-full bg-blue-500"
-                      style={{ animationDelay: "0ms" }}
-                    ></div>
-                    <div
-                      className="animate-bounce w-2 h-2 rounded-full bg-blue-500"
-                      style={{ animationDelay: "150ms" }}
-                    ></div>
-                    <div
-                      className="animate-bounce w-2 h-2 rounded-full bg-blue-500"
-                      style={{ animationDelay: "300ms" }}
-                    ></div>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">
+              {txStatus === "confirmed"
+                ? "Transaction Confirmed"
+                : "Transaction in Progress"}
+            </h3>
 
             <div className="space-y-4">
               <div>
@@ -939,6 +1124,26 @@ export function ProposalPreview({
                 </div>
               </div>
 
+              {txStatus === "pending" && (
+                <div className="flex items-center justify-center space-x-2 py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                  <span className="text-sm text-gray-600">
+                    Waiting for confirmation...
+                  </span>
+                </div>
+              )}
+
+              {txStatus === "confirmed" && !agendaNumber && (
+                <div className="text-center py-4">
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                    <span className="text-sm text-gray-600">
+                      Retrieving agenda number...
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {agendaNumber && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-1">
@@ -950,14 +1155,99 @@ export function ProposalPreview({
                 </div>
               )}
 
+              {txStatus === "confirmed" && agendaNumber && (
+                <div className="space-y-4">
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="save-locally"
+                        checked={shouldSaveLocally}
+                        onChange={(e) => setShouldSaveLocally(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <label
+                        htmlFor="save-locally"
+                        className="text-sm text-gray-700"
+                      >
+                        Save Agenda Locally
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="submit-pr"
+                        checked={shouldSubmitPR}
+                        onChange={(e) => {
+                          setShouldSubmitPR(e.target.checked);
+                          setPrError(null);
+                          setPrStatus(PrSubmissionStatus.IDLE);
+                        }}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <label
+                        htmlFor="submit-pr"
+                        className="text-sm text-gray-700"
+                      >
+                        Submit PR to Repository
+                      </label>
+                    </div>
+                  </div>
+
+                  {prStatus === PrSubmissionStatus.SUBMITTING && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                      <span>Submitting PR to repository...</span>
+                    </div>
+                  )}
+
+                  {prStatus === PrSubmissionStatus.ERROR && shouldSubmitPR && (
+                    <div className="text-sm text-red-600">
+                      Error submitting PR: {prError}
+                    </div>
+                  )}
+
+                  {prStatus === PrSubmissionStatus.SUCCESS && (
+                    <div className="space-y-2">
+                      <div className="text-sm text-green-600">
+                        PR submitted successfully! You can now save the agenda
+                        locally if needed.
+                      </div>
+                      {prUrl && (
+                        <div className="text-sm">
+                          <a
+                            href={prUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-600 hover:text-purple-700 flex items-center"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            View Pull Request
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
-                {txStatus === "confirmed" && (
+                {txStatus === "confirmed" && agendaNumber && (
                   <Button
-                    onClick={handleSaveAgendaWithSignature}
+                    onClick={handleSaveAndSubmit}
                     className="bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={
+                      prStatus === PrSubmissionStatus.SUBMITTING ||
+                      (!shouldSubmitPR && !shouldSaveLocally)
+                    }
                   >
                     <Save className="w-4 h-7 mr-2" />
-                    Save Agenda Locally With Signature
+                    {shouldSubmitPR && shouldSaveLocally
+                      ? "Save Locally & Submit PR"
+                      : shouldSubmitPR
+                      ? "Submit PR"
+                      : "Save Locally"}
                   </Button>
                 )}
 

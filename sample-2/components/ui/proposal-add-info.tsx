@@ -41,16 +41,24 @@ interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function RequiredString({ value, name }: { value: string; name: string }) {
-  if (value === null || value.length == 0) {
+  if (value === null || value.length === 0) {
     return (
       <div className="flex items-center gap-1 text-red-500 mt-1">
         <AlertCircle className="w-4 h-4" />
         <span className="text-sm">{name} is required</span>
       </div>
     );
-  } else {
-    return;
   }
+  return null;
+}
+
+function ValidationError({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-1 text-red-500 mt-1">
+      <AlertCircle className="w-4 h-4" />
+      <span className="text-sm">{message}</span>
+    </div>
+  );
 }
 
 export function ProposalAddInfo({
@@ -66,6 +74,50 @@ export function ProposalAddInfo({
   ...props
 }: ProposalAddInfoProps) {
   const [isMarkdownMode, setIsMarkdownMode] = useState(true);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [snapshotUrlError, setSnapshotUrlError] = useState<string | null>(null);
+  const [discourseUrlError, setDiscourseUrlError] = useState<string | null>(
+    null
+  );
+
+  const validateUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    if (newTitle.length <= 100) {
+      setTitle(newTitle);
+      setTitleError(null);
+    } else {
+      setTitleError("Title cannot exceed 100 characters");
+    }
+  };
+
+  const handleSnapshotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setSnapshotUrl(url);
+    if (url && !validateUrl(url)) {
+      setSnapshotUrlError("Please enter a valid URL");
+    } else {
+      setSnapshotUrlError(null);
+    }
+  };
+
+  const handleDiscourseUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setDiscourseUrl(url);
+    if (url && !validateUrl(url)) {
+      setDiscourseUrlError("Please enter a valid URL");
+    } else {
+      setDiscourseUrlError(null);
+    }
+  };
 
   const editor = useEditor({
     extensions: [
@@ -108,16 +160,25 @@ export function ProposalAddInfo({
           >
             Title
           </label>
-          <Input
-            placeholder="Enter the title of your proposal"
-            className={`${
-              title === null || title.length === 0
-                ? "border-red-300 focus-visible:ring-red-300"
-                : "w-full border-gray-300"
-            }`}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <div className="relative">
+            <Input
+              placeholder="Enter the title of your proposal"
+              className={`${
+                title === null || title.length === 0
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : titleError
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : "w-full border-gray-300"
+              }`}
+              value={title}
+              onChange={handleTitleChange}
+              maxLength={100}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+              {title.length}/100
+            </div>
+          </div>
+          {titleError && <ValidationError message={titleError} />}
           <RequiredString value={title} name="Title" />
         </div>
 
@@ -293,10 +354,16 @@ export function ProposalAddInfo({
           </label>
           <Input
             id="snapshot-url"
-            defaultValue={snapshotUrl}
-            className="w-full border-gray-300"
-            onChange={(e) => setSnapshotUrl(e.target.value)}
+            value={snapshotUrl}
+            className={`w-full ${
+              snapshotUrlError
+                ? "border-red-300 focus-visible:ring-red-300"
+                : "border-gray-300"
+            }`}
+            onChange={handleSnapshotUrlChange}
+            placeholder="https://snapshot.org/..."
           />
+          {snapshotUrlError && <ValidationError message={snapshotUrlError} />}
           <RequiredString value={snapshotUrl} name="Snapshot URL" />
         </div>
 
@@ -309,10 +376,16 @@ export function ProposalAddInfo({
           </label>
           <Input
             id="discourse-url"
-            defaultValue={discourseUrl}
-            className="w-full border-gray-300"
-            onChange={(e) => setDiscourseUrl(e.target.value)}
+            value={discourseUrl}
+            className={`w-full ${
+              discourseUrlError
+                ? "border-red-300 focus-visible:ring-red-300"
+                : "border-gray-300"
+            }`}
+            onChange={handleDiscourseUrlChange}
+            placeholder="https://forum.example.com/..."
           />
+          {discourseUrlError && <ValidationError message={discourseUrlError} />}
           <RequiredString value={discourseUrl} name="Discourse URL" />
         </div>
       </div>
