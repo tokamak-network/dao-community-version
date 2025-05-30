@@ -127,22 +127,46 @@ export async function POST(request: Request) {
 
     // 3. 파일 생성
     const filePath = `data/agendas/${agendaData.network}/agenda-${agendaData.id}.json`;
-    await octokit.repos.createOrUpdateFileContents({
-      owner: forkOwner,
-      repo: forkRepo,
-      path: filePath,
-      message: `Add agenda #${agendaData.id}`,
-      content: Buffer.from(JSON.stringify(agendaData, null, 2)).toString(
-        "base64"
-      ),
-      branch: branchName,
-    });
+
+    try {
+      // 먼저 파일이 존재하는지 확인
+      const { data: existingFile } = await octokit.repos
+        .getContent({
+          owner: forkOwner,
+          repo: forkRepo,
+          path: filePath,
+          ref: branchName,
+        })
+        .catch(() => ({ data: null }));
+
+      // 파일 생성 또는 업데이트
+      await octokit.repos.createOrUpdateFileContents({
+        owner: forkOwner,
+        repo: forkRepo,
+        path: filePath,
+        message: `Add agenda ${agendaData.id}`,
+        content: Buffer.from(JSON.stringify(agendaData, null, 2)).toString(
+          "base64"
+        ),
+        branch: branchName,
+        ...(existingFile && !Array.isArray(existingFile)
+          ? { sha: existingFile.sha }
+          : {}),
+      });
+    } catch (error) {
+      console.error("Error creating/updating file:", error);
+      throw error;
+    }
 
     // 4. PR 생성
+    const prTitle = `[Agenda] ${agendaData.network} - ${agendaData.id} - ${agendaData.title}`;
+    const truncatedTitle =
+      prTitle.length > 100 ? prTitle.substring(0, 97) + "..." : prTitle;
+
     const { data: pr } = await octokit.pulls.create({
       owner: baseOwner,
       repo: baseRepo,
-      title: `[Agenda] ${agendaData.network} - ${agendaData.id} - ${agendaData.title}`,
+      title: truncatedTitle,
       body: `## Agenda Metadata Submission
 - Network: ${agendaData.network}
 - Agenda ID: ${agendaData.id}
@@ -170,8 +194,28 @@ ${message}
     return NextResponse.json({ prUrl: pr.html_url }, { headers: corsHeaders });
   } catch (error) {
     console.error("Error submitting PR:", error);
+    let errorMessage = "Failed to submit PR";
+
+    if (error instanceof Error) {
+      if (error.message.includes("Fork repository creation timeout")) {
+        errorMessage =
+          "Failed to create fork repository. Please try again later.";
+      } else if (error.message.includes("Not Found")) {
+        errorMessage =
+          "Repository not found. Please check the repository configuration.";
+      } else if (error.message.includes("Bad credentials")) {
+        errorMessage =
+          "Invalid GitHub token. Please check the token configuration.";
+      } else if (error.message.includes("rate limit")) {
+        errorMessage =
+          "GitHub API rate limit exceeded. Please try again later.";
+      } else {
+        errorMessage = `Failed to submit PR: ${error.message}`;
+      }
+    }
+
     return NextResponse.json(
-      { error: "Failed to submit PR" },
+      { error: errorMessage },
       { status: 500, headers: corsHeaders }
     );
   }
