@@ -62,8 +62,11 @@ export default function ProposalLists({
       if (event) {
         return {
           ...agenda,
-          creator: event.from,
-        };
+          creator: {
+            address: event.from,
+            signature: agenda.creator?.signature,
+          },
+        } as AgendaWithMetadata;
       }
       return agenda;
     });
@@ -109,8 +112,8 @@ export default function ProposalLists({
               <tr className="border-b">
                 <th className="text-left py-4">Agenda</th>
                 <th className="text-right py-4">Status</th>
-                <th className="text-right py-4">Executed</th>
-                <th className="text-right py-4">Result</th>
+                <th className="text-right py-4">Execution</th>
+                <th className="text-right py-4">Vote Result</th>
               </tr>
             </thead>
             <tbody>
@@ -144,10 +147,10 @@ export default function ProposalLists({
                           {agenda.title ? ". " + agenda.title : ""}
                         </h3>
                         <div className="text-sm text-gray-600 mt-1">
-                          {agenda.creator ? (
+                          {agenda.creator?.address ? (
                             <>
                               This agenda was made by{" "}
-                              {formatAddress(agenda.creator)} on{" "}
+                              {formatAddress(agenda.creator.address)} on{" "}
                               {formatDate(Number(agenda.createdTimestamp))}
                             </>
                           ) : (
@@ -197,15 +200,29 @@ export default function ProposalLists({
                     <td className="py-4 text-right">
                       {agenda.executed ? (
                         <span className="text-green-500">Executed</span>
+                      ) : currentStatus === AgendaStatus.ENDED ? (
+                        <span className="text-red-500">Expired</span>
+                      ) : currentStatus === AgendaStatus.WAITING_EXEC ? (
+                        <span className="text-orange-500">
+                          Ready to Execute
+                        </span>
                       ) : (
-                        <span className="text-gray-500">Pending</span>
+                        <span className="text-gray-500">Not Ready</span>
                       )}
                     </td>
                     <td className="py-4 text-right">
-                      {agenda.executed ? (
-                        <span className="text-green-500">Yes</span>
+                      {currentStatus === AgendaStatus.NOTICE ? (
+                        <span className="text-gray-500">Pending</span>
+                      ) : !agenda.voters || agenda.voters.length === 0 ? (
+                        <span className="text-gray-500">No Votes</span>
+                      ) : Number(agenda.countingYes) >
+                        Number(agenda.countingNo) ? (
+                        <span className="text-green-500">Approved</span>
+                      ) : Number(agenda.countingYes) <
+                        Number(agenda.countingNo) ? (
+                        <span className="text-red-500">Rejected</span>
                       ) : (
-                        <span className="text-gray-500">No</span>
+                        <span className="text-gray-500">Tied</span>
                       )}
                     </td>
                   </tr>

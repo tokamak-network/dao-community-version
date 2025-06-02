@@ -64,12 +64,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import AgendaStorageInfo from "./AgendaStorageInfo";
+import { isAddress } from "ethers";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
 }
 
-type TabType = "description" | "community" | "actions" | "votes";
+type TabType = "description" | "storage" | "community" | "actions" | "votes";
 
 export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [activeTab, setActiveTab] = useState<TabType>("description");
@@ -262,6 +264,15 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   );
 
   const handleVote = (vote: number) => {
+    // Add wallet connection validation
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
     if (!writeContract || !candidateContractAddress) return;
 
     writeContract({
@@ -288,6 +299,16 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   };
 
   const handleExecute = async () => {
+    // Add wallet connection validation
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
+
     try {
       setShowTransactionModal(true);
       await writeContract({
@@ -316,6 +337,48 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       setLocalAgenda(updatedAgenda);
     }
   };
+
+  // Get raw agenda data from contract
+  const { data: contractAgendaData, refetch: refetchContractData } =
+    useContractRead({
+      address: DAO_AGENDA_MANAGER_ADDRESS,
+      abi: [
+        {
+          name: "agendas",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "_index", type: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "tuple",
+              components: [
+                { name: "id", type: "uint256" },
+                { name: "creator", type: "address" },
+                { name: "executed", type: "bool" },
+                { name: "createdTimestamp", type: "uint128" },
+                { name: "noticeEndTimestamp", type: "uint128" },
+                { name: "votingEndTimestamp", type: "uint128" },
+                { name: "executableLimitTimestamp", type: "uint128" },
+                { name: "executedTimestamp", type: "uint128" },
+                { name: "countingYes", type: "uint256" },
+                { name: "countingNo", type: "uint256" },
+                { name: "countingAbstain", type: "uint256" },
+                { name: "targets", type: "address[]" },
+                { name: "voters", type: "address[]" },
+                { name: "noticePeriodSeconds", type: "uint128" },
+                { name: "votingPeriodSeconds", type: "uint128" },
+                { name: "isEmergency", type: "bool" },
+                { name: "calldatas", type: "bytes[]" },
+                { name: "memo", type: "string" },
+              ],
+            },
+          ],
+        },
+      ],
+      functionName: "agendas",
+      args: [BigInt(localAgenda.id)],
+    });
 
   const renderActionButton = () => {
     switch (currentStatus) {
@@ -569,8 +632,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             <div className="h-8 w-8 rounded-full bg-gray-300 mr-2 overflow-hidden"></div>
             <span className="text-gray-700">
               by{" "}
-              {localAgenda.creator
-                ? formatAddress(localAgenda.creator)
+              {localAgenda.creator?.address
+                ? formatAddress(localAgenda.creator.address)
                 : "Unknown"}
             </span>
           </div>
@@ -603,6 +666,16 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                     onClick={() => setActiveTab("description")}
                   >
                     Description
+                  </button>
+                  <button
+                    className={`px-4 py-2 ${
+                      activeTab === "storage"
+                        ? "text-indigo-600 border-b-2 border-indigo-600 font-medium"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                    onClick={() => setActiveTab("storage")}
+                  >
+                    On-Chain Storage
                   </button>
                   <button
                     className={`px-4 py-2 ${
@@ -641,6 +714,14 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
               <div className="mt-6">
                 {activeTab === "description" ? (
                   <AgendaDescription agenda={localAgenda} />
+                ) : activeTab === "storage" ? (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      On-Chain Storage Information
+                    </h3>
+
+                    <AgendaStorageInfo agendaId={localAgenda.id} />
+                  </div>
                 ) : activeTab === "community" ? (
                   <AgendaCommunity agenda={localAgenda} />
                 ) : activeTab === "actions" ? (

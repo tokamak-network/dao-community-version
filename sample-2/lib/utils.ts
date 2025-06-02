@@ -254,14 +254,14 @@ export function calculateAgendaStatus(
   return AgendaStatus.ENDED;
 }
 
-interface AgendaMetadata {
+export interface AgendaMetadata {
   id: number;
   title: string;
   description: string;
   createdAt: number;
   creator: {
     address: string;
-    signature: string;
+    signature?: string;
   };
   targets: string[];
   atomicExecute: boolean;
@@ -274,7 +274,21 @@ interface AgendaMetadata {
     contractAddress: string;
     method: string;
     calldata: string;
-    abi: any[];
+    abi: {
+      name: string;
+      type: string;
+      inputs: Array<{
+        name: string;
+        type: string;
+        internalType: string;
+      }>;
+      outputs: Array<{
+        name: string;
+        type: string;
+        internalType: string;
+      }>;
+      stateMutability: string;
+    }[];
   }[];
 }
 

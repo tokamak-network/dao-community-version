@@ -9,7 +9,11 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { AgendaWithMetadata, AgendaCreatedEvent } from "@/types/agenda";
+import {
+  AgendaWithMetadata,
+  AgendaCreatedEvent,
+  AgendaAction,
+} from "@/types/agenda";
 import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
 import { DAO_AGENDA_MANAGER_ABI } from "@/abis/dao-agenda-manager";
 import { chain } from "@/config/chain";
@@ -99,6 +103,39 @@ const voterInfosAbi = [
     ],
   },
 ] as const;
+
+const isCreatorString = (creator: unknown): creator is `0x${string}` => {
+  return typeof creator === "string" && creator.startsWith("0x");
+};
+
+const isCreatorObject = (
+  creator: unknown
+): creator is { address: `0x${string}`; signature?: string } => {
+  return (
+    typeof creator === "object" &&
+    creator !== null &&
+    "address" in creator &&
+    typeof (creator as any).address === "string" &&
+    (creator as any).address.startsWith("0x")
+  );
+};
+
+const getCreatorAddress = (creator: unknown): `0x${string}` => {
+  if (isCreatorString(creator)) {
+    return creator as `0x${string}`;
+  }
+  if (isCreatorObject(creator)) {
+    return creator.address as `0x${string}`;
+  }
+  return "0x0000000000000000000000000000000000000000" as `0x${string}`;
+};
+
+const getCreatorSignature = (creator: unknown): string | undefined => {
+  if (isCreatorObject(creator)) {
+    return creator.signature;
+  }
+  return undefined;
+};
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
   const [totalAgendaCount, setTotalAgendaCount] = useState<number>(0);
@@ -335,7 +372,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           ...agenda,
           title: batchMetadata[agenda.id]?.title,
           description: batchMetadata[agenda.id]?.description,
-          creator: batchMetadata[agenda.id]?.creator?.address,
+          creator: {
+            address: getCreatorAddress(batchMetadata[agenda.id]?.creator),
+            signature: getCreatorSignature(batchMetadata[agenda.id]?.creator),
+          },
           snapshotUrl: batchMetadata[agenda.id]?.snapshotUrl,
           discourseUrl: batchMetadata[agenda.id]?.discourseUrl,
           network: batchMetadata[agenda.id]?.network,
@@ -550,8 +590,21 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 상태 업데이트
     setAgendas((prevAgendas) => {
+      console.log(
+        "updateAgendaData - Previous agendas count:",
+        prevAgendas.length
+      );
+      console.log(
+        "updateAgendaData - Previous agenda IDs:",
+        prevAgendas.map((a) => a.id)
+      );
+
       // 기존 아젠다 데이터 가져오기
       const existingAgenda = prevAgendas.find((a) => a.id === agendaId);
+      console.log(
+        "updateAgendaData - Existing agenda found:",
+        !!existingAgenda
+      );
 
       // 아젠다 데이터와 메타데이터 결합
       const updatedAgenda: AgendaWithMetadata = {
@@ -559,21 +612,39 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("updateAgendaData - Combined data:", updatedAgenda);
 
       const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
       existingAgendas.set(agendaId, updatedAgenda);
       const newAgendas = Array.from(existingAgendas.values());
-      // 정렬 여부에 따라 처리
-      return shouldSort ? newAgendas.sort((a, b) => b.id - a.id) : newAgendas;
+      const finalAgendas = shouldSort
+        ? newAgendas.sort((a, b) => b.id - a.id)
+        : newAgendas;
+
+      console.log("updateAgendaData - New agendas count:", finalAgendas.length);
+      console.log(
+        "updateAgendaData - New agenda IDs:",
+        finalAgendas.map((a) => a.id)
+      );
+      console.log("updateAgendaData - Should sort:", shouldSort);
+
+      return finalAgendas;
     });
+
+    console.log(
+      "updateAgendaData - Agenda data update completed for ID:",
+      agendaId
+    );
   };
 
   // 이벤트 모니터링을 위한 useEffect
@@ -590,6 +661,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 아젠다 생성 이벤트 모니터링
     console.log("[monitorAgendaEvents] Setting up AgendaCreated event watcher");
+    console.log(
+      "[monitorAgendaEvents] AgendaCreated monitoring address:",
+      DAO_COMMITTEE_PROXY_ADDRESS
+    );
     const unwatchCreated = publicClient.watchEvent({
       address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
@@ -606,11 +681,34 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
       onLogs: async (logs) => {
         console.log("[AgendaCreated] Event logs received:", logs);
+        console.log("[AgendaCreated] Number of logs:", logs.length);
+
         for (const log of logs) {
+          console.log("[AgendaCreated] Processing log:", log);
           if (log.args) {
             const agendaId = Number(log.args.id);
             console.log("[AgendaCreated] Processing agenda ID:", agendaId);
-            await updateAgendaData(agendaId, true);
+            console.log("[AgendaCreated] Event args:", log.args);
+            console.log(
+              "[AgendaCreated] Transaction hash:",
+              log.transactionHash
+            );
+            console.log("[AgendaCreated] Block number:", log.blockNumber);
+
+            try {
+              await updateAgendaData(agendaId, true);
+              console.log(
+                "[AgendaCreated] Successfully updated agenda data for ID:",
+                agendaId
+              );
+            } catch (error) {
+              console.error(
+                "[AgendaCreated] Error updating agenda data:",
+                error
+              );
+            }
+          } else {
+            console.warn("[AgendaCreated] Log has no args:", log);
           }
         }
       },
@@ -702,7 +800,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       unwatchVoteCasted();
       unwatchExecuted();
     };
-  }, [agendas]); // agendas 의존성 추가
+  }, []);
 
   // 아젠다 상태 업데이트 함수
   const updateAgendaStatus = async () => {
@@ -857,12 +955,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("[refreshAgenda] Combined data:", updatedAgenda);
 
@@ -956,12 +1057,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata?.title || existingAgenda?.title,
         description: metadata?.description || existingAgenda?.description,
-        creator: metadata?.creator?.address || existingAgenda?.creator,
+        creator: {
+          address: getCreatorAddress(metadata?.creator),
+          signature: getCreatorSignature(metadata?.creator),
+        },
         snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
         network: metadata?.network || existingAgenda?.network,
         transaction: metadata?.transaction || existingAgenda?.transaction,
-        actions: metadata?.actions || existingAgenda?.actions,
+        actions: metadata?.actions,
       };
       console.log("[refreshAgendaWithoutCache] Combined data:", updatedAgenda);
 
@@ -1015,7 +1119,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         id: agendaId,
         title: metadata[agendaId]?.title,
         description: metadata[agendaId]?.description,
-        creator: metadata[agendaId]?.creator?.address,
+        creator: {
+          address: getCreatorAddress(metadata[agendaId]?.creator),
+          signature: getCreatorSignature(metadata[agendaId]?.creator),
+        },
         snapshotUrl: metadata[agendaId]?.snapshotUrl,
         discourseUrl: metadata[agendaId]?.discourseUrl,
         network: metadata[agendaId]?.network,
@@ -1029,6 +1136,25 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       console.error("Error fetching agenda:", err);
       return null;
     }
+  };
+
+  const updateAgendasWithCreatorInfo = (
+    agendas: AgendaWithMetadata[],
+    events: AgendaCreatedEvent[]
+  ) => {
+    return agendas.map((agenda) => {
+      const event = events.find((e) => Number(e.id) === agenda.id);
+      if (event) {
+        return {
+          ...agenda,
+          creator: {
+            address: event.from,
+            signature: agenda.creator?.signature,
+          },
+        } as AgendaWithMetadata;
+      }
+      return agenda;
+    });
   };
 
   const value = useMemo(
