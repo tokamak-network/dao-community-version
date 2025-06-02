@@ -590,8 +590,21 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 상태 업데이트
     setAgendas((prevAgendas) => {
+      console.log(
+        "updateAgendaData - Previous agendas count:",
+        prevAgendas.length
+      );
+      console.log(
+        "updateAgendaData - Previous agenda IDs:",
+        prevAgendas.map((a) => a.id)
+      );
+
       // 기존 아젠다 데이터 가져오기
       const existingAgenda = prevAgendas.find((a) => a.id === agendaId);
+      console.log(
+        "updateAgendaData - Existing agenda found:",
+        !!existingAgenda
+      );
 
       // 아젠다 데이터와 메타데이터 결합
       const updatedAgenda: AgendaWithMetadata = {
@@ -614,9 +627,24 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
       existingAgendas.set(agendaId, updatedAgenda);
       const newAgendas = Array.from(existingAgendas.values());
-      // 정렬 여부에 따라 처리
-      return shouldSort ? newAgendas.sort((a, b) => b.id - a.id) : newAgendas;
+      const finalAgendas = shouldSort
+        ? newAgendas.sort((a, b) => b.id - a.id)
+        : newAgendas;
+
+      console.log("updateAgendaData - New agendas count:", finalAgendas.length);
+      console.log(
+        "updateAgendaData - New agenda IDs:",
+        finalAgendas.map((a) => a.id)
+      );
+      console.log("updateAgendaData - Should sort:", shouldSort);
+
+      return finalAgendas;
     });
+
+    console.log(
+      "updateAgendaData - Agenda data update completed for ID:",
+      agendaId
+    );
   };
 
   // 이벤트 모니터링을 위한 useEffect
@@ -633,6 +661,10 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
     // 아젠다 생성 이벤트 모니터링
     console.log("[monitorAgendaEvents] Setting up AgendaCreated event watcher");
+    console.log(
+      "[monitorAgendaEvents] AgendaCreated monitoring address:",
+      DAO_COMMITTEE_PROXY_ADDRESS
+    );
     const unwatchCreated = publicClient.watchEvent({
       address: DAO_COMMITTEE_PROXY_ADDRESS,
       event: {
@@ -649,11 +681,34 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       },
       onLogs: async (logs) => {
         console.log("[AgendaCreated] Event logs received:", logs);
+        console.log("[AgendaCreated] Number of logs:", logs.length);
+
         for (const log of logs) {
+          console.log("[AgendaCreated] Processing log:", log);
           if (log.args) {
             const agendaId = Number(log.args.id);
             console.log("[AgendaCreated] Processing agenda ID:", agendaId);
-            await updateAgendaData(agendaId, true);
+            console.log("[AgendaCreated] Event args:", log.args);
+            console.log(
+              "[AgendaCreated] Transaction hash:",
+              log.transactionHash
+            );
+            console.log("[AgendaCreated] Block number:", log.blockNumber);
+
+            try {
+              await updateAgendaData(agendaId, true);
+              console.log(
+                "[AgendaCreated] Successfully updated agenda data for ID:",
+                agendaId
+              );
+            } catch (error) {
+              console.error(
+                "[AgendaCreated] Error updating agenda data:",
+                error
+              );
+            }
+          } else {
+            console.warn("[AgendaCreated] Log has no args:", log);
           }
         }
       },
@@ -745,7 +800,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       unwatchVoteCasted();
       unwatchExecuted();
     };
-  }, [agendas]); // agendas 의존성 추가
+  }, []);
 
   // 아젠다 상태 업데이트 함수
   const updateAgendaStatus = async () => {

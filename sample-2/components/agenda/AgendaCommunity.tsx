@@ -42,39 +42,59 @@ export default function AgendaCommunity({ agenda }: AgendaCommunityProps) {
 
         <div className="space-y-4">
           {/* Snapshot URL */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Snapshot:</span>
-            {agenda.snapshotUrl ? (
-              <a
-                href={agenda.snapshotUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-              >
-                View on Snapshot
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <span className="text-gray-400">Not available</span>
-            )}
+          <div>
+            <div className="mb-2">
+              <span className="text-sm font-medium text-gray-700">
+                Snapshot URL
+              </span>
+              <p className="text-xs text-gray-500 mt-1">
+                Snapshot voting link, or alternative primary reference (official
+                announcement, documentation, etc.)
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {agenda.snapshotUrl ? (
+                <a
+                  href={agenda.snapshotUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-sm"
+                >
+                  View on Snapshot
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              ) : (
+                <span className="text-gray-400 text-sm">Not available</span>
+              )}
+            </div>
           </div>
 
           {/* Discourse URL */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Discourse:</span>
-            {agenda.discourseUrl ? (
-              <a
-                href={agenda.discourseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-              >
-                View on Discourse
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <span className="text-gray-400">Not available</span>
-            )}
+          <div>
+            <div className="mb-2">
+              <span className="text-sm font-medium text-gray-700">
+                Discourse URL
+              </span>
+              <p className="text-xs text-gray-500 mt-1">
+                Forum discussion, Discourse thread, or additional reference
+                documentation
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {agenda.discourseUrl ? (
+                <a
+                  href={agenda.discourseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-sm"
+                >
+                  View on Discourse
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              ) : (
+                <span className="text-gray-400 text-sm">Not available</span>
+              )}
+            </div>
           </div>
         </div>
       </div>

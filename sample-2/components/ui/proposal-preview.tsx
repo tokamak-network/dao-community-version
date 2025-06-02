@@ -72,6 +72,7 @@ interface ProposalPreviewProps {
   isEditMode?: boolean;
   onImpactOverviewClick?: () => void;
   showSimulation?: boolean;
+  onTransactionSuccess?: () => void;
 }
 
 interface DecodedParam {
@@ -125,6 +126,7 @@ export function ProposalPreview({
   isEditMode = false,
   onImpactOverviewClick,
   showSimulation = false,
+  onTransactionSuccess,
 }: ProposalPreviewProps) {
   const [expandedParams, setExpandedParams] = useState<{
     [key: string]: boolean;
@@ -149,6 +151,9 @@ export function ProposalPreview({
   const [prError, setPrError] = useState<string | null>(null);
   const [prUrl, setPrUrl] = useState<string | null>(null);
   const [isPrSubmitted, setIsPrSubmitted] = useState(false);
+  const [contractVersion, setContractVersion] = useState<string>("unknown");
+  const [supportsMemoField, setSupportsMemoField] = useState<boolean>(false);
+  const [memoField, setMemoField] = useState<string>("");
   const { address } = useAccount();
   const router = useRouter();
 
@@ -193,6 +198,7 @@ export function ProposalPreview({
           );
           return;
         }
+
         // Prepare parameters for encoding
         const targetAddresses = actions.map((a) => a.contractAddress);
         const calldataArray = actions.map((a) => a.calldata || "0x");
@@ -204,24 +210,103 @@ export function ProposalPreview({
         console.log("Is Emergency:", true);
         console.log("Calldata Array:", calldataArray);
 
-        // Encode parameters
+        // Check contract version to determine encoding format
+        let supportsMemoField = false;
+        let contractVersion = "unknown";
+
+        try {
+          const provider = new BrowserProvider(window.ethereum as any);
+          const daoContract = new ethers.Contract(
+            DAO_COMMITTEE_PROXY_ADDRESS,
+            ["function version() view returns (string)"],
+            provider
+          );
+
+          const version = await daoContract.version();
+          contractVersion = version;
+          console.log(
+            "✅ Contract version() function found, version:",
+            version
+          );
+
+          // Version 2.0.0 and above support memo field
+          if (version === "2.0.0") {
+            supportsMemoField = true;
+            console.log("✅ Version 2.0.0 detected - memo field supported");
+          } else {
+            console.log(
+              "⚠️ Version",
+              version,
+              "detected - memo field not supported"
+            );
+          }
+        } catch (error) {
+          contractVersion = "legacy (pre-2.0.0)";
+          console.log(
+            "❌ version() function not found or error occurred - assuming legacy version"
+          );
+          console.log("Error details:", error);
+          // If version() function doesn't exist or fails, assume legacy version
+          supportsMemoField = false;
+        }
+
+        // Determine memo field - prioritize snapshot URL, then discourse URL
+        const memoField = snapshotUrl?.trim() || discourseUrl?.trim() || "";
+
+        // Update state variables
+        setContractVersion(contractVersion);
+        setSupportsMemoField(supportsMemoField);
+        setMemoField(memoField);
+
+        // Encode parameters based on contract version
         const abiCoder = AbiCoder.defaultAbiCoder();
-        const types = ["address[]", "uint128", "uint128", "bool", "bytes[]"];
-        const values = [
-          targetAddresses,
-          minimumNoticePeriodSeconds,
-          minimumVotingPeriodSeconds,
-          true,
-          calldataArray,
-        ];
+        let encoded: string;
 
-        console.log("\n=== Encoding Details ===");
-        console.log("Types:", types);
-        console.log("Values:", values);
+        if (supportsMemoField) {
+          // New version with memo field support
+          console.log("Using new interface with memo field for preview");
+          const types = [
+            "address[]",
+            "uint128",
+            "uint128",
+            "bool",
+            "bytes[]",
+            "string",
+          ];
+          const values = [
+            targetAddresses,
+            minimumNoticePeriodSeconds,
+            minimumVotingPeriodSeconds,
+            true,
+            calldataArray,
+            memoField,
+          ];
+          console.log("\n=== Encoding Details (v2.0.0 with memo) ===");
+          console.log("Types:", types);
+          console.log("Values:", values);
+          console.log("Memo field:", memoField);
+          encoded = abiCoder.encode(types, values);
+        } else {
+          // Legacy version without memo field
+          console.log("Using legacy interface without memo field for preview");
+          const types = ["address[]", "uint128", "uint128", "bool", "bytes[]"];
+          const values = [
+            targetAddresses,
+            minimumNoticePeriodSeconds,
+            minimumVotingPeriodSeconds,
+            true,
+            calldataArray,
+          ];
+          console.log("\n=== Encoding Details (Legacy) ===");
+          console.log("Types:", types);
+          console.log("Values:", values);
+          encoded = abiCoder.encode(types, values);
+        }
 
-        const encoded = abiCoder.encode(types, values);
         console.log("\n=== Encoded Result ===");
-        console.log(encoded);
+        console.log("Contract Version:", contractVersion);
+        console.log("Memo Support:", supportsMemoField ? "YES" : "NO");
+        console.log("Encoded Data:", encoded);
 
         setEncodedData(encoded);
       } catch (error: any) {
@@ -233,7 +318,14 @@ export function ProposalPreview({
     };
 
     fetchData();
-  }, [actions]);
+  }, [
+    actions,
+    snapshotUrl,
+    discourseUrl,
+    createAgendaFees,
+    minimumNoticePeriodSeconds,
+    minimumVotingPeriodSeconds,
+  ]);
 
   const {
     writeContract,
@@ -337,17 +429,85 @@ export function ProposalPreview({
       }
     }
 
-    // Encode parameters
-    const param = AbiCoder.defaultAbiCoder().encode(
-      ["address[]", "uint128", "uint128", "bool", "bytes[]"],
-      [
-        targets,
-        minimumNoticePeriodSeconds,
-        minimumVotingPeriodSeconds,
-        true,
-        params,
-      ]
-    ) as `0x${string}`;
+    // Check contract version to determine if memo field is supported
+    let supportsMemoField = false;
+    let contractVersion = "unknown";
+
+    try {
+      const provider = new BrowserProvider(window.ethereum as any);
+      const daoContract = new ethers.Contract(
+        DAO_COMMITTEE_PROXY_ADDRESS,
+        ["function version() view returns (string)"],
+        provider
+      );
+
+      const version = await daoContract.version();
+      contractVersion = version;
+      console.log("✅ Contract version() function found, version:", version);
+
+      // Version 2.0.0 and above support memo field
+      if (version === "2.0.0") {
+        supportsMemoField = true;
+        console.log("✅ Version 2.0.0 detected - memo field supported");
+      } else {
+        console.log(
+          "⚠️ Version",
+          version,
+          "detected - memo field not supported"
+        );
+      }
+    } catch (error) {
+      contractVersion = "legacy (pre-2.0.0)";
+      console.log(
+        "❌ version() function not found or error occurred - assuming legacy version"
+      );
+      console.log("Error details:", error);
+      // If version() function doesn't exist or fails, assume legacy version
+      supportsMemoField = false;
+    }
+
+    console.log("📋 Contract Version Summary:");
+    console.log("  - Contract Address:", DAO_COMMITTEE_PROXY_ADDRESS);
+    console.log("  - Detected Version:", contractVersion);
+    console.log("  - Memo Field Support:", supportsMemoField ? "YES" : "NO");
+    console.log(
+      "  - Interface Type:",
+      supportsMemoField ? "New (with memo)" : "Legacy (without memo)"
+    );
+
+    // Determine memo field - prioritize snapshot URL, then discourse URL
+    const memoField = snapshotUrl?.trim() || discourseUrl?.trim() || "";
+
+    let param: `0x${string}`;
+
+    if (supportsMemoField) {
+      // New version with memo field support
+      console.log("Using new interface with memo field");
+      param = AbiCoder.defaultAbiCoder().encode(
+        ["address[]", "uint128", "uint128", "bool", "bytes[]", "string"],
+        [
+          targets,
+          minimumNoticePeriodSeconds,
+          minimumVotingPeriodSeconds,
+          true,
+          params,
+          memoField,
+        ]
+      ) as `0x${string}`;
+    } else {
+      // Legacy version without memo field
+      console.log("Using legacy interface without memo field");
+      param = AbiCoder.defaultAbiCoder().encode(
+        ["address[]", "uint128", "uint128", "bool", "bytes[]"],
+        [
+          targets,
+          minimumNoticePeriodSeconds,
+          minimumVotingPeriodSeconds,
+          true,
+          params,
+        ]
+      ) as `0x${string}`;
+    }
 
     return {
       param,
@@ -507,6 +667,9 @@ export function ProposalPreview({
             };
             setSubmittedAgendaData(originalAgendaData);
             setIsTransactionPending(false);
+
+            // Call the transaction success callback
+            onTransactionSuccess?.();
           }
         } catch (err) {
           console.error("Error processing transaction:", err);
@@ -844,7 +1007,7 @@ export function ProposalPreview({
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">Actions</h3>
         <div className="border rounded-lg divide-y overflow-hidden">
-          <div className="grid grid-cols-[200px_300px_120px_1fr] gap-4 p-3 text-sm font-medium text-gray-500 bg-gray-50">
+          <div className="grid grid-cols-[150px_250px_100px_1fr] gap-4 p-3 text-sm font-medium text-gray-500 bg-gray-50">
             <div>Contract</div>
             <div>Method</div>
             <div className="text-right">Parameters</div>
@@ -856,7 +1019,7 @@ export function ProposalPreview({
               className="border-b cursor-pointer hover:bg-gray-50"
               onClick={() => handleActionClick(action)}
             >
-              <div className="grid grid-cols-[200px_300px_120px_1fr] gap-4 p-3 text-sm">
+              <div className="grid grid-cols-[150px_250px_100px_1fr] gap-4 p-3 text-sm">
                 <div className="flex items-center space-x-2">
                   <span className="text-gray-500 mr-2">#{index + 1}</span>
                   <div
@@ -903,14 +1066,10 @@ export function ProposalPreview({
                 </div>
                 <div className="relative group w-full overflow-hidden">
                   <div
-                    className="font-mono text-xs text-gray-600 w-full max-w-[300px] overflow-hidden"
+                    className="font-mono text-xs text-gray-600 break-all leading-relaxed"
                     style={{
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
                       wordBreak: "break-all",
+                      overflowWrap: "anywhere",
                     }}
                     title={action.calldata}
                   >
@@ -933,15 +1092,20 @@ export function ProposalPreview({
                           (param: DecodedParam, index: number) => (
                             <div
                               key={index}
-                              className="flex items-start space-x-3"
+                              className="grid grid-cols-[120px_100px_1fr] gap-3"
                             >
-                              <div className="w-32 flex-shrink-0">
-                                <span className="text-sm text-gray-500">
+                              <div className="flex-shrink-0">
+                                <span className="text-sm font-medium text-gray-700">
                                   {param.name}
                                 </span>
                               </div>
-                              <div className="flex-1">
-                                <div className="font-mono text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                              <div className="flex-shrink-0">
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                  {param.type}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-mono text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200 break-all">
                                   {param.value.toString()}
                                 </div>
                               </div>
@@ -975,6 +1139,72 @@ export function ProposalPreview({
             </div>
           ))}
         </div>
+
+        {/* Memo Field Information (v2.0.0 only) */}
+        {supportsMemoField && (
+          <div className="mt-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-blue-600 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">
+                    📄 Contract v{contractVersion} - On-Chain Reference Storage
+                  </h4>
+                  <p className="text-sm text-blue-700 mb-3">
+                    This contract version supports storing reference URLs
+                    directly on-chain as memo data. The reference URL will be
+                    permanently stored with your agenda.
+                  </p>
+                  <div className="bg-white rounded border border-blue-200 p-3">
+                    <div className="text-xs font-medium text-gray-600 mb-1">
+                      Memo Field (Reference URL)
+                    </div>
+                    <div className="font-mono text-sm text-gray-800 bg-gray-50 px-2 py-1 rounded border">
+                      {memoField ? (
+                        <span>"{memoField}"</span>
+                      ) : (
+                        <span className="text-gray-500 italic">
+                          No reference URL provided
+                        </span>
+                      )}
+                    </div>
+                    {memoField && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        <span className="font-medium">Source:</span>{" "}
+                        {snapshotUrl?.trim()
+                          ? "Snapshot URL"
+                          : discourseUrl?.trim()
+                          ? "Discourse URL"
+                          : "Unknown"}
+                      </div>
+                    )}
+                  </div>
+                  {!memoField && (
+                    <div className="mt-3 text-xs text-blue-600">
+                      💡 <strong>Tip:</strong> Add a Snapshot URL or Discourse
+                      URL in the proposal information to store it on-chain for
+                      transparency.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* DAO Agenda Submission Parameters */}
         {hasRequiredProposalInfo && hasActions && (
@@ -1047,10 +1277,103 @@ export function ProposalPreview({
                     {/* data */}
                     <div>
                       <div className="text-sm text-gray-500 mb-1">data</div>
-                      <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                        <div className="break-all">
-                          {encodedData || "Encoding parameters..."}
+                      <div className="space-y-3">
+                        {/* Encoded Data */}
+                        <div className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                          <div className="break-all">
+                            {encodedData || "Encoding parameters..."}
+                          </div>
                         </div>
+
+                        {/* Data Structure Breakdown */}
+                        {encodedData && (
+                          <div className="bg-white border border-gray-200 rounded-lg">
+                            <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
+                              <span className="text-xs font-medium text-gray-700">
+                                Encoded Data Structure
+                              </span>
+                            </div>
+                            <div className="p-3 space-y-2 text-xs">
+                              {/* Target Addresses */}
+                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <span className="text-gray-500 font-medium">
+                                  address[]:
+                                </span>
+                                <span className="font-mono text-gray-700">
+                                  [
+                                  {actions
+                                    .map((a) => `"${a.contractAddress}"`)
+                                    .join(", ")}
+                                  ]
+                                </span>
+                              </div>
+
+                              {/* Notice Period */}
+                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <span className="text-gray-500 font-medium">
+                                  uint128:
+                                </span>
+                                <span className="font-mono text-gray-700">
+                                  {minimumNoticePeriodSeconds?.toString()}{" "}
+                                  (notice period seconds)
+                                </span>
+                              </div>
+
+                              {/* Voting Period */}
+                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <span className="text-gray-500 font-medium">
+                                  uint128:
+                                </span>
+                                <span className="font-mono text-gray-700">
+                                  {minimumVotingPeriodSeconds?.toString()}{" "}
+                                  (voting period seconds)
+                                </span>
+                              </div>
+
+                              {/* Atomic Execute */}
+                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <span className="text-gray-500 font-medium">
+                                  bool:
+                                </span>
+                                <span className="font-mono text-gray-700">
+                                  true (atomic execute)
+                                </span>
+                              </div>
+
+                              {/* Calldata Array */}
+                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <span className="text-gray-500 font-medium">
+                                  bytes[]:
+                                </span>
+                                <div className="font-mono text-gray-700">
+                                  {actions.length === 0
+                                    ? "[]"
+                                    : actions.map((action, index) => (
+                                        <div key={index} className="mb-1">
+                                          <span className="text-gray-500">
+                                            #{index + 1}:
+                                          </span>{" "}
+                                          {action.calldata || "0x"}
+                                        </div>
+                                      ))}
+                                </div>
+                              </div>
+
+                              {/* Memo Field (only for v2.0.0) */}
+                              {supportsMemoField && (
+                                <div className="grid grid-cols-[120px_1fr] gap-2">
+                                  <span className="text-gray-500 font-medium">
+                                    string:
+                                  </span>
+                                  <span className="font-mono text-gray-700">
+                                    {memoField ? `"${memoField}"` : '""'} (memo:
+                                    reference URL)
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
