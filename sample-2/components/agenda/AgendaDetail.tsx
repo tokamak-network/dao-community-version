@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import AgendaStorageInfo from "./AgendaStorageInfo";
+import { isAddress } from "ethers";
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata;
@@ -263,6 +264,15 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   );
 
   const handleVote = (vote: number) => {
+    // Add wallet connection validation
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
     if (!writeContract || !candidateContractAddress) return;
 
     writeContract({
@@ -289,6 +299,16 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   };
 
   const handleExecute = async () => {
+    // Add wallet connection validation
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
+
     try {
       setShowTransactionModal(true);
       await writeContract({
