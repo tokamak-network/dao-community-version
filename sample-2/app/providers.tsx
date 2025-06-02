@@ -13,8 +13,8 @@ const config = createConfig({
   chains: [mainnet, sepolia],
   connectors: [injected()],
   transports: {
-    [mainnet.id]: http(RPC_URL),
-    [sepolia.id]: http(RPC_URL),
+    [mainnet.id]: http(),
+    [sepolia.id]: http(),
   },
   // defaultConfig: {
   //   chain: chain.id === sepolia.id ? sepolia : mainnet,
