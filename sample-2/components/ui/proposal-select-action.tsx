@@ -170,7 +170,10 @@ function RequiredContractAddress({
           }
         } else {
           console.log("No proxy ABI found");
-          setError(proxyData.message || "Failed to fetch contract ABI");
+          const errorMessage =
+            proxyData.message || "Failed to fetch contract ABI";
+          const errorResult = proxyData.result ? ` - ${proxyData.result}` : "";
+          setError(`${errorMessage}, ${errorResult}`);
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
