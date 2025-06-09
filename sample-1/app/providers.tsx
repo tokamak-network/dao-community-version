@@ -1,0 +1,35 @@
+"use client";
+
+import React from "react";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { WagmiProvider } from 'wagmi'
+import { config } from '@/config/wagmi'
+import { DAOProvider } from '@/contexts/DAOContext'
+
+
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1분
+    },
+  },
+})
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  console.log("🏗️ Providers 렌더링", {
+    timestamp: new Date().toLocaleTimeString()
+  });
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <DAOProvider>
+            {children}
+          </DAOProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </div>
+  );
+}
