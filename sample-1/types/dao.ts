@@ -38,6 +38,7 @@ export interface Candidate {
   operatorManager: string;
   manager: string | null;
   isCommitteeMember: boolean; // 현재 위원회 멤버인지 여부
+  cooldown: number; // 쿨다운 시간
 }
 
 export interface AgendaCreatedEvent {
@@ -82,6 +83,7 @@ export interface DAOContextType {
   isLoadingMembers: boolean;
   membersError: string | null;
   refreshCommitteeMembers: (maxMember?: number) => Promise<void>;
+  refreshSpecificMember: (slotIndex: number) => Promise<void>;
 
   // Layer2 Candidates 관련 (챌린징용)
   layer2Total: number;

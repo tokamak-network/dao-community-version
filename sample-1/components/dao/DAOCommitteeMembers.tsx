@@ -12,6 +12,9 @@ import { layer2ManagerAbi } from "@/abis/layer2-manager"
 import { operatorManagerAbi } from "@/abis/operator-manager"
 import { layer2RegistryAbi } from "@/abis/layer2-registry"
 import { CONTRACTS } from "@/config/contracts"
+import { useDAOCandidate } from '@/hooks/useDAOCandidate'
+import { TransactionModal } from '@/components/TransactionModal'
+import { getExplorerUrl } from '@/utils/explorer'
 
 export default function DAOCommitteeMembers() {
   const {
@@ -32,23 +35,9 @@ export default function DAOCommitteeMembers() {
 
   const { isConnected: isWalletConnected, address } = useAccount()
   const chainId = useChainId()
+  const { changeMember, retireMember, claimActivityReward, isExecuting: isDAOCandidateExecuting, isSuccess: isDAOCandidateSuccess, error: daoCandidateError, txHash, lastOperation, reset: resetDAOCandidate } = useDAOCandidate()
 
-  // 체인 ID에 따른 익스플로러 URL 생성
-  const getExplorerUrl = (address: string) => {
-    switch (chainId) {
-      case 1: // Ethereum Mainnet
-        return `https://etherscan.io/address/${address}`
-      case 11155111: // Sepolia Testnet
-        return `https://sepolia.etherscan.io/address/${address}`
-      case 5: // Goerli Testnet (deprecated but still might be used)
-        return `https://goerli.etherscan.io/address/${address}`
-      case 17000: // Holesky Testnet
-        return `https://holesky.etherscan.io/address/${address}`
-      default:
-        // 기본값으로 메인넷 사용
-        return `https://etherscan.io/address/${address}`
-    }
-  }
+
 
   const [expandedMember, setExpandedMember] = useState<number | null>(null)
   const [showGlobalChallenge, setShowGlobalChallenge] = useState(false)
@@ -65,13 +54,61 @@ export default function DAOCommitteeMembers() {
   // Layer2 로딩 완료 후 자동 분석 시작을 위한 ref
   const shouldStartAnalysisRef = useRef(false)
 
+  // 트랜잭션 모달 상태
+  const [showTransactionModal, setShowTransactionModal] = useState(false)
+
+  // 이벤트 모니터링은 DAOContext에서 직접 처리됨
+
   const handleViewDetails = (index: number) => {
     setExpandedMember(expandedMember === index ? null : index)
   }
 
-  const handleChallenge = (member: any) => {
-    console.log('Challenge member:', member.name)
-    // 개별 멤버 챌린지는 각 멤버마다 CheckChallengeButton으로 처리됨
+  const handleChallenge = async (member: CommitteeMember) => {
+    if (!address || !committeeMembers) {
+      console.error('❌ 챌린지 조건 불충족: 지갑 미연결 또는 멤버 데이터 없음');
+      return;
+    }
+
+    // 챌린지할 수 있는 Layer2 찾기
+    const { canChallenge, myLayer2 } = canChallengeWith(member);
+    if (!canChallenge || !myLayer2) {
+      console.error('❌ 챌린지 권한 없음');
+      return;
+    }
+
+    // 타겟 멤버의 인덱스 찾기
+    const memberIndex = committeeMembers.findIndex(m =>
+      m.candidateContract.toLowerCase() === member.candidateContract.toLowerCase()
+    );
+
+    if (memberIndex === -1) {
+      console.error('❌ 멤버 인덱스를 찾을 수 없음');
+      return;
+    }
+
+    try {
+      console.log('🚀 실제 챌린지 실행!', {
+        challenger: myLayer2.name,
+        challengerContract: myLayer2.candidateContract,
+        target: member.name,
+        targetContract: member.candidateContract,
+        memberIndex,
+        myStaking: myLayer2.totalStaked,
+        targetStaking: member.totalStaked,
+        executor: address
+      });
+
+      // 트랜잭션 모달 열기
+      setShowTransactionModal(true);
+
+      await changeMember({
+        candidateContract: myLayer2.candidateContract,
+        targetMemberIndex: memberIndex
+      });
+
+    } catch (error) {
+      console.error('❌ 챌린지 실행 중 오류:', error);
+    }
   }
 
   // 챌린지 분석 실행 함수 (분리)
@@ -130,6 +167,12 @@ export default function DAOCommitteeMembers() {
       committeeMembers.forEach(member => {
         // 이 멤버보다 스테이킹이 높은 Layer2들 찾기
         const challengers = layer2Candidates.filter(candidate => {
+          // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+          const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+          if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+            return false;
+          }
+
           // 이미 위원회 멤버는 제외
           const isAlreadyMember = committeeMembers.some(
             m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
@@ -141,12 +184,18 @@ export default function DAOCommitteeMembers() {
         });
 
         if (challengers.length > 0) {
-          // 내 Layer2가 이 멤버를 챌린지할 수 있는지 확인
-          const hasMyLayer2 = address ? challengers.some(challenger =>
-            challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
-            (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
-            (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
-          ) : false;
+          // 내 Layer2가 이 멤버를 챌린지할 수 있는지 확인 (쿨다운 체크 포함)
+          const hasMyLayer2 = address ? challengers.some(challenger => {
+            // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+            const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+            if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
+              return false;
+            }
+
+            return challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
+              (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
+              (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase());
+          }) : false;
 
           memberChallengeMap.push({
             member,
@@ -218,6 +267,18 @@ export default function DAOCommitteeMembers() {
     }
   }, [isLoadingLayer2, hasLoadedLayer2Once, showGlobalChallenge, layer2Candidates.length, challengeProgress.step]);
 
+  // 트랜잭션 완료 시 모달 자동 닫기 (3초 후)
+  useEffect(() => {
+    if (isDAOCandidateSuccess && showTransactionModal) {
+      const timer = setTimeout(() => {
+        setShowTransactionModal(false);
+        resetDAOCandidate(); // 상태 리셋
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isDAOCandidateSuccess, showTransactionModal, resetDAOCandidate]);
+
     // 전역 "Check the challenge" 버튼 클릭 핸들러
   const handleGlobalChallengeCheck = async () => {
     console.log('🎯 Check the challenge 클릭');
@@ -266,14 +327,46 @@ export default function DAOCommitteeMembers() {
 
   }
 
-  const handleRetireMember = (member: any) => {
-    console.log('Retire member:', member.name)
-    // TODO: Implement retire member functionality
+  const handleRetireMember = async (member: CommitteeMember) => {
+    if (!address) {
+      console.error('❌ 지갑 미연결');
+      return;
+    }
+
+    try {
+      console.log('👋 멤버 은퇴 실행:', member.name);
+
+      // 트랜잭션 모달 열기
+      setShowTransactionModal(true);
+
+      await retireMember({
+        candidateContract: member.candidateContract
+      });
+
+    } catch (error) {
+      console.error('❌ 멤버 은퇴 실행 중 오류:', error);
+    }
   }
 
-  const handleClaimActivityReward = (member: any) => {
-    console.log('Claim activity reward for member:', member.name, 'Amount:', member.claimableActivityReward)
-    // TODO: Implement claim activity reward functionality
+  const handleClaimActivityReward = async (member: CommitteeMember) => {
+    if (!address) {
+      console.error('❌ 지갑 미연결');
+      return;
+    }
+
+    try {
+      console.log('💰 활동 보상 청구 실행:', member.name, 'Amount:', member.claimableActivityReward);
+
+      // 트랜잭션 모달 열기
+      setShowTransactionModal(true);
+
+      await claimActivityReward({
+        candidateContract: member.candidateContract
+      });
+
+    } catch (error) {
+      console.error('❌ 활동 보상 청구 실행 중 오류:', error);
+    }
   }
 
   // 해당 멤버가 현재 연결된 지갑의 소유자인지 확인 (creationAddress 또는 manager 주소)
@@ -299,16 +392,37 @@ export default function DAOCommitteeMembers() {
 
   // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
   const canChallengeWith = (member: CommitteeMember) => {
-    if (!address || !layer2Candidates || layer2Candidates.length === 0) return { canChallenge: false, myLayer2: null };
 
-    // 내가 operator나 manager인 Layer2 찾기
+    if (!address || !layer2Candidates || layer2Candidates.length === 0 || !committeeMembers) return { canChallenge: false, myLayer2: null };
+
+    // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
     const myLayer2s = layer2Candidates.filter(candidate => {
+      // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+      const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+      if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+        return false;
+      }
+
+      // 2. 이미 위원회 멤버인 Layer2는 다른 멤버에게 챌린지할 수 없음
+      const isAlreadyMember = committeeMembers.some(
+        m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
+      );
+      if (isAlreadyMember) {
+        return false;
+      }
+
+      // 3. 내가 operator나 manager인 Layer2인지 확인
       return address && (
         candidate.creationAddress.toLowerCase() === address.toLowerCase() ||
         (candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase()) ||
         (candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase())
       );
     });
+    console.log("🚀 myLayer2s (이미 위원회 멤버 제외됨) ", myLayer2s);
+
+    // member.creationAddress 이 빈슬롯이면, 챌린지 가능
+    if (member.creationAddress === "0x0000000000000000000000000000000000000000")
+      return { canChallenge: myLayer2s.length > 0, myLayer2: myLayer2s[0] || null };
 
     // 해당 멤버보다 스테이킹이 높은 내 Layer2가 있는지 확인
     const challengeableLayer2 = myLayer2s.find(layer2 =>
@@ -473,12 +587,25 @@ export default function DAOCommitteeMembers() {
                         </div>
                       </div>
 
+                      {/* Claim Reward 버튼: 항상 표시, claimableActivityReward에 따라 활성화/비활성화 */}
                       <div
-                        className="px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
-                        style={{backgroundColor: '#059669'}}
-                        onClick={() => handleClaimActivityReward(member)}
+                        className={`px-4 py-1 rounded-md inline-flex justify-center items-center ${
+                          member.claimableActivityReward && Number(member.claimableActivityReward) > 0
+                            ? 'cursor-pointer'
+                            : 'cursor-not-allowed opacity-50'
+                        }`}
+                        style={{
+                          backgroundColor: member.claimableActivityReward && Number(member.claimableActivityReward) > 0
+                            ? '#059669'  // 활성화: 초록색
+                            : '#9CA3AF'  // 비활성화: 회색
+                        }}
+                        onClick={() => {
+                          if (member.claimableActivityReward && Number(member.claimableActivityReward) > 0) {
+                            handleClaimActivityReward(member);
+                          }
+                        }}
                       >
-                        <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
+                                                <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
                           Claim Reward
                         </div>
                       </div>
@@ -762,13 +889,19 @@ export default function DAOCommitteeMembers() {
                                 </div>
                                 <div className="space-y-4">
                                   {myOpportunities.map((item: any, index) => {
-                                    const myChallengers = item.challengers.filter((challenger: Candidate) =>
-                                      address && (
+                                    const myChallengers = item.challengers.filter((challenger: Candidate) => {
+                                      // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+                                      const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+                                      if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
+                                        return false;
+                                      }
+
+                                      return address && (
                                         challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
                                         (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
                                         (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
-                                      )
-                                    );
+                                      );
+                                    });
 
                                     return (
                                       <div key={item.member.candidateContract} className="border-2 border-green-300 bg-green-50 rounded-xl p-5">
@@ -796,7 +929,7 @@ export default function DAOCommitteeMembers() {
                                                   <div className="flex items-center gap-2 mb-2">
                                                     <span className="text-lg font-bold text-gray-900">{challenger.name}</span>
                                                     <a
-                                                      href={getExplorerUrl(challenger.candidateContract)}
+                                                      href={getExplorerUrl(challenger.candidateContract, chainId)}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                       className="text-blue-500 hover:text-blue-700 transition-colors"
@@ -879,12 +1012,13 @@ export default function DAOCommitteeMembers() {
                                       </p>
                                       <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
                                         {item.challengers.map((challenger: Candidate, idx: number) => {
-                                          // 내 Layer2인지 확인
+                                          // 내 Layer2인지 확인 (쿨다운 체크 포함)
+                                          const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
                                           const isMyLayer2 = address && (
                                             challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
                                             (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
                                             (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
-                                          );
+                                          ) && !(challenger.cooldown > 0 && currentTime < challenger.cooldown); // 쿨다운 체크 추가
 
                                           return (
                                             <div key={idx} className={`border rounded-md p-2 ${
@@ -899,7 +1033,7 @@ export default function DAOCommitteeMembers() {
                                                       {challenger.name}
                                                     </span>
                                                     <a
-                                                      href={getExplorerUrl(challenger.candidateContract)}
+                                                      href={getExplorerUrl(challenger.candidateContract, chainId)}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                       className="text-blue-500 hover:text-blue-700 transition-colors"
@@ -956,6 +1090,20 @@ export default function DAOCommitteeMembers() {
           </div>
         </div>
       )}
+
+      {/* 트랜잭션 진행 모달 */}
+      <TransactionModal
+        isOpen={showTransactionModal}
+        onClose={() => {
+          setShowTransactionModal(false);
+          resetDAOCandidate();
+        }}
+        isExecuting={isDAOCandidateExecuting}
+        isSuccess={isDAOCandidateSuccess}
+        error={daoCandidateError}
+        txHash={txHash}
+        operation={lastOperation}
+      />
     </div>
   )
 }

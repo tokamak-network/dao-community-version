@@ -9,8 +9,13 @@ interface CommitteeMemberCardProps {
 }
 
 export function CommitteeMemberCard({ member, className = "" }: CommitteeMemberCardProps) {
+  // 빈 슬롯인지 확인
+  const isEmptySlot = member.creationAddress === '0x0000000000000000000000000000000000000000' ||
+                      member.candidateContract === '0x0000000000000000000000000000000000000000' ||
+                      member.name.includes('Empty Slot');
+
   return (
-    <div className={`member-card ${className}`}>
+    <div className={`member-card ${className} ${isEmptySlot ? 'empty-slot' : ''}`}>
       <div className="member-info">
         <div className="member-header">
           <h3>{member.name}</h3>
@@ -18,32 +23,46 @@ export function CommitteeMemberCard({ member, className = "" }: CommitteeMemberC
         </div>
 
         <div className="member-details">
-          <div className="detail-row">
-            <span className="label">💰 Staking:</span>
-            <span className="value">{(Number(member.totalStaked) / 1e18).toFixed(2)} TON</span>
-          </div>
+          {isEmptySlot ? (
+            // 빈 슬롯용 UI
+            <>
+              <div className="empty-slot-info">
+                <div className="empty-icon">📭</div>
+                <p className="empty-text">This committee position is available</p>
+                <p className="empty-hint">Connect your wallet and use your Layer2 to join!</p>
+              </div>
+            </>
+          ) : (
+            // 일반 멤버용 UI
+            <>
+              <div className="detail-row">
+                <span className="label">💰 Staking:</span>
+                <span className="value">{(Number(member.totalStaked) / 1e18).toFixed(2)} TON</span>
+              </div>
 
-          <div className="detail-row">
-            <span className="label">🏠 Contract:</span>
-            <span className="value address">{member.candidateContract}</span>
-          </div>
+              <div className="detail-row">
+                <span className="label">🏠 Contract:</span>
+                <span className="value address">{member.candidateContract}</span>
+              </div>
 
-          <div className="detail-row">
-            <span className="label">👤 Creation Address:</span>
-            <span className="value address">{member.creationAddress}</span>
-          </div>
+              <div className="detail-row">
+                <span className="label">👤 Creation Address:</span>
+                <span className="value address">{member.creationAddress}</span>
+              </div>
 
-          {member.claimableActivityReward && Number(member.claimableActivityReward) > 0 && (
-            <div className="detail-row">
-              <span className="label">🎁 Claimable Reward:</span>
-              <span className="value">{(Number(member.claimableActivityReward) / 1e18).toFixed(4)} TON</span>
-            </div>
+              {member.claimableActivityReward && Number(member.claimableActivityReward) > 0 && (
+                <div className="detail-row">
+                  <span className="label">🎁 Claimable Reward:</span>
+                  <span className="value">{(Number(member.claimableActivityReward) / 1e18).toFixed(4)} TON</span>
+                </div>
+              )}
+
+              <div className="detail-row">
+                <span className="label">📅 Joined:</span>
+                <span className="value">{member.description}</span>
+              </div>
+            </>
           )}
-
-          <div className="detail-row">
-            <span className="label">📅 Joined:</span>
-            <span className="value">{member.description}</span>
-          </div>
         </div>
       </div>
 
@@ -67,6 +86,18 @@ export function CommitteeMemberCard({ member, className = "" }: CommitteeMemberC
         .member-card:hover {
           transform: translateY(-2px);
           box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .member-card.empty-slot {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border: 2px dashed #adb5bd;
+          opacity: 0.8;
+        }
+
+        .member-card.empty-slot:hover {
+          opacity: 1;
+          border-style: solid;
+          border-color: #667eea;
         }
 
         .member-header {
@@ -136,6 +167,29 @@ export function CommitteeMemberCard({ member, className = "" }: CommitteeMemberC
         .challenge-action {
           flex: 1;
           max-width: 200px;
+        }
+
+        .empty-slot-info {
+          text-align: center;
+          padding: 20px 0;
+        }
+
+        .empty-icon {
+          font-size: 3rem;
+          margin-bottom: 16px;
+        }
+
+        .empty-text {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: #495057;
+          margin-bottom: 8px;
+        }
+
+        .empty-hint {
+          font-size: 0.9rem;
+          color: #6c757d;
+          line-height: 1.4;
         }
 
         @media (max-width: 768px) {

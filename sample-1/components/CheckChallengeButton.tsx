@@ -27,6 +27,20 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
 
+  // 🔍 디버깅: 빈 슬롯 체크
+  const isEmptySlotDebug = targetMember.creationAddress === '0x0000000000000000000000000000000000000000' ||
+                          targetMember.candidateContract === '0x0000000000000000000000000000000000000000' ||
+                          targetMember.name.includes('Empty Slot');
+
+  console.log('🎯 CheckChallengeButton 렌더링:', {
+    memberName: targetMember.name,
+    creationAddress: targetMember.creationAddress,
+    candidateContract: targetMember.candidateContract,
+    isEmptySlot: isEmptySlotDebug,
+    hasAddress: !!address,
+    address: address
+  });
+
   const handleCheckChallenge = async () => {
     if (!address) {
       setError('지갑을 먼저 연결해주세요');
@@ -38,45 +52,108 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
     setError(null);
     setShowResults(false);
 
-        try {
+    try {
       // 캐시에 데이터가 없으면 먼저 로드
       if (!hasLoadedLayer2Once || layer2Candidates.length === 0) {
         console.log('📦 캐시 데이터 없음, Layer2 정보 로드 시작...');
         await loadLayer2Candidates();
       }
 
-      // 직접 필터링 로직 (getChallengeCandidates 함수 대신)
-      const targetStaking = BigInt(targetMember.totalStaked);
-      const challengeCandidates = layer2Candidates.filter(candidate => {
-        // 1. 타겟 멤버보다 스테이킹이 높은가?
-        const candidateStaking = BigInt(candidate.totalStaked);
-        if (candidateStaking <= targetStaking) {
-          return false;
-        }
+      // 🎯 빈 슬롯인지 확인
+      const isEmptySlot = targetMember.creationAddress === '0x0000000000000000000000000000000000000000';
 
-        // 2. 이미 위원회 멤버인가?
-        const isAlreadyMember = committeeMembers?.some(
-          member => member.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
-        );
-        if (isAlreadyMember) {
-          console.log(`⏭️ 스킵: ${candidate.name} - 이미 위원회 멤버`);
-          return false;
-        }
+      let challengeCandidates;
 
-        return true;
-      });
+      if (isEmptySlot) {
+        // 빈 슬롯의 경우: 연결된 지갑이 소유한 Layer2만 표시
+        console.log('📭 빈 슬롯 처리: 사용자 소유 Layer2 검색');
 
-      // description 업데이트 (타겟과의 비교 정보 추가)
-      const enhancedCandidates = challengeCandidates.map(candidate => ({
-        ...candidate,
-        description: `Staking: ${(Number(candidate.totalStaked) / 1e18).toFixed(2)} TON (Higher than target: ${(Number(targetStaking) / 1e18).toFixed(2)} TON)`,
-        isCommitteeMember: false
-      }));
+        challengeCandidates = layer2Candidates.filter(candidate => {
 
-      setChallengeCandidates(enhancedCandidates);
+          // 1. 연결된 주소가 소유한 Layer2인가?
+          const isOwnedByUser =
+            candidate.creationAddress?.toLowerCase() === address.toLowerCase() ||
+            candidate.operator?.toLowerCase() === address.toLowerCase() ||
+            candidate.manager?.toLowerCase() === address.toLowerCase();
+
+          if (!isOwnedByUser) {
+            return false;
+          }
+
+          // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+          const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+          console.log('🚀 candidate ', candidate.name, candidate.cooldown, currentTime );
+
+          if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+            return false;
+          }
+
+          // 2. 이미 위원회 멤버인가?
+          const isAlreadyMember = committeeMembers?.some(
+            member => member.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
+          );
+          if (isAlreadyMember) {
+            console.log(`⏭️ 스킵: ${candidate.name} - 이미 위원회 멤버`);
+            return false;
+          }
+
+          return true;
+        });
+
+        // description 업데이트 (빈 슬롯용)
+        challengeCandidates = challengeCandidates.map(candidate => ({
+          ...candidate,
+          description: `Your Layer2 • Staking: ${(Number(candidate.totalStaked) / 1e18).toFixed(2)} TON • Ready to join empty slot`,
+          isCommitteeMember: false
+        }));
+
+      } else {
+        // 기존 멤버가 있는 경우: 더 높은 스테이킹을 가진 Layer2만 표시
+        console.log('👤 기존 멤버 처리: 더 높은 스테이킹 Layer2 검색');
+
+        const targetStaking = BigInt(targetMember.totalStaked);
+        challengeCandidates = layer2Candidates.filter(candidate => {
+
+            // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+            const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
+            console.log('🚀 candidate ', candidate.name, candidate.cooldown, currentTime );
+
+            if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+                return false;
+            }
+
+            // 1. 타겟 멤버보다 스테이킹이 높은가?
+            const candidateStaking = BigInt(candidate.totalStaked);
+            if (candidateStaking <= targetStaking) {
+                return false;
+            }
+
+            // 2. 이미 위원회 멤버인가?
+            const isAlreadyMember = committeeMembers?.some(
+                member => member.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
+            );
+            if (isAlreadyMember) {
+                console.log(`⏭️ 스킵: ${candidate.name} - 이미 위원회 멤버`);
+                return false;
+            }
+
+            return true;
+        });
+
+        // description 업데이트 (타겟과의 비교 정보 추가)
+        challengeCandidates = challengeCandidates.map(candidate => ({
+          ...candidate,
+          description: `Staking: ${(Number(candidate.totalStaked) / 1e18).toFixed(2)} TON (Higher than target: ${(Number(targetStaking) / 1e18).toFixed(2)} TON)`,
+          isCommitteeMember: false
+        }));
+
+
+      }
+
+      setChallengeCandidates(challengeCandidates);
       setShowResults(true);
 
-      console.log(`✅ 도전 가능한 후보자 ${enhancedCandidates.length}명 조회 완료`);
+      console.log(`✅ 도전 가능한 후보자 ${challengeCandidates.length}명 조회 완료 (${isEmptySlot ? '빈 슬롯' : '기존 멤버'})`);
 
     } catch (err) {
       console.error('❌ Challenge 체크 실패:', err);
@@ -91,13 +168,30 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
     setChallengeCandidates([]);
   };
 
+  // 빈 슬롯인지 확인하는 함수
+  const isEmptySlot = () => {
+    return targetMember.creationAddress === '0x0000000000000000000000000000000000000000' ||
+           targetMember.candidateContract === '0x0000000000000000000000000000000000000000' ||
+           targetMember.name.includes('Empty Slot');
+  };
+
   // Layer2 로딩 중일 때 버튼 상태
   const isDisabled = isChecking || isLoadingLayer2;
-  const buttonText = isLoadingLayer2
-    ? `Loading Layer2... (${layer2LoadingIndex}/${layer2Total})`
-    : isChecking
-    ? 'Checking...'
-    : 'Check Challenge';
+
+  const getButtonText = () => {
+    if (isLoadingLayer2) {
+      return `Loading Layer2... (${layer2LoadingIndex}/${layer2Total})`;
+    }
+    if (isChecking) {
+      return 'Checking...';
+    }
+    if (isEmptySlot()) {
+      return address ? 'Join Empty Slot' : 'Connect to Join';
+    }
+    return 'Check Challenge';
+  };
+
+  const buttonText = getButtonText();
 
   return (
     <div className={`check-challenge-container ${className}`}>

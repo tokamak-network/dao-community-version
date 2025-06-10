@@ -15,6 +15,9 @@ import { useAccount } from 'wagmi'
 import { DAOContextType, CommitteeMember, VoterInfo, Candidate } from "@/types/dao";
 import { DEFAULT_CONTRACT_INFO } from "@/constants/dao";
 import { CONTRACTS, BLOCK_RANGE, POLLING_INTERVAL } from "@/config/contracts";
+import { useWatchContractEvent, useChainId } from 'wagmi';
+import { createPublicClient, http } from "viem";
+import { chain } from "@/config/chain";
 
 import { daoCommitteeAbi } from "@/abis/dao-committee-versions";
 import { daoCandidateAbi } from "@/abis/dao-candidate";
@@ -139,6 +142,150 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     }
   }, [ ]);
 
+  // 🎯 단일 멤버의 상세 정보를 가져오는 공통 함수
+  const fetchMemberDetails = useCallback(async (
+    publicClient: any,
+    memberAddress: string,
+    slotIndex?: number
+  ): Promise<CommitteeMember> => {
+    try {
+      // 1. candidateInfo 조회
+      const candidateInfo = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'candidateInfos',
+          args: [memberAddress as `0x${string}`],
+        }) as Promise<readonly [`0x${string}`, bigint, bigint, bigint, bigint]>,
+        `Member ${memberAddress} candidate info`
+      );
+
+      const [candidateContract, indexMembers, memberJoinedTime, rewardPeriod, claimedTimestamp] = candidateInfo;
+
+      // 2. 순차적으로 상세 정보 조회 (RPC rate limit 고려)
+      // candidate memo
+      const memo = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: candidateContract,
+          abi: daoCandidateAbi,
+          functionName: 'memo',
+          args: [],
+        }) as Promise<string>,
+        `Member candidate name`
+      );
+
+      // total staked
+      const totalStaked = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: candidateContract,
+          abi: daoCandidateAbi,
+          functionName: 'totalStaked',
+          args: [],
+        }) as Promise<bigint>,
+        `Member total staked`
+      );
+
+      // 청구 가능한 활동비
+      const claimableActivityReward = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'getClaimableActivityReward',
+          args: [memberAddress as `0x${string}`],
+        }) as Promise<bigint>,
+        `Member claimActivityReward`
+      );
+
+      // 마지막 커밋 블록
+      const lastCommitBlock = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.seigManager.address,
+          abi: seigManagerAbi,
+          functionName: 'lastCommitBlock',
+          args: [candidateContract],
+        }) as Promise<bigint>,
+        `Member lastCommitBlock`
+      );
+
+      // operator manager
+      const operatorManager = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.layer2Manager.address,
+          abi: layer2ManagerAbi,
+          functionName: 'operatorOfLayer',
+          args: [candidateContract as `0x${string}`],
+        }) as Promise<`0x${string}`>,
+        `Member operatorManager`
+      );
+
+      // 3. lastCommitBlock의 타임스탬프 가져오기
+      let lastUpdateSeigniorageTime = 0;
+      if (lastCommitBlock > 0) {
+        try {
+          const block = await publicClient.getBlock({
+            blockNumber: lastCommitBlock
+          });
+          lastUpdateSeigniorageTime = Number(block.timestamp);
+        } catch (error) {
+          console.warn(`Failed to get block ${lastCommitBlock} timestamp:`, error);
+        }
+      }
+
+      // 4. manager 주소 조회
+      let managerAddress: `0x${string}` | null = null;
+      if (operatorManager && operatorManager !== '0x0000000000000000000000000000000000000000') {
+        try {
+          managerAddress = await readContractWithRetry(
+            () => publicClient.readContract({
+              address: operatorManager,
+              abi: operatorManagerAbi,
+              functionName: 'manager',
+              args: [],
+            }) as Promise<`0x${string}`>,
+            `Member manager address`
+          );
+        } catch (error) {
+          console.warn(`Failed to get manager address for operator ${operatorManager}:`, error);
+        }
+      }
+
+      // 5. CommitteeMember 객체 생성
+      return {
+        name: memo,
+        description: `Joined as committee member on ${new Date(Number(memberJoinedTime) * 1000).toLocaleDateString()}`,
+        creationAddress: memberAddress,
+        candidateContract: candidateContract,
+        claimedTimestamp: Number(claimedTimestamp),
+        rewardPeriod: Number(rewardPeriod),
+        indexMembers: Number(indexMembers),
+        totalStaked: totalStaked.toString(),
+        lastCommitBlock: Number(lastCommitBlock),
+        lastUpdateSeigniorageTime: lastUpdateSeigniorageTime,
+        claimableActivityReward: claimableActivityReward.toString(),
+        operatorManager: operatorManager,
+        manager: managerAddress
+      };
+
+    } catch (error) {
+      console.error(`❌ 멤버 상세 정보 조회 실패 (${memberAddress}):`, error);
+      // 에러 시 기본값 반환
+      return {
+        name: `Committee Member`,
+        description: "Committee member details unavailable",
+        creationAddress: memberAddress,
+        candidateContract: "",
+        claimedTimestamp: 0,
+        rewardPeriod: 0,
+        indexMembers: slotIndex || 0,
+        totalStaked: "0",
+        lastCommitBlock: 0,
+        lastUpdateSeigniorageTime: 0,
+        claimableActivityReward: "0",
+        operatorManager: "0x0000000000000000000000000000000000000000",
+        manager: null
+      };
+    }
+  }, []);
 
   const loadCommitteeMembers = useCallback(async (_maxMember?: number) => {
     console.log("🔄 loadCommitteeMembers 시작", {
@@ -178,174 +325,75 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
       if (actualMaxMember > 0) {
         const publicClient = await createRobustPublicClient();
 
-        let _memberAddresses: string[] = [];
-        for (let i = 0; i < actualMaxMember; i++) {
+        // 모든 슬롯(0~maxMember-1) 순회하며 멤버 정보 또는 빈 슬롯 처리
+        const memberDetails: CommitteeMember[] = [];
+
+        for (let slotIndex = 0; slotIndex < actualMaxMember; slotIndex++) {
           try {
-            const _memberAddress = await readContractWithRetry(
+            console.log(`슬롯 ${slotIndex + 1}/${actualMaxMember} 처리 중...`);
+
+            const memberAddress = await readContractWithRetry(
               () => publicClient.readContract({
                 address: CONTRACTS.daoCommittee.address,
                 abi: daoCommitteeAbi,
                 functionName: 'members',
-                args: [BigInt(i)],
+                args: [BigInt(slotIndex)],
               }) as Promise<string>,
-              `Member ${i} address`
+              `Member slot ${slotIndex} address`
             );
-            if (_memberAddress && _memberAddress !== '0x0000000000000000000000000000000000000000') {
-              _memberAddresses.push(_memberAddress);
-            }
-          } catch (error) {
-            break;
-          }
-        }
 
-        const memberDetails = await Promise.all(
-          _memberAddresses.map(async (address, index) => {
-            try {
-              console.log('memberDetails', index)
-
-              const candidateInfo = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: CONTRACTS.daoCommittee.address,
-                  abi: daoCommitteeAbi,
-                  functionName: 'candidateInfos',
-                  args: [address as `0x${string}`],
-                }) as Promise<readonly [`0x${string}`, bigint, bigint, bigint, bigint]>,
-                `Member ${address} candidate info`
-              );
-              console.log('candidateInfo', candidateInfo)
-              const [candidateContract, indexMembers, memberJoinedTime, rewardPeriod, claimedTimestamp] = candidateInfo;
-
-              // candidate meno
-              const memo = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: candidateContract,
-                  abi: daoCandidateAbi,
-                  functionName: 'memo',
-                  args: [],
-                }) as Promise<string>,
-                `Member ${index + 1} candidate name`
-              );
-
-              // total staked
-              const totalStaked = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: candidateContract,
-                  abi: daoCandidateAbi,
-                  functionName: 'totalStaked',
-                  args: [],
-                }) as Promise<bigint>,
-                `Member ${index + 1} total staked`
-              );
-
-              // 청구 가능한 활동비 계산
-              const claimableActivityReward = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: CONTRACTS.daoCommittee.address,
-                  abi: daoCommitteeAbi,
-                  functionName: 'getClaimableActivityReward',
-                  args: [address as `0x${string}`],
-                }) as Promise<bigint>,
-                `claimActivityReward`
-              );
-
-              // 마지막 커밋 블록 조회
-              const lastCommitBlock = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: CONTRACTS.seigManager.address,
-                  abi: seigManagerAbi,
-                  functionName: 'lastCommitBlock',
-                  args: [candidateContract],
-                }) as Promise<bigint>,
-                `lastCommitBlock`
-              );
-
-              console.log("lastCommitBlock", lastCommitBlock)
-
-              // lastCommitBlock의 타임스탬프 가져오기
-              let lastUpdateSeigniorageTime = 0;
-              if (lastCommitBlock > 0) {
-                try {
-                  const block = await publicClient.getBlock({
-                    blockNumber: lastCommitBlock
-                  });
-                  lastUpdateSeigniorageTime = Number(block.timestamp);
-                  console.log(`Block ${lastCommitBlock} timestamp:`, lastUpdateSeigniorageTime);
-                } catch (error) {
-                  console.warn(`Failed to get block ${lastCommitBlock} timestamp:`, error);
-                }
-              }
-
-              console.log("claimableActivityReward", address, index, claimableActivityReward)
-
-              // Layer2Manager 에서 operatorManager 주소를 찾아서 저장하고, manager 주소도 저장하자.
-              const operatorManager = await readContractWithRetry(
-                () => publicClient.readContract({
-                  address: CONTRACTS.layer2Manager.address,
-                  abi: layer2ManagerAbi,
-                  functionName: 'operatorOfLayer',
-                  args: [candidateContract as `0x${string}`],
-                }) as Promise<`0x${string}`>,
-                `operatorManager`
-              );
-              console.log("operatorManager", operatorManager)
-
-              // operatorManager가 null 주소가 아닐 때만 manager() 함수 호출
-              let managerAddress: `0x${string}` | null = null;
-              if (operatorManager && operatorManager !== '0x0000000000000000000000000000000000000000') {
-                try {
-                  managerAddress = await readContractWithRetry(
-                    () => publicClient.readContract({
-                      address: operatorManager,
-                      abi: operatorManagerAbi,
-                      functionName: 'manager',
-                      args: [],
-                    }) as Promise<`0x${string}`>,
-                    `Member ${index + 1} manager address`
-                  );
-                  console.log("managerAddress", managerAddress);
-                } catch (error) {
-                  console.warn(`Failed to get manager address for operator ${operatorManager}:`, error);
-                }
-              }
-
-              console.log("managerAddress", managerAddress)
-
-              const member: CommitteeMember = {
-                name: memo,
-                description: `Joined as committee member on ${new Date(Number(memberJoinedTime) * 1000).toLocaleDateString()}`,
-                creationAddress: address,
-                candidateContract: candidateContract,
-                claimedTimestamp: Number(claimedTimestamp),
-                rewardPeriod: Number(rewardPeriod),
-                indexMembers: Number(indexMembers),
-                totalStaked: totalStaked.toString(),
-                lastCommitBlock: Number(lastCommitBlock),
-                lastUpdateSeigniorageTime: lastUpdateSeigniorageTime,
-                claimableActivityReward: claimableActivityReward.toString(), // wei 단위로 저장
-                operatorManager: operatorManager,
-                manager: managerAddress
+            if (memberAddress && memberAddress !== '0x0000000000000000000000000000000000000000') {
+              // 실제 멤버가 있는 경우
+              console.log(`✅ 슬롯 ${slotIndex}: 멤버 발견`, memberAddress);
+              const memberDetail = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
+              memberDetails.push(memberDetail);
+            } else {
+              // 빈 슬롯인 경우
+              console.log(`📭 슬롯 ${slotIndex}: 빈 슬롯`);
+              const emptyMember: CommitteeMember = {
+                name: `Empty Slot ${slotIndex}`,
+                description: "This committee slot is currently empty",
+                creationAddress: "0x0000000000000000000000000000000000000000",
+                candidateContract: "0x0000000000000000000000000000000000000000",
+                claimedTimestamp: 0,
+                rewardPeriod: 0,
+                indexMembers: slotIndex,
+                totalStaked: "0",
+                lastCommitBlock: 0,
+                lastUpdateSeigniorageTime: 0,
+                claimableActivityReward: "0",
+                operatorManager: "0x0000000000000000000000000000000000000000",
+                manager: null
               };
+              memberDetails.push(emptyMember);
+            }
 
-            return member;
+            // 요청 간 딜레이 (RPC 부하 방지)
+            if (slotIndex < actualMaxMember - 1) {
+              await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+            }
+
           } catch (error) {
-            return {
-              name: `Committee Member ${index + 1}`,
-              description: "Committee member details unavailable",
-              creationAddress: address,
-              candidateContract: "",
+            console.error(`❌ 슬롯 ${slotIndex} 처리 실패:`, error);
+            // 오류 시에도 빈 슬롯으로 처리
+            const emptyMember: CommitteeMember = {
+              name: `Empty Slot ${slotIndex}`,
+              description: "Failed to load committee member details",
+              creationAddress: "0x0000000000000000000000000000000000000000",
+              candidateContract: "0x0000000000000000000000000000000000000000",
               claimedTimestamp: 0,
               rewardPeriod: 0,
-              indexMembers: 0,
+              indexMembers: slotIndex,
               totalStaked: "0",
               lastCommitBlock: 0,
               lastUpdateSeigniorageTime: 0,
               claimableActivityReward: "0",
               operatorManager: "0x0000000000000000000000000000000000000000",
               manager: null
-            } satisfies CommitteeMember;
+            };
+            memberDetails.push(emptyMember);
           }
-        }));
-
+        }
 
         setCommitteeMembers(memberDetails);
         setStatusMessage(`✅ Loaded ${memberDetails.length} committee members`);
@@ -473,6 +521,17 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
             }
           }
 
+          // DAO Committee에서 cooldown 조회
+          const cooldown = await readContractWithRetry(
+            () => publicClient.readContract({
+              address: CONTRACTS.daoCommittee.address,
+              abi: daoCommitteeAbi,
+              functionName: 'cooldown',
+              args: [layer2Address as `0x${string}`],
+            }) as Promise<bigint>,
+            `Layer2 ${i} cooldown for cache`
+          );
+
           const candidate: Candidate = {
             name: memo || `Layer2 #${i}`,
             description: `Layer2 Contract with ${(Number(totalStaked) / 1e18).toFixed(2)} TON staked`,
@@ -482,6 +541,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
             operator: (managerEOA!=='0x0000000000000000000000000000000000000000'?managerEOA:operatorEOA) as `0x${string}`,
             operatorManager,
             manager: managerEOA,
+            cooldown: Number(cooldown), // DAO Committee에서 조회한 cooldown 추가
             isCommitteeMember: false // 나중에 위원회 멤버 체크에서 업데이트
           };
 
@@ -511,6 +571,100 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
       setIsLoadingLayer2(false);
     }
   }, [hasLoadedLayer2Once, layer2Candidates.length]);
+
+  // 🎯 빈 슬롯으로 설정하는 함수
+  const setEmptySlot = useCallback((slotIndex: number) => {
+    const emptyMember: CommitteeMember = {
+      name: `Empty Slot ${slotIndex}`,
+      description: "This committee slot is currently empty",
+      creationAddress: "0x0000000000000000000000000000000000000000",
+      candidateContract: "0x0000000000000000000000000000000000000000",
+      claimedTimestamp: 0,
+      rewardPeriod: 0,
+      indexMembers: slotIndex,
+      totalStaked: "0",
+      lastCommitBlock: 0,
+      lastUpdateSeigniorageTime: 0,
+      claimableActivityReward: "0",
+      operatorManager: "0x0000000000000000000000000000000000000000",
+      manager: null
+    };
+
+    // 기존 멤버 목록에서 해당 슬롯을 빈 멤버 정보로 업데이트
+    setCommitteeMembers(prevMembers => {
+      if (!prevMembers) return [emptyMember];
+
+      const existingIndex = prevMembers.findIndex(member => member.indexMembers === slotIndex);
+
+      if (existingIndex >= 0) {
+        // 기존 멤버를 빈 멤버로 교체
+        const newMembers = [...prevMembers];
+        newMembers[existingIndex] = emptyMember;
+        return newMembers;
+      } else {
+        // 새 빈 슬롯 추가
+        return [...prevMembers, emptyMember];
+      }
+    });
+
+    console.log(`✅ 슬롯 ${slotIndex} 멤버 제거됨 - 빈 슬롯으로 설정`);
+  }, []);
+
+  // 🎯 특정 슬롯 인덱스의 멤버 정보만 업데이트하는 함수
+  const refreshSpecificMember = useCallback(async (slotIndex: number) => {
+    console.log(`🔄 특정 멤버 업데이트 시작 - 슬롯 ${slotIndex}`, {
+      timestamp: new Date().toLocaleTimeString(),
+      currentCommitteeCount: committeeMembers?.length || 0
+    });
+
+    try {
+      const publicClient = await createRobustPublicClient();
+
+      // 해당 슬롯의 멤버 주소 조회
+      const memberAddress = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'members',
+          args: [BigInt(slotIndex)],
+        }) as Promise<string>,
+        `Member slot ${slotIndex} address`
+      );
+
+      if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {
+        // 멤버가 제거된 경우 - 빈 슬롯으로 설정
+        setEmptySlot(slotIndex);
+        return;
+      }
+
+      // 공통 함수를 사용하여 멤버 상세 정보 조회
+      const updatedMember = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
+
+      // 기존 멤버 목록에서 해당 슬롯의 멤버 정보 업데이트
+      setCommitteeMembers(prevMembers => {
+        if (!prevMembers) return [updatedMember];
+
+        // 기존 멤버 인덱스 찾기
+        const existingIndex = prevMembers.findIndex(member => member.indexMembers === slotIndex);
+
+        if (existingIndex >= 0) {
+          // 기존 멤버 업데이트
+          const newMembers = [...prevMembers];
+          newMembers[existingIndex] = updatedMember;
+          return newMembers;
+        } else {
+          // 새 멤버 추가
+          return [...prevMembers, updatedMember];
+        }
+      });
+
+      console.log(`✅ 슬롯 ${slotIndex} 멤버 정보 업데이트 완료: ${updatedMember.name}`);
+
+    } catch (error) {
+      console.error(`❌ 슬롯 ${slotIndex} 멤버 업데이트 실패:`, error);
+      setMembersError(`Failed to update member at slot ${slotIndex}`);
+    }
+  }, [fetchMemberDetails, setEmptySlot]);
 
   // 🎯 Layer2 캐시 리셋 함수 (새로고침용)
   const resetLayer2Cache = useCallback(() => {
@@ -549,19 +703,6 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     }
   }, []); // 빈 의존성 배열
 
-  // useEffect(() => {
-
-  //   loadCommitteeMembers().then(() => {
-  //     console.log('🚀 DAO Context - loading loadCommitteeMembers...');
-  //   });
-  //   return () => {
-  //     console.log(" Provider 언마운트", {
-  //       loadCommitteeMembers,
-  //     });
-  //   }
-  // }, [maxMember]);
-
-
      // 🎯 지갑 연결 상태 변경 처리
    useEffect(() => {
      if (previousConnectionState !== isConnected) {
@@ -578,43 +719,258 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
      }
    }, [isConnected, address, previousConnectionState, committeeMembers]);
 
-   // 🎯 Committee Members 로드 후 isMember 체크
-   useEffect(() => {
-     if (isConnected && address && committeeMembers && committeeMembers.length > 0) {
-       const memberCheck = committeeMembers.some(member => member.creationAddress.toLowerCase() === address.toLowerCase());
-       setIsMember(memberCheck);
-       console.log('📋 Committee members loaded, checking membership:', {
-         address,
-         isMember: memberCheck,
-         totalMembers: committeeMembers.length
-       });
-     }
-   }, [committeeMembers, isConnected, address]);
+     // 🎯 Committee Members 로드 후 isMember 체크
+  useEffect(() => {
+    if (isConnected && address && committeeMembers && committeeMembers.length > 0) {
+      const memberCheck = committeeMembers.some(member => member.creationAddress.toLowerCase() === address.toLowerCase());
+      setIsMember(memberCheck);
+      console.log('📋 Committee members loaded, checking membership:', {
+        address,
+        isMember: memberCheck,
+        totalMembers: committeeMembers.length
+      });
+    }
+    }, [committeeMembers, isConnected, address]);
 
-  // // 🎯 새로고침 함수들
-  // const forceRefreshSession = useCallback(async () => {
-  //   console.log('🔄 Force refreshing all data...');
-  //   await Promise.all([
-  //     refreshCommitteeMembers(),
-  //     agendas.refreshAgendas()
-  //   ]);
-  //   setLastFetchTimestamp(Date.now());
-  //   console.log('✅ Force refresh completed');
-  // }, [refreshCommitteeMembers, agendas.refreshAgendas]);
+  // 🎯 DAO 이벤트 모니터링 (직접 통합)
+  const chainId = useChainId();
 
-  // const getCacheInfo = useCallback(() => {
-  //   return {
-  //     hasInitialized: committeeMembers.length > 0,
-  //     committeeMembers: {
-  //       count: committeeMembers.length,
-  //       lastFetch: new Date(lastFetchTimestamp)
-  //     },
-  //     agendas: {
-  //       count: agendas.agendas.length,
-  //       lastFetch: new Date(lastFetchTimestamp)
-  //     }
-  //   };
-  // }, [committeeMembers.length, agendas.agendas.length, lastFetchTimestamp]);
+  // 🎯 이벤트 핸들러 정의
+  const handleMemberChanged = useCallback((data: { slotIndex: bigint; prevMember: string; newMember: string }) => {
+    console.log('🔄 Member changed, refreshing data...', data);
+    refreshSpecificMember(Number(data.slotIndex));
+  }, [refreshSpecificMember]);
+
+  const handleActivityRewardClaimed = useCallback((data: { candidate: string; receiver: string; amount: bigint }) => {
+    console.log('🎉 [SUCCESS] Activity reward claimed, refreshing data...', {
+      ...data,
+      timestamp: new Date().toISOString(),
+      maxMember,
+      willRefreshSlots: Array.from({ length: maxMember }, (_, i) => i)
+    });
+
+    // 정확하게 슬롯번호를 알려주지 않음. 하나씩 다시 가져와도 될까?
+    for(let i = 0; i < maxMember; i++){
+      console.log(`🔄 Refreshing member slot ${i} due to activity reward claim`);
+      refreshSpecificMember(i);
+    }
+    // loadCommitteeMembers(maxMember);
+  }, [refreshSpecificMember, maxMember]);
+
+  const handleLayer2Registered = useCallback((data: { candidate: string; candidateContract: string; memo: string }) => {
+    console.log('🏗️ Layer2 registered, refreshing cache...', data);
+    resetLayer2Cache();
+  }, [resetLayer2Cache]);
+
+
+  // 이벤트 모니터링을 위한 useEffect
+  useEffect(() => {
+    console.log("[useEffect] Setting up event monitoring", {
+      timestamp: new Date().toISOString(),
+      chainId: chainId,
+      daoCommitteeAddress: CONTRACTS.daoCommittee.address,
+      rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT,
+      fallbackRpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+      actualRpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT || process.env.NEXT_PUBLIC_RPC_URL || 'undefined',
+      handlersReady: {
+        handleMemberChanged: !!handleMemberChanged,
+        handleActivityRewardClaimed: !!handleActivityRewardClaimed,
+        handleLayer2Registered: !!handleLayer2Registered
+      }
+    });
+
+    const publicClient = createPublicClient({
+      chain: {
+        ...chain,
+        id: chain.id,
+      },
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT || process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.sepolia.org'),
+    });
+
+    console.log("[monitorDAOEvents] Public client created", {
+      clientChainId: publicClient.chain?.id,
+      transport: "http"
+    });
+
+    //  ChangedMember 이벤트 모니터링 (챌린지 성공)
+    console.log("[monitorDAOEvents] Setting up ChangedMember event watcher", {
+      contractAddress: CONTRACTS.daoCommittee.address,
+      eventName: 'ChangedMember'
+    });
+
+    const unwatchChangedMember = publicClient.watchContractEvent({
+      address: CONTRACTS.daoCommittee.address,
+      abi: daoCommitteeAbi,
+      eventName: 'ChangedMember',
+      onLogs(logs) {
+        console.log('📡 ChangedMember onLogs 호출됨', {
+          timestamp: new Date().toISOString(),
+          logsCount: logs.length,
+          logs: logs.map(log => ({
+            blockNumber: log.blockNumber,
+            transactionHash: log.transactionHash,
+            args: log.args
+          }))
+        });
+
+        logs.forEach((log, index) => {
+          const { slotIndex, prevMember, newMember } = log.args;
+          console.log(`🔄 ChangedMember 이벤트 감지 [${index + 1}/${logs.length}]:`, {
+            slotIndex: slotIndex?.toString(),
+            prevMember,
+            newMember,
+            txHash: log.transactionHash,
+            blockNumber: log.blockNumber,
+            logIndex: log.logIndex
+          });
+
+          if (slotIndex !== undefined && prevMember && newMember) {
+            console.log('✅ ChangedMember 핸들러 호출', {
+              slotIndex: slotIndex.toString(),
+              handlerExists: !!handleMemberChanged
+            });
+
+            handleMemberChanged({
+              slotIndex,
+              prevMember,
+              newMember
+            });
+          } else {
+            console.warn('⚠️ ChangedMember 이벤트 데이터 불완전:', {
+              hasSlotIndex: slotIndex !== undefined,
+              hasPrevMember: !!prevMember,
+              hasNewMember: !!newMember
+            });
+          }
+        });
+      },
+      onError(error) {
+        console.error('❌ ChangedMember 이벤트 워처 오류:', error);
+      }
+    });
+
+    console.log('✅ ChangedMember 이벤트 워처 설정 완료');
+
+
+    // ClaimedActivityReward 이벤트 모니터링
+    console.log("[monitorDAOEvents] Setting up ClaimedActivityReward event watcher");
+
+    const unwatchClaimedActivityReward = publicClient.watchContractEvent({
+    address: CONTRACTS.daoCommittee.address,
+    abi: daoCommitteeAbi,
+    eventName: 'ClaimedActivityReward',
+    onLogs(logs) {
+      console.log('🎯 [EVENT DETECTED] ClaimedActivityReward onLogs 호출됨', {
+        timestamp: new Date().toISOString(),
+        logsCount: logs.length,
+        contractAddress: CONTRACTS.daoCommittee.address,
+        eventName: 'ClaimedActivityReward'
+      });
+
+      logs.forEach((log, index) => {
+        const { candidate, receiver, amount } = log.args;
+        console.log(`💰 [EVENT ${index + 1}/${logs.length}] ClaimedActivityReward 이벤트 감지:`, {
+          candidate,
+          receiver,
+          amount: amount?.toString(),
+          amountETH: amount ? (Number(amount) / 1e18).toFixed(6) : 'N/A',
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber?.toString(),
+          logIndex: log.logIndex,
+          timestamp: new Date().toISOString()
+        });
+
+        if (candidate && receiver && amount !== undefined) {
+          console.log('✅ [HANDLER CALL] ClaimedActivityReward 핸들러 호출 시작');
+          handleActivityRewardClaimed({
+            candidate,
+            receiver,
+            amount
+          });
+          console.log('✅ [HANDLER DONE] ClaimedActivityReward 핸들러 호출 완료');
+        } else {
+          console.warn('⚠️ [EVENT ERROR] ClaimedActivityReward 이벤트 데이터 불완전:', {
+            hasCandidate: !!candidate,
+            hasReceiver: !!receiver,
+            hasAmount: amount !== undefined
+          });
+        }
+      });
+    },
+    onError(error) {
+      console.error('❌ [EVENT ERROR] ClaimedActivityReward 이벤트 워처 오류:', {
+        error: error.message || error,
+        timestamp: new Date().toISOString(),
+        contractAddress: CONTRACTS.daoCommittee.address
+      });
+    }
+  });
+
+  console.log('✅ ClaimedActivityReward 이벤트 워처 설정 완료');
+
+  // Layer2Registered 이벤트 모니터링
+  console.log("[monitorDAOEvents] Setting up Layer2Registered event watcher");
+
+  const unwatchLayer2Registered = publicClient.watchContractEvent({
+    address: CONTRACTS.daoCommittee.address,
+    abi: daoCommitteeAbi,
+    eventName: 'Layer2Registered',
+    onLogs(logs) {
+      console.log('📡 Layer2Registered onLogs 호출됨', {
+        timestamp: new Date().toISOString(),
+        logsCount: logs.length
+      });
+
+      logs.forEach((log, index) => {
+        const { candidate, candidateContract, memo } = log.args;
+        console.log(`🏗️ Layer2Registered 이벤트 감지 [${index + 1}/${logs.length}]:`, {
+          candidate,
+          candidateContract,
+          memo,
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber
+        });
+
+        if (candidate && candidateContract && memo) {
+          console.log('✅ Layer2Registered 핸들러 호출');
+          handleLayer2Registered({
+            candidate,
+            candidateContract,
+            memo
+          });
+        } else {
+          console.warn('⚠️ Layer2Registered 이벤트 데이터 불완전');
+        }
+      });
+    },
+    onError(error) {
+      console.error('❌ Layer2Registered 이벤트 워처 오류:', error);
+    }
+  });
+
+  console.log('✅ Layer2Registered 이벤트 워처 설정 완료');
+  console.log('🎯 모든 이벤트 워처 설정 완료', {
+    timestamp: new Date().toISOString(),
+    watchers: ['ChangedMember', 'ClaimedActivityReward', 'Layer2Registered']
+  });
+
+    return () => {
+      console.log('🔌 이벤트 워처들 정리 중...', {
+        timestamp: new Date().toISOString()
+      });
+
+      unwatchChangedMember();
+      unwatchClaimedActivityReward();
+      unwatchLayer2Registered();
+
+      console.log('✅ 모든 이벤트 워처 정리 완료');
+    };
+
+  }, [handleMemberChanged, handleActivityRewardClaimed, handleLayer2Registered]);
+
+
+
+
 
   // const isCommitteeMember = useCallback((address: string): boolean => {
   //   if (!address) return false;
@@ -626,7 +982,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
   //   return !!member;
   // }, [committeeMembers]);
 
-  // 🎯 sample-2 방식: useMemo로 value 최적화
+  //  useMemo로 value 최적화
   const contextValue = useMemo(() => ({
     // Member 관련
     isMember,
@@ -636,6 +992,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     isLoadingMembers,
     membersError,
     refreshCommitteeMembers: loadCommitteeMembers,
+    refreshSpecificMember,
 
     // Layer2 Candidates 관련 (챌린징용)
     layer2Total,
@@ -675,10 +1032,6 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     minimumVotingPeriodSeconds: null,
     quorum: null,
 
-    // // 캐시 관련 함수들
-    // forceRefreshSession,
-    // getCacheInfo,
-    // isCommitteeMember,
 
     getVoterInfos: async (agendaId: number, voters: string[]): Promise<VoterInfo[]> => {
       return [];
