@@ -34,6 +34,7 @@ export interface Candidate {
   creationAddress: string;
   candidateContract: string;
   totalStaked: string;
+  operator: string;
   operatorManager: string;
   manager: string | null;
   isCommitteeMember: boolean; // 현재 위원회 멤버인지 여부
@@ -82,8 +83,18 @@ export interface DAOContextType {
   membersError: string | null;
   refreshCommitteeMembers: (maxMember?: number) => Promise<void>;
 
-  // Challenge 관련 함수
-  getChallengeCandidates: (targetMember: CommitteeMember, connectedAddress: string) => Promise<Candidate[]>;
+  // Layer2 Candidates 관련 (챌린징용)
+  layer2Total: number;
+  layer2LoadingIndex: number;
+  layer2Candidates: Candidate[];
+  isLoadingLayer2: boolean;
+  layer2Error: string | null;
+  hasLoadedLayer2Once: boolean;
+  layer2LastFetchTimestamp: number;
+  loadLayer2Candidates: (force?: boolean) => Promise<void>;
+  resetLayer2Cache: () => void;
+
+
 
   // 공통
   statusMessage: string;

@@ -56,6 +56,9 @@ export const LAYER2_MANAGER_ADDRESS = process.env
 export const L1_BRIDGE_REGISTRY_ADDRESS = process.env
   .NEXT_PUBLIC_L1_BRIDGE_REGISTRY_ADDRESS as `0x${string}`;
 
+export const LAYER2_REGISTRY_ADDRESS = process.env
+  .NEXT_PUBLIC_LAYER2_REGISTRY_ADDRESS as `0x${string}`;
+
 export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || "11155111");
 
 export const EVENT_START_BLOCK = BigInt(
@@ -122,6 +125,10 @@ export const CONTRACTS = {
   },
   l1BridgeRegistry: {
     address: L1_BRIDGE_REGISTRY_ADDRESS,
+    chain: getCurrentChain(),
+  },
+  layer2Registry: {
+    address: LAYER2_REGISTRY_ADDRESS,
     chain: getCurrentChain(),
   },
 

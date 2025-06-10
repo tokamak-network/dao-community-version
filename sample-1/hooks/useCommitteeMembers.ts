@@ -2,8 +2,13 @@ import { useState, useCallback } from 'react';
 import { CommitteeMember } from '@/types/dao';
 import { MESSAGES } from '@/constants/dao';
 import { CONTRACTS } from '@/config/contracts';
-import { daoCommitteeAbi } from '@/abis/dao-committee-versions';
 import { createRobustPublicClient, readContractWithRetry } from '@/lib/rpc-utils';
+
+import { daoCommitteeAbi } from "@/abis/dao-committee-versions";
+import { daoCandidateAbi } from "@/abis/dao-candidate";
+import { seigManagerAbi } from "@/abis/seig-mamager";
+import { layer2ManagerAbi } from "@/abis/layer2-manager";
+import { operatorManagerAbi } from "@/abis/operator-manager";
 
 interface UseCommitteeMembersProps {
   isConnected: boolean;
@@ -89,15 +94,116 @@ export function useCommitteeMembers({ isConnected, setStatusMessage }: UseCommit
               memberJoinedTime: new Date(Number(memberJoinedTime) * 1000)
             });
 
+              // candidate meno
+              const memo = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: candidateContract,
+                  abi: daoCandidateAbi,
+                  functionName: 'memo',
+                  args: [],
+                }) as Promise<string>,
+                `Member ${index + 1} candidate name`
+              );
+
+              // total staked
+              const totalStaked = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: candidateContract,
+                  abi: daoCandidateAbi,
+                  functionName: 'totalStaked',
+                  args: [],
+                }) as Promise<bigint>,
+                `Member ${index + 1} total staked`
+              );
+
+              // 청구 가능한 활동비 계산
+              const claimableActivityReward = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: CONTRACTS.daoCommittee.address,
+                  abi: daoCommitteeAbi,
+                  functionName: 'getClaimableActivityReward',
+                  args: [address as `0x${string}`],
+                }) as Promise<bigint>,
+                `claimActivityReward`
+              );
+
+              // 마지막 커밋 블록 조회
+              const lastCommitBlock = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: CONTRACTS.seigManager.address,
+                  abi: seigManagerAbi,
+                  functionName: 'lastCommitBlock',
+                  args: [candidateContract],
+                }) as Promise<bigint>,
+                `lastCommitBlock`
+              );
+
+              console.log("lastCommitBlock", lastCommitBlock)
+
+              // lastCommitBlock의 타임스탬프 가져오기
+              let lastUpdateSeigniorageTime = 0;
+              if (lastCommitBlock > 0) {
+                try {
+                  const block = await publicClient.getBlock({
+                    blockNumber: lastCommitBlock
+                  });
+                  lastUpdateSeigniorageTime = Number(block.timestamp);
+                  console.log(`Block ${lastCommitBlock} timestamp:`, lastUpdateSeigniorageTime);
+                } catch (error) {
+                  console.warn(`Failed to get block ${lastCommitBlock} timestamp:`, error);
+                }
+              }
+
+              console.log("claimableActivityReward", address, index, claimableActivityReward)
+
+              // Layer2Manager 에서 operatorManager 주소를 찾아서 저장하고, manager 주소도 저장하자.
+              const operatorManager = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: CONTRACTS.layer2Manager.address,
+                  abi: layer2ManagerAbi,
+                  functionName: 'operatorOfLayer',
+                  args: [candidateContract as `0x${string}`],
+                }) as Promise<`0x${string}`>,
+                `operatorManager`
+              );
+              console.log("operatorManager", operatorManager)
+
+              // operatorManager가 null 주소가 아닐 때만 manager() 함수 호출
+              let managerAddress: `0x${string}` | null = null;
+              if (operatorManager && operatorManager !== '0x0000000000000000000000000000000000000000') {
+                try {
+                  managerAddress = await readContractWithRetry(
+                    () => publicClient.readContract({
+                      address: operatorManager,
+                      abi: operatorManagerAbi,
+                      functionName: 'manager',
+                      args: [],
+                    }) as Promise<`0x${string}`>,
+                    `Member ${index + 1} manager address`
+                  );
+                  console.log("managerAddress", managerAddress);
+                } catch (error) {
+                  console.warn(`Failed to get manager address for operator ${operatorManager}:`, error);
+                }
+              }
+
+              console.log("managerAddress", managerAddress)
+
             // CommitteeMember 인터페이스에 맞게 변환
             const member: CommitteeMember = {
-              name: `Committee Member ${index + 1}`,
-              description: `Joined as committee member on ${new Date(Number(memberJoinedTime) * 1000).toLocaleDateString()}`,
-              creationAddress: address,
-              candidateContract: candidateContract, // 실제 후보자 컨트랙트 주소
-              claimedTimestamp: Number(claimedTimestamp),
-              rewardPeriod: Number(rewardPeriod),
-              indexMembers: Number(indexMembers),
+              name: memo,
+                description: `Joined as committee member on ${new Date(Number(memberJoinedTime) * 1000).toLocaleDateString()}`,
+                creationAddress: address,
+                candidateContract: candidateContract,
+                claimedTimestamp: Number(claimedTimestamp),
+                rewardPeriod: Number(rewardPeriod),
+                indexMembers: Number(indexMembers),
+                totalStaked: totalStaked.toString(),
+                lastCommitBlock: Number(lastCommitBlock),
+                lastUpdateSeigniorageTime: lastUpdateSeigniorageTime,
+                claimableActivityReward: claimableActivityReward.toString(), // wei 단위로 저장
+                operatorManager: operatorManager,
+                manager: managerAddress
             };
 
             return member;
@@ -112,7 +218,14 @@ export function useCommitteeMembers({ isConnected, setStatusMessage }: UseCommit
               claimedTimestamp: 0,
               rewardPeriod: 0,
               indexMembers: 0,
-            } as CommitteeMember;
+              totalStaked: "0",
+              lastCommitBlock: 0,
+              lastUpdateSeigniorageTime: 0,
+              claimableActivityReward: "0",
+              operatorManager: "0x0000000000000000000000000000000000000000",
+              manager: null
+            } satisfies CommitteeMember;
+
           }
         })
       );

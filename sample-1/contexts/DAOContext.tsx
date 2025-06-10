@@ -21,6 +21,7 @@ import { daoCandidateAbi } from "@/abis/dao-candidate";
 import { seigManagerAbi } from "@/abis/seig-mamager";
 import { layer2ManagerAbi } from "@/abis/layer2-manager";
 import { operatorManagerAbi } from "@/abis/operator-manager";
+import { layer2RegistryAbi } from "@/abis/layer2-registry";
 
 import { createRobustPublicClient, readContractWithRetry } from "@/lib/rpc-utils";
 import { CONTRACT_READ_SETTINGS } from "@/config/contracts";
@@ -58,6 +59,15 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
   const [membersError, setMembersError] = useState<string | null>(null);
   const [maxMember, setMaxMember] = useState<number>(0);
   const [isMember, setIsMember] = useState<boolean>(false);
+
+  // 🎯 Layer2 Candidates 캐싱 상태
+  const [layer2Total, setLayer2Total] = useState<number>(0);
+  const [layer2LoadingIndex, setLayer2LoadingIndex] = useState<number>(0);
+  const [layer2Candidates, setLayer2Candidates] = useState<Candidate[]>([]);
+  const [isLoadingLayer2, setIsLoadingLayer2] = useState(false);
+  const [layer2Error, setLayer2Error] = useState<string | null>(null);
+  const [hasLoadedLayer2Once, setHasLoadedLayer2Once] = useState(false);
+  const [layer2LastFetchTimestamp, setLayer2LastFetchTimestamp] = useState<number>(0);
 
 
 
@@ -351,6 +361,169 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     }
   }, []);
 
+  // 🎯 Layer2 Candidates 로드 함수 (캐싱용)
+  const loadLayer2Candidates = useCallback(async (force = false) => {
+    if (!force && hasLoadedLayer2Once && layer2Candidates.length > 0) {
+      console.log('📦 Layer2 캐시 데이터 존재, 로드 스킵');
+      return;
+    }
+
+    console.log('🔄 Layer2 Candidates 로드 시작');
+    setIsLoadingLayer2(true);
+    setLayer2Error(null);
+
+    try {
+      const publicClient = await createRobustPublicClient();
+      const allLayer2Candidates: Candidate[] = [];
+
+      // 1. Layer2Registry에서 총 레이어2 개수 조회
+      const numLayer2s = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.layer2Registry.address,
+          abi: layer2RegistryAbi,
+          functionName: 'numLayer2s',
+        }) as Promise<bigint>,
+        'Total Layer2s count for caching'
+      );
+      setLayer2Total(Number(numLayer2s));
+      console.log('📊 캐싱할 Layer2 개수:', Number(numLayer2s));
+
+      // 2. 모든 레이어2 정보를 한 번에 로드하여 캐싱
+      for (let i = 0; i < Number(numLayer2s); i++) {
+        setLayer2LoadingIndex(i + 1); // 진행률 업데이트 (1부터 시작하여 완료시 total과 같아짐)
+        try {
+          // 레이어2 컨트랙트 주소 조회
+          const layer2Address = await readContractWithRetry(
+            () => publicClient.readContract({
+              address: CONTRACTS.layer2Registry.address,
+              abi: layer2RegistryAbi,
+              functionName: 'layer2ByIndex',
+              args: [BigInt(i)],
+            }) as Promise<string>,
+            `Layer2 ${i} address for cache`
+          );
+
+          // 빈 주소는 스킵
+          if (!layer2Address || layer2Address === '0x0000000000000000000000000000000000000000') {
+            continue;
+          }
+
+          // 레이어2 기본 정보 조회
+          const [memo, totalStaked] = await Promise.all([
+            readContractWithRetry(
+              () => publicClient.readContract({
+                address: layer2Address as `0x${string}`,
+                abi: daoCandidateAbi,
+                functionName: 'memo',
+              }) as Promise<string>,
+              `Layer2 ${i} memo for cache`
+            ).catch(() => `Layer2 #${i}`),
+            readContractWithRetry(
+              () => publicClient.readContract({
+                address: layer2Address as `0x${string}`,
+                abi: daoCandidateAbi,
+                functionName: 'totalStaked',
+              }) as Promise<bigint>,
+              `Layer2 ${i} total staked for cache`
+            )
+          ]);
+
+          // 오퍼레이터 정보 조회
+          const operatorManager = await readContractWithRetry(
+            () => publicClient.readContract({
+              address: CONTRACTS.layer2Manager.address,
+              abi: layer2ManagerAbi,
+              functionName: 'operatorOfLayer',
+              args: [layer2Address as `0x${string}`],
+            }) as Promise<`0x${string}`>,
+            `Layer2 ${i} operator manager for cache`
+          );
+
+          // EOA 정보 조회
+          let operatorEOA: `0x${string}` | null = '0x0000000000000000000000000000000000000000';
+          let managerEOA: `0x${string}` | null = '0x0000000000000000000000000000000000000000';
+
+          try {
+            operatorEOA = await readContractWithRetry(
+              () => publicClient.readContract({
+                address: layer2Address as `0x${string}`,
+                abi: daoCandidateAbi,
+                functionName: 'operator',
+              }) as Promise<`0x${string}`>,
+              `Layer2 ${i} operator EOA for cache`
+            );
+          } catch (error) {
+            // operator 함수가 없는 경우 스킵
+            // operatorEOA = '0x0000000000000000000000000000000000000000';
+          }
+
+          if (operatorManager && operatorManager !== '0x0000000000000000000000000000000000000000') {
+            try {
+              managerEOA = await readContractWithRetry(
+                () => publicClient.readContract({
+                  address: operatorManager,
+                  abi: operatorManagerAbi,
+                  functionName: 'manager',
+                }) as Promise<`0x${string}`>,
+                `Layer2 ${i} manager EOA for cache`
+              );
+            } catch (error) {
+              // manager 조회 실패시 스킵
+              // managerEOA = '0x0000000000000000000000000000000000000000';
+            }
+          }
+
+          const candidate: Candidate = {
+            name: memo || `Layer2 #${i}`,
+            description: `Layer2 Contract with ${(Number(totalStaked) / 1e18).toFixed(2)} TON staked`,
+            creationAddress: operatorEOA ,
+            candidateContract: layer2Address,
+            totalStaked: totalStaked.toString(),
+            operator: (managerEOA!=='0x0000000000000000000000000000000000000000'?managerEOA:operatorEOA) as `0x${string}`,
+            operatorManager,
+            manager: managerEOA,
+            isCommitteeMember: false // 나중에 위원회 멤버 체크에서 업데이트
+          };
+
+          allLayer2Candidates.push(candidate);
+          console.log(`✅ Layer2 캐싱 완료: ${memo} (${(Number(totalStaked) / 1e18).toFixed(2)} TON)`);
+
+        } catch (error) {
+          console.warn(`Failed to cache Layer2 ${i}:`, error);
+          continue;
+        }
+      }
+
+      // 스테이킹 순으로 정렬 (높은 순)
+      allLayer2Candidates.sort((a, b) =>
+        Number(BigInt(b.totalStaked) - BigInt(a.totalStaked))
+      );
+
+      setLayer2Candidates(allLayer2Candidates);
+      setHasLoadedLayer2Once(true);
+      setLayer2LastFetchTimestamp(Date.now());
+      console.log('🎯 Layer2 캐싱 완료:', allLayer2Candidates.length, '개');
+
+    } catch (error) {
+      console.error('❌ Layer2 캐싱 실패:', error);
+      setLayer2Error('Failed to load Layer2 candidates');
+    } finally {
+      setIsLoadingLayer2(false);
+    }
+  }, [hasLoadedLayer2Once, layer2Candidates.length]);
+
+  // 🎯 Layer2 캐시 리셋 함수 (새로고침용)
+  const resetLayer2Cache = useCallback(() => {
+    console.log('🗑️ Layer2 캐시 리셋');
+    setLayer2Candidates([]);
+    setHasLoadedLayer2Once(false);
+    setIsLoadingLayer2(false);
+    setLayer2Error(null);
+    setLayer2Total(0);
+    setLayer2LoadingIndex(0);
+    setLayer2LastFetchTimestamp(0);
+  }, []);
+
 
   useEffect(() => {
     console.log("🚀 useEffect 실행", {
@@ -464,6 +637,17 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     membersError,
     refreshCommitteeMembers: loadCommitteeMembers,
 
+    // Layer2 Candidates 관련 (챌린징용)
+    layer2Total,
+    layer2LoadingIndex,
+    layer2Candidates,
+    isLoadingLayer2,
+    layer2Error,
+    hasLoadedLayer2Once,
+    layer2LastFetchTimestamp,
+    loadLayer2Candidates,
+    resetLayer2Cache,
+
     // // Owner 권한 관련
     // daoOwner: daoOwner.daoOwner,
     // isOwner: daoOwner.isOwner,
@@ -500,18 +684,22 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
       return [];
     },
 
-    // Challenge 관련
-    getChallengeCandidates: async (targetMember: CommitteeMember, connectedAddress: string): Promise<Candidate[]> => {
-      // TODO: 모든 candidate를 조회하고 조건에 맞는 것들만 필터링
-      console.log('Getting challenge candidates for:', targetMember.name, 'by:', connectedAddress);
-      return [];
-    },
+
   }), [
     isMember,
     committeeMembers,
     isLoadingMembers,
     membersError,
     loadCommitteeMembers,
+    layer2Total,
+    layer2LoadingIndex,
+    layer2Candidates,
+    isLoadingLayer2,
+    layer2Error,
+    hasLoadedLayer2Once,
+    layer2LastFetchTimestamp,
+    loadLayer2Candidates,
+    resetLayer2Cache,
     statusMessage,
     isConnected,
   ]);
