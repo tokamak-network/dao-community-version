@@ -37,7 +37,8 @@ export default function DAOCommitteeMembers() {
   const chainId = useChainId()
   const { changeMember, retireMember, claimActivityReward, isExecuting: isDAOCandidateExecuting, isSuccess: isDAOCandidateSuccess, error: daoCandidateError, txHash, lastOperation, reset: resetDAOCandidate } = useDAOCandidate()
 
-
+  // 🎯 Hydration Error 방지
+  const [isMounted, setIsMounted] = useState(false)
 
   const [expandedMember, setExpandedMember] = useState<number | null>(null)
   const [showGlobalChallenge, setShowGlobalChallenge] = useState(false)
@@ -56,6 +57,11 @@ export default function DAOCommitteeMembers() {
 
   // 트랜잭션 모달 상태
   const [showTransactionModal, setShowTransactionModal] = useState(false)
+
+  // 🎯 클라이언트 사이드 마운트 체크
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // 이벤트 모니터링은 DAOContext에서 직접 처리됨
 
@@ -695,7 +701,9 @@ export default function DAOCommitteeMembers() {
       {committeeMembers && committeeMembers.length > 0 && (
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-700 text-center">
-            {!isWalletConnected ? (
+            {!isMounted ? (
+              <>💡 Loading wallet status...</>
+            ) : !isWalletConnected ? (
               <>💡 Connect your wallet to interact with committee members</>
             ) : (
               <>ℹ️ You can challenge any committee member. Retire and claim buttons appear only for memberships you created or manage.</>

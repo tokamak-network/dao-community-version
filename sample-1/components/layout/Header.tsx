@@ -10,7 +10,13 @@ export default function Header() {
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
   const [showDropdown, setShowDropdown] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // 🎯 Hydration Error 방지 - 클라이언트 마운트 후에만 지갑 상태 표시
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
@@ -72,7 +78,7 @@ export default function Header() {
         {/* Navigation - Center */}
         <nav className="flex items-center space-x-8">
 
-            <Link
+          <Link
             href="/dao-committee"
             className={`text-center justify-start text-base font-semibold font-['Inter'] ${
               pathname === '/dao-committee' ? 'text-blue-600' : 'text-gray-700'
@@ -90,8 +96,11 @@ export default function Header() {
           </Link>
         </nav>
 
-        {/* Wallet - Right */}
-        {isConnected && address ? (
+        {/* Wallet - Right - Hydration Safe */}
+        {!isMounted ? (
+          // 서버 사이드와 클라이언트 초기 렌더링 시 같은 컨텐츠 표시
+          <div className="w-32 h-10 bg-gray-100 rounded-md animate-pulse"></div>
+        ) : isConnected && address ? (
           <div className="relative" ref={dropdownRef}>
             <div
               className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 rounded-md px-2 py-1 transition-colors"

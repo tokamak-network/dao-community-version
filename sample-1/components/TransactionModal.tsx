@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { useChainId } from 'wagmi';
 
 interface TransactionModalProps {
@@ -24,9 +25,17 @@ export function TransactionModal({
   operationDisplayName
 }: TransactionModalProps) {
   const chainId = useChainId();
+  const [isMounted, setIsMounted] = useState(false);
+
+  // 🎯 Hydration Error 방지
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // 체인 ID에 따른 익스플로러 URL 생성
   const getExplorerUrl = (hash: string) => {
+    if (!isMounted) return '#'; // 마운트 전에는 빈 링크
+
     switch (chainId) {
       case 1: // Ethereum Mainnet
         return `https://etherscan.io/tx/${hash}`;
