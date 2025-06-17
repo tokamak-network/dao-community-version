@@ -187,6 +187,7 @@ export function ProposalAddInfo({
       }),
     ],
     content: description,
+    immediatelyRender: false, // SSR hydration mismatch 방지
     onUpdate: ({ editor }) => {
       setDescription(editor.getHTML());
     },

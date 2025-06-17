@@ -94,14 +94,17 @@ const DAO_AGENDA_MANAGER_ADDRESS =
 
 interface AgendaData {
   id: number;
-  network: string;
   title: string;
   description: string;
+  network: string;
   transaction: string | null;
   creator: {
     address: `0x${string}` | undefined;
     signature: string;
   };
+  createdAt: string;
+  snapshotUrl?: string;
+  discourseUrl?: string;
   actions: Array<{
     id: string;
     title: string;
@@ -110,7 +113,6 @@ interface AgendaData {
     calldata: string;
     abi?: any[];
   }>;
-  timestamp: string;
 }
 
 export function ProposalPreview({
@@ -143,7 +145,7 @@ export function ProposalPreview({
   const [agendaNumber, setAgendaNumber] = useState<string | null>(null);
   const [isTransactionPending, setIsTransactionPending] = useState(false);
   const [txStatus, setTxStatus] = useState<"pending" | "confirmed">("pending");
-  const [shouldSubmitPR, setShouldSubmitPR] = useState(false);
+  const [shouldSubmitPR, setShouldSubmitPR] = useState(true); // 기본값을 PR 제출로 설정
   const [shouldSaveLocally, setShouldSaveLocally] = useState(false);
   const [prStatus, setPrStatus] = useState<PrSubmissionStatus>(
     PrSubmissionStatus.IDLE
@@ -154,6 +156,7 @@ export function ProposalPreview({
   const [contractVersion, setContractVersion] = useState<string>("unknown");
   const [supportsMemoField, setSupportsMemoField] = useState<boolean>(false);
   const [memoField, setMemoField] = useState<string>("");
+  const [uploadedMetadata, setUploadedMetadata] = useState<any>(null);
   const { address } = useAccount();
   const router = useRouter();
 
@@ -643,14 +646,15 @@ export function ProposalPreview({
             // Save the original agenda data with all fields
             const originalAgendaData = {
               id: parseInt(agendaNumber || "0"),
+              title: truncatedTitle?.trim(),
+              description: description?.trim(),
               network: chain.network?.toLowerCase(),
               transaction: txHashValue,
               creator: {
                 address: address,
                 signature: "",
               },
-              title: truncatedTitle?.trim(),
-              description: description?.trim(),
+              createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z"),
               snapshotUrl: snapshotUrl?.trim(),
               discourseUrl: discourseUrl?.trim(),
               actions: actions.map((action) => ({
@@ -663,7 +667,6 @@ export function ProposalPreview({
                 sendEth: false,
                 type: "contract",
               })),
-              timestamp: new Date().toISOString(),
             };
             setSubmittedAgendaData(originalAgendaData);
             setIsTransactionPending(false);
@@ -695,16 +698,20 @@ export function ProposalPreview({
     }
     const agendaData = {
       id: parseInt(agendaNumber),
-      network: chain.network?.toLowerCase(),
-      transaction: txHash,
+      title: title?.trim() || "",
+      description: description?.trim() || "",
+      network: (chain.network?.toLowerCase() || "sepolia") as
+        | "mainnet"
+        | "sepolia",
+      transaction: txHash || "",
       creator: {
-        address: address,
+        address: address || "",
         signature: "",
       },
-      title: title?.trim(),
-      description: description?.trim(),
-      actions,
-      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z"),
+      snapshotUrl: snapshotUrl?.trim(),
+      discourseUrl: discourseUrl?.trim(),
+      actions: actions || [],
     };
     return agendaData;
   };
@@ -736,9 +743,12 @@ export function ProposalPreview({
       alert("No agenda data available. Please submit the agenda first.");
       return;
     }
+    const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
     const message = createAgendaSignatureMessage(
       submittedAgendaData.id,
-      submittedAgendaData.transaction
+      submittedAgendaData.transaction,
+      timestamp,
+      false // creating new metadata
     );
     const signature = await signMessage(message, address);
     const signedAgendaData = {
@@ -747,6 +757,7 @@ export function ProposalPreview({
         ...submittedAgendaData.creator,
         signature,
       },
+      createdAt: timestamp,
     };
     saveAgendaData(signedAgendaData);
   };
@@ -824,7 +835,7 @@ export function ProposalPreview({
 
   const handleSubmitPR = async (signedAgendaData: any) => {
     try {
-      setTxStatus("pending");
+      // PR 제출은 별도 과정이므로 txStatus를 변경하지 않음
       setPrStatus(PrSubmissionStatus.SUBMITTING);
 
       // 데이터 검증
@@ -869,7 +880,6 @@ export function ProposalPreview({
       }
 
       // PR 제출 성공 시 상태 업데이트 및 PR URL 열기
-      setTxStatus("confirmed");
       setPrStatus(PrSubmissionStatus.SUCCESS);
       if (responseData.prUrl) {
         console.log("PR URL received:", responseData.prUrl);
@@ -887,6 +897,43 @@ export function ProposalPreview({
     }
   };
 
+  // 기존 메타데이터에서 createdAt 추출 (업로드된 파일 또는 기존 데이터에서)
+  const getExistingCreatedAt = (agendaData: any): string | null => {
+    return uploadedMetadata?.createdAt || agendaData.createdAt || null;
+  };
+
+  // 메타데이터 파일 업로드 처리
+  const handleMetadataUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const metadata = JSON.parse(e.target?.result as string);
+
+        // 필수 필드 검증
+        if (
+          !metadata.id ||
+          !metadata.createdAt ||
+          !metadata.creator?.signature
+        ) {
+          alert(
+            "Invalid metadata file. Missing required fields (id, createdAt, creator.signature)."
+          );
+          return;
+        }
+
+        setUploadedMetadata(metadata);
+        console.log("Metadata file uploaded:", metadata);
+      } catch (error) {
+        console.error("Error parsing metadata file:", error);
+        alert("Invalid JSON file. Please upload a valid agenda metadata file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // PR 제출 부분 수정
   const handleSaveAndSubmit = async () => {
     if (!submittedAgendaData) {
@@ -902,17 +949,28 @@ export function ProposalPreview({
           throw new Error("No wallet address found");
         }
 
+        // 트랜잭션 후 모달에서 PR을 보내는 경우는 항상 새로운 아젠다 생성
+        const existingCreatedAt = null;
+        const isUpdate = false;
+
+        const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
         const message = createAgendaSignatureMessage(
           submittedAgendaData.id,
-          submittedAgendaData.transaction
+          submittedAgendaData.transaction,
+          timestamp,
+          isUpdate // 기존 createdAt이 있으면 업데이트로 처리
         );
         const signature = await signMessage(message, address);
+
         const signedAgendaData = {
           ...submittedAgendaData,
           creator: {
             ...submittedAgendaData.creator,
             signature,
           },
+          // 트랜잭션 후 모달에서는 항상 새로운 createdAt 생성
+          createdAt: timestamp,
+          // 트랜잭션 후 모달에서는 updatedAt 없음 (새로운 아젠다이므로)
         };
 
         // Save agenda data locally first if selected
@@ -924,6 +982,7 @@ export function ProposalPreview({
         const responseData = await handleSubmitPR(signedAgendaData);
       } catch (error) {
         console.error("Error submitting PR:", error);
+        setPrStatus(PrSubmissionStatus.ERROR); // 에러 상태로 명확히 설정
         setPrError(
           error instanceof Error ? error.message : "Failed to submit PR"
         );
@@ -1408,161 +1467,243 @@ export function ProposalPreview({
       </div>
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium mb-4">
-              {txStatus === "confirmed"
-                ? "Transaction Confirmed"
-                : "Transaction in Progress"}
-            </h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+            {/* 모달 헤더 - 고정 */}
+            <div className="p-6 pb-0 flex-shrink-0">
+              <h3 className="text-lg font-medium mb-4">
+                {txStatus === "confirmed"
+                  ? "Transaction Confirmed"
+                  : "Transaction in Progress"}
+              </h3>
+            </div>
 
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-1">
-                  Transaction Hash
-                </h4>
-                <div className="flex items-center space-x-2">
-                  <a
-                    href={`${
-                      process.env.NEXT_PUBLIC_EXPLORER_URL ||
-                      "https://etherscan.io"
-                    }/tx/${txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex-1 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
-                  >
-                    <code className="text-blue-600 break-all">{txHash}</code>
-                    <ExternalLink className="h-4 w-4 text-gray-500 ml-2 flex-shrink-0" />
-                  </a>
-                </div>
-              </div>
-
-              {txStatus === "pending" && (
-                <div className="flex items-center justify-center space-x-2 py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-                  <span className="text-sm text-gray-600">
-                    {prStatus === PrSubmissionStatus.SUBMITTING
-                      ? "Creating pull request..."
-                      : "Waiting for transaction confirmation..."}
-                  </span>
-                </div>
-              )}
-
-              {txStatus === "confirmed" && !agendaNumber && (
-                <div className="text-center py-4">
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-                    <span className="text-sm text-gray-600">
-                      Retrieving agenda number...
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {agendaNumber && (
+            {/* 모달 내용 - 스크롤 가능 */}
+            <div className="px-6 py-4 flex-1 overflow-y-auto">
+              <div className="space-y-4">
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-1">
-                    Agenda Number
+                    Transaction Hash
                   </h4>
-                  <div className="text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
-                    #{agendaNumber}
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href={`${
+                        process.env.NEXT_PUBLIC_EXPLORER_URL ||
+                        "https://etherscan.io"
+                      }/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex-1 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                    >
+                      <code className="text-blue-600 break-all">{txHash}</code>
+                      <ExternalLink className="h-4 w-4 text-gray-500 ml-2 flex-shrink-0" />
+                    </a>
                   </div>
                 </div>
-              )}
 
-              {txStatus === "confirmed" && agendaNumber && (
-                <div className="space-y-4">
-                  <div className="flex flex-col space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="save-locally"
-                        checked={shouldSaveLocally}
-                        onChange={(e) => setShouldSaveLocally(e.target.checked)}
-                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <label
-                        htmlFor="save-locally"
-                        className="text-sm text-gray-700"
-                      >
-                        Save Agenda Locally
-                      </label>
-                    </div>
+                {txStatus === "pending" && (
+                  <div className="flex items-center justify-center space-x-2 py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                    <span className="text-sm text-gray-600">
+                      Waiting for blockchain confirmation...
+                    </span>
+                  </div>
+                )}
 
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="submit-pr"
-                        checked={shouldSubmitPR}
-                        onChange={(e) => {
-                          setShouldSubmitPR(e.target.checked);
-                          setPrError(null);
-                          setPrStatus(PrSubmissionStatus.IDLE);
-                        }}
-                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <label
-                        htmlFor="submit-pr"
-                        className="text-sm text-gray-700"
-                      >
-                        Submit PR to Repository
-                      </label>
+                {txStatus === "confirmed" && !agendaNumber && (
+                  <div className="text-center py-4">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                      <span className="text-sm text-gray-600">
+                        Retrieving agenda number...
+                      </span>
                     </div>
                   </div>
+                )}
 
-                  {prStatus === PrSubmissionStatus.SUBMITTING && (
-                    <div className="flex items-center space-x-2 text-sm text-gray-600">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                      <span>Submitting PR to repository...</span>
+                {agendaNumber && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">
+                      Agenda Number
+                    </h4>
+                    <div className="text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                      #{agendaNumber}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {prStatus === PrSubmissionStatus.ERROR && shouldSubmitPR && (
-                    <div className="text-sm text-red-600">
-                      Error submitting PR: {prError}
-                    </div>
-                  )}
-
-                  {prStatus === PrSubmissionStatus.SUCCESS && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-green-600">
-                        PR submitted successfully! You can now save the agenda
-                        locally if needed.
+                {txStatus === "confirmed" && agendaNumber && (
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-5 border border-blue-200 shadow-sm">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-lg">✅</span>
+                        </div>
+                        <div>
+                          <h4 className="text-base font-semibold text-gray-800">
+                            Agenda Published Successfully!
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Your agenda is now on-chain. Choose how to save the
+                            metadata
+                          </p>
+                        </div>
                       </div>
-                      {prUrl && (
-                        <div className="text-sm">
-                          <a
-                            href={prUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-700 flex items-center"
-                          >
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            View Pull Request
-                          </a>
+
+                      <div className="space-y-3">
+                        {/* Option 1: Submit PR (Recommended) - Now includes local save */}
+                        <label className="flex items-start space-x-4 p-4 bg-white rounded-xl border-2 border-transparent hover:border-green-300 cursor-pointer transition-all duration-200 group shadow-sm hover:shadow-md">
+                          <input
+                            type="radio"
+                            name="save-option"
+                            checked={shouldSubmitPR}
+                            onChange={() => {
+                              setShouldSubmitPR(true);
+                              setShouldSaveLocally(true); // 항상 로컬에도 저장
+                              setPrError(null);
+                              setPrStatus(PrSubmissionStatus.IDLE);
+                            }}
+                            className="mt-1.5 w-4 h-4 text-green-600 focus:ring-green-500 focus:ring-2"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-lg">🚀</span>
+                              <span className="text-base font-semibold text-gray-900 group-hover:text-green-700">
+                                Submit to Repository & Save Locally
+                              </span>
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                ⭐ Recommended
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                              Registers your agenda in the public metadata
+                              repository for community access.
+                              <strong className="text-green-700">
+                                Also saves a backup copy to your computer
+                                automatically.
+                              </strong>
+                            </p>
+                            <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                              <p className="text-xs text-green-700">
+                                ✅ <strong>Includes:</strong> Public
+                                registration + Local backup file
+                              </p>
+                            </div>
+                          </div>
+                        </label>
+
+                        {/* Option 2: Save Locally Only */}
+                        <label className="flex items-start space-x-4 p-4 bg-white rounded-xl border-2 border-transparent hover:border-blue-300 cursor-pointer transition-all duration-200 group shadow-sm hover:shadow-md">
+                          <input
+                            type="radio"
+                            name="save-option"
+                            checked={!shouldSubmitPR && shouldSaveLocally}
+                            onChange={() => {
+                              setShouldSubmitPR(false);
+                              setShouldSaveLocally(true);
+                              setPrError(null);
+                              setPrStatus(PrSubmissionStatus.IDLE);
+                            }}
+                            className="mt-1.5 w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-lg">💾</span>
+                              <span className="text-base font-semibold text-gray-900 group-hover:text-blue-700">
+                                Save Locally Only
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                              Downloads metadata file to your computer only. You
+                              can submit to repository later using the saved
+                              file.
+                            </p>
+                            <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs text-blue-700">
+                                💡 <strong>Tip:</strong> Submit to repository
+                                later to preserve your original creation time.
+                              </p>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {prStatus === PrSubmissionStatus.SUBMITTING && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                        <span>Submitting PR to repository...</span>
+                      </div>
+                    )}
+
+                    {prStatus === PrSubmissionStatus.ERROR &&
+                      shouldSubmitPR && (
+                        <div className="text-sm text-red-600">
+                          Error submitting PR: {prError}
                         </div>
                       )}
-                    </div>
-                  )}
-                </div>
-              )}
 
-              <div className="flex justify-end space-x-3 pt-4">
+                    {prStatus === PrSubmissionStatus.SUCCESS && (
+                      <div className="space-y-2">
+                        <div className="text-sm text-green-600">
+                          🎉 Repository submission successful! Your agenda
+                          metadata has been submitted to the public repository
+                          and saved locally.
+                        </div>
+                        {prUrl && (
+                          <div className="text-sm">
+                            <a
+                              href={prUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-purple-600 hover:text-purple-700 flex items-center"
+                            >
+                              <ExternalLink className="w-4 h-4 mr-1" />
+                              View Pull Request
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 모달 하단 버튼 - 고정 */}
+            <div className="p-6 pt-0 flex-shrink-0 border-t border-gray-200">
+              <div className="flex justify-end space-x-3">
                 {txStatus === "confirmed" && agendaNumber && (
                   <Button
                     onClick={handleSaveAndSubmit}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    className={`${
+                      shouldSubmitPR && shouldSaveLocally
+                        ? "bg-green-600 hover:bg-green-700"
+                        : shouldSaveLocally && !shouldSubmitPR
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-purple-600 hover:bg-purple-700"
+                    } text-white font-medium px-6 py-2.5 transition-all duration-200`}
                     disabled={
                       prStatus === PrSubmissionStatus.SUBMITTING ||
                       (!shouldSubmitPR && !shouldSaveLocally)
                     }
                   >
-                    <Save className="w-4 h-7 mr-2" />
-                    {shouldSubmitPR && shouldSaveLocally
-                      ? "Save Locally & Submit PR"
-                      : shouldSubmitPR
-                      ? "Submit PR"
-                      : "Save Locally"}
+                    {prStatus === PrSubmissionStatus.SUBMITTING ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Submitting to Repository...
+                      </>
+                    ) : shouldSubmitPR ? (
+                      <>
+                        <span className="mr-2">🚀</span>
+                        Submit to Repository & Save Locally
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Locally
+                      </>
+                    )}
                   </Button>
                 )}
 

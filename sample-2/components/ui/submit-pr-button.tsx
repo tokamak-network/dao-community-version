@@ -3,7 +3,11 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { AgendaWithMetadata } from "@/types/agenda";
-import { createAgendaSignatureMessage, signMessage } from "@/lib/signature";
+import {
+  createAgendaSignatureMessage,
+  signMessage,
+  validateAgendaMetadata,
+} from "@/lib/signature";
 
 interface SubmitPRButtonProps {
   agendaData: AgendaWithMetadata;
@@ -33,9 +37,12 @@ export function SubmitPRButton({
         throw new Error("Invalid agenda data. Missing ID or transaction hash.");
       }
 
+      const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
       const message = createAgendaSignatureMessage(
         agendaData.id,
-        agendaData.transaction
+        agendaData.transaction,
+        timestamp,
+        false // creating new metadata
       );
       const signature = await signMessage(message, address);
       console.log("[SubmitPRButton] Signature generated:", signature);
@@ -48,6 +55,11 @@ export function SubmitPRButton({
           address,
           signature,
         };
+      }
+
+      // 생성 시간 설정
+      if (!agendaData.createdAt) {
+        agendaData.createdAt = timestamp;
       }
       console.log(
         "[SubmitPRButton] After signing - Updated metadata:",
@@ -67,9 +79,30 @@ export function SubmitPRButton({
         throw new Error("Please connect your wallet first");
       }
 
-      // 메타데이터에 서명이 있는지 체크
+      // 메타데이터에 서명이 있는지 체크 및 검증
       if (!agendaData.creator?.signature) {
         throw new Error("Agenda metadata needs to be signed before submission");
+      }
+
+      if (!agendaData.transaction) {
+        throw new Error(
+          "Transaction hash is required for signature validation"
+        );
+      }
+
+      // 서명 유효성 검증
+      const validationResult = validateAgendaMetadata({
+        id: agendaData.id,
+        transaction: agendaData.transaction,
+        creator: {
+          address: agendaData.creator.address,
+          signature: agendaData.creator.signature!, // 이미 위에서 체크했으므로 안전
+        },
+        createdAt: agendaData.createdAt,
+        updatedAt: agendaData.updatedAt,
+      });
+      if (!validationResult.isValid) {
+        throw new Error(`Invalid signature: ${validationResult.error}`);
       }
 
       setIsSubmittingPR(true);

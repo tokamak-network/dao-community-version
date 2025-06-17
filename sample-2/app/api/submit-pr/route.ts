@@ -84,24 +84,46 @@ export async function POST(request: Request) {
           expectedSource: `${baseOwner}/${baseRepo}`,
           defaultBranch: forkData.default_branch,
         });
+
         // 저장소가 준비되고 정상적인 포크인지 확인
         if (
           forkData.fork &&
           forkData.source?.full_name === `${baseOwner}/${baseRepo}`
         ) {
-          console.log("[SubmitPR] Fork is ready!");
-          break;
+          // 추가로 기본 브랜치가 실제로 존재하는지 확인
+          try {
+            await octokit.git.getRef({
+              owner: forkOwner,
+              repo: forkRepo,
+              ref: `heads/${forkData.default_branch}`,
+            });
+            console.log(
+              "[SubmitPR] Fork is ready with accessible default branch!"
+            );
+            break;
+          } catch (refError) {
+            console.log(
+              "[SubmitPR] Default branch not yet accessible, retrying..."
+            );
+            retries++;
+            if (retries === maxRetries) {
+              throw new Error("Fork repository default branch not accessible");
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            continue;
+          }
         }
       } catch (error) {
         console.log("[SubmitPR] Error checking fork status:", error);
-        retries++;
-        if (retries === maxRetries) {
-          throw new Error("Fork repository creation timeout");
-        }
-        // 5초 대기 후 재시도
-        console.log("[SubmitPR] Waiting 5 seconds before next attempt...");
-        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
+
+      retries++;
+      if (retries === maxRetries) {
+        throw new Error("Fork repository creation timeout");
+      }
+      // 5초 대기 후 재시도
+      console.log("[SubmitPR] Waiting 5 seconds before next attempt...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
     // 2. 새로운 브랜치 생성
@@ -110,14 +132,39 @@ export async function POST(request: Request) {
     const branchName = `agenda-${agendaData.id}-${timestamp}-${random}`;
     const baseBranch = "main";
 
-    // 원본 저장소의 최신 커밋 SHA 가져오기
-    const { data: refData } = await octokit.git.getRef({
-      owner: baseOwner,
-      repo: baseRepo,
-      ref: `heads/${baseBranch}`,
-    });
+    // 포크 저장소의 기본 브랜치에서 최신 커밋 SHA 가져오기
+    let refData;
+    try {
+      // 먼저 포크 저장소에서 기본 브랜치의 SHA를 가져오기 시도
+      const { data } = await octokit.git.getRef({
+        owner: forkOwner,
+        repo: forkRepo,
+        ref: `heads/${baseBranch}`,
+      });
+      refData = data;
+      console.log("[SubmitPR] Using fork repository SHA:", data.object.sha);
+    } catch (error) {
+      console.log(
+        "[SubmitPR] Failed to get fork SHA, trying base repository...",
+        error
+      );
+      // 포크 저장소에서 실패하면 원본 저장소에서 가져오기
+      const { data } = await octokit.git.getRef({
+        owner: baseOwner,
+        repo: baseRepo,
+        ref: `heads/${baseBranch}`,
+      });
+      refData = data;
+      console.log("[SubmitPR] Using base repository SHA:", data.object.sha);
+    }
 
     // 포크한 저장소에 새 브랜치 생성
+    console.log(
+      "[SubmitPR] Creating branch:",
+      branchName,
+      "with SHA:",
+      refData.object.sha
+    );
     await octokit.git.createRef({
       owner: forkOwner,
       repo: forkRepo,
@@ -128,23 +175,28 @@ export async function POST(request: Request) {
     // 3. 파일 생성
     const filePath = `data/agendas/${agendaData.network}/agenda-${agendaData.id}.json`;
 
-    try {
-      // 먼저 파일이 존재하는지 확인
-      const { data: existingFile } = await octokit.repos
-        .getContent({
-          owner: forkOwner,
-          repo: forkRepo,
-          path: filePath,
-          ref: branchName,
-        })
-        .catch(() => ({ data: null }));
+    // 먼저 파일이 존재하는지 확인
+    const { data: existingFile } = await octokit.repos
+      .getContent({
+        owner: forkOwner,
+        repo: forkRepo,
+        path: filePath,
+        ref: branchName,
+      })
+      .catch(() => ({ data: null }));
 
+    try {
       // 파일 생성 또는 업데이트
+      const isUpdate = existingFile && !Array.isArray(existingFile);
+      const commitMessage = isUpdate
+        ? `update: agenda ${agendaData.network}-${agendaData.id}`
+        : `add: agenda ${agendaData.network}-${agendaData.id}`;
+
       await octokit.repos.createOrUpdateFileContents({
         owner: forkOwner,
         repo: forkRepo,
         path: filePath,
-        message: `Add agenda ${agendaData.id}: ${agendaData.title}`,
+        message: commitMessage,
         content: Buffer.from(JSON.stringify(agendaData, null, 2)).toString(
           "base64"
         ),
@@ -159,7 +211,10 @@ export async function POST(request: Request) {
     }
 
     // 4. PR 생성
-    const prTitle = `[Agenda] ${agendaData.network} - ${agendaData.id} - ${agendaData.title}`;
+    // 파일이 이미 존재하는 경우 업데이트로 처리
+    const isUpdate = existingFile && !Array.isArray(existingFile);
+    const prPrefix = isUpdate ? "[Agenda Update]" : "[Agenda]";
+    const prTitle = `${prPrefix} ${agendaData.network} - ${agendaData.id} - ${agendaData.title}`;
     const truncatedTitle =
       prTitle.length > 100 ? prTitle.substring(0, 97) + "..." : prTitle;
 
@@ -167,7 +222,7 @@ export async function POST(request: Request) {
       owner: baseOwner,
       repo: baseRepo,
       title: truncatedTitle,
-      body: `## Agenda Metadata Submission
+      body: `## Agenda Metadata ${isUpdate ? "Update" : "Submission"}
 - Network: ${agendaData.network}
 - Agenda ID: ${agendaData.id}
 - Title: ${agendaData.title}
@@ -179,11 +234,11 @@ export async function POST(request: Request) {
 ${message}
 
 ## Type of change
-- [x] New agenda
+- [x] ${isUpdate ? "Updated agenda" : "New agenda"}
 
 ## Checklist
-- [x] My PR title follows the format: \`[Agenda] <network> - <agenda_id> - <agenda_title>\`
-- [x] I have added only one agenda file
+- [x] My PR title follows the format: \`${prPrefix} <network> - <agenda_id> - <agenda_title>\`
+- [x] I have ${isUpdate ? "updated" : "added"} only one agenda file
 - [x] I have verified the agenda metadata
 - [x] I have checked the agenda ID matches the PR title
 - [x] I have verified the network (mainnet/sepolia) matches the PR title`,
