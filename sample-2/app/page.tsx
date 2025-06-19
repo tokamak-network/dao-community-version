@@ -51,10 +51,10 @@ export default function Home() {
           </div>
           <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-100">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Participate in Voting
+              View Voting & Participate
             </h3>
             <p className="text-gray-600">
-              Vote on active proposals and share your opinions.
+              View voting results and on-chain data. Only DAO members can vote.
             </p>
           </div>
           <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-100">
