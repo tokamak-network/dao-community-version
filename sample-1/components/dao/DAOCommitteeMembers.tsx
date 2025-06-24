@@ -509,8 +509,8 @@ export default function DAOCommitteeMembers() {
               <div className="flex justify-between items-start mb-4">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-900 text-[9px] font-normal font-['Inter']">Total Staked </span>
-                    <span className="text-slate-700 text-[9px] font-normal font-['Inter']">{formatTONWithUnit(member.totalStaked)}</span>
+                    <span className="text-zinc-900 text-xs font-normal font-['Inter']">Total Staked </span>
+                    <span className="text-slate-700 text-xs font-normal font-['Inter']">{formatTONWithUnit(member.totalStaked)}</span>
                   </div>
                   <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{member.name}</div>
                   <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">{member.description}</div>

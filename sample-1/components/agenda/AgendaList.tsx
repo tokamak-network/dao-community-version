@@ -116,8 +116,8 @@ export default function AgendaList() {
             <div className="flex justify-between items-start mb-4">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-zinc-900 text-[9px] font-normal font-['Inter']">Agenda </span>
-                  <span className="text-slate-700 text-[9px] font-normal font-['Inter']">{agenda.id}</span>
+                  <span className="text-zinc-900 text-xs font-normal font-['Inter']">Agenda </span>
+                  <span className="text-slate-700 text-xs font-normal font-['Inter']">{agenda.id}</span>
                 </div>
                 <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{agenda.title}</div>
                 <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">This agenda was made by {agenda.author} on {agenda.date}</div>
@@ -137,7 +137,8 @@ export default function AgendaList() {
 
             {/* Buttons at bottom */}
             <div className="flex justify-between items-center">
-              <div
+              <Link
+                href={`/agenda/${agenda.id.replace('#', '')}`}
                 data-size="Small"
                 data-state="Default"
                 data-type="Primary"
@@ -153,7 +154,7 @@ export default function AgendaList() {
                 >
                   View Details
                 </div>
-              </div>
+              </Link>
             </div>
           </div>
         ))}
