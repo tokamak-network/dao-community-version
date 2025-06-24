@@ -11,10 +11,54 @@ export default function AgendaList() {
   const [statusFilter, setStatusFilter] = useState('all')
   const { isConnected } = useAccount();
 
-  // Mock agenda data for demonstration
-  const [agendas] = useState<any[]>([]);
-  const [isLoadingAgendas] = useState(false);
-  const [agendasError] = useState<string | null>(null);
+  // Mock agenda data based on the screenshot
+  const mockAgendas = [
+    {
+      id: '#14',
+      title: '(DAO Committee Proxy)Address of the DAO contract will be upgraded.',
+      author: 'OxH65...eJsof',
+      date: 'Apr 4, 2023',
+      status: 'EXECUTED',
+      votesFor: 0,
+      votesAgainst: 0
+    },
+    {
+      id: '#13',
+      title: '(DAO Committee Proxy)Address of the DAO contract will be upgraded.',
+      author: 'OxH65...eJsof',
+      date: 'Oct 30, 2024',
+      status: 'EXECUTED',
+      votesFor: 0,
+      votesAgainst: 0
+    },
+    {
+      id: '#12',
+      title: '(SeigniorageManager)All the seigniorage rates will be changed',
+      author: 'OxT36E...KTBU',
+      date: 'May 25, 2024',
+      status: 'EXECUTED',
+      votesFor: 0,
+      votesAgainst: 0
+    },
+    {
+      id: '#11',
+      title: '(Deposit Manager) Add logic to use the Deposit Manager contract.',
+      author: 'Ox442d...bZ3d',
+      date: 'Jul 3, 2024',
+      status: 'EXECUTED',
+      votesFor: 0,
+      votesAgainst: 0
+    },
+    {
+      id: '#10',
+      title: '(DAO Committee Proxy)Address of the DAO contract will be upgraded.',
+      author: 'OxT36E...KTBU',
+      date: 'Jul 3, 2022',
+      status: 'EXECUTED',
+      votesFor: 0,
+      votesAgainst: 0
+    }
+  ];
 
   const refreshAgendas = () => {
     console.log('Refreshing agendas...');
@@ -26,12 +70,12 @@ export default function AgendaList() {
 
   // Agenda 페이지 진입시 agenda 데이터 로딩
   useEffect(() => {
-    if (agendas.length === 0 && !isLoadingAgendas && !agendasError) {
+    if (mockAgendas.length === 0) {
       loadAgendas()
     }
   }, [])
 
-  if (isLoadingAgendas) {
+  if (mockAgendas.length === 0) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex flex-col items-center gap-4">
@@ -42,117 +86,91 @@ export default function AgendaList() {
     )
   }
 
-  if (agendasError) {
-    return (
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-red-500 text-lg">Error: {agendasError}</p>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-            onClick={refreshAgendas}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div className="flex flex-col items-start gap-1">
-          <h1 className="text-3xl font-bold text-gray-900">Agenda</h1>
-          {agendas.length > 0 && (
-            <p className="text-sm text-gray-500">
-              {agendas.length} agendas found
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
+          <h1 className="text-2xl font-normal text-zinc-900 font-['Inter']">Agenda</h1>
           <Link
             href="#"
-            className="text-blue-600 text-sm hover:text-blue-700"
+            className="text-blue-600 text-sm hover:text-blue-700 underline"
           >
-            Go to online agenda
+            Go to entire agendas
           </Link>
-          {isConnected && (
-            <button className="px-4 py-2 text-sm bg-red-500 text-white rounded-md hover:bg-red-600">
-              + New proposal
-            </button>
-          )}
         </div>
+
+        {isConnected && (
+          <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            + New proposal
+          </button>
+        )}
       </div>
 
-      {/* No data state */}
-      {agendas.length === 0 && (
-        <div className="flex flex-col items-center gap-4 py-16">
-          <div className="text-gray-400 text-6xl mb-4">📋</div>
-          <h3 className="text-xl font-medium text-gray-700 mb-2">No agendas available</h3>
-          <p className="text-gray-500 text-center max-w-md">
-            There are currently no agendas to display. Check back later or create a new proposal if you're a committee member.
-          </p>
-        </div>
-      )}
-
       {/* Agenda List */}
-      {agendas.length > 0 && (
-        <>
-          <div className="space-y-4">
-            {agendas.map((agenda, index) => (
-              <div key={index} className="bg-white border border-gray-200 rounded-lg p-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {agenda.title}
-                      </h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        agenda.status === 'Open' ? 'bg-red-100 text-red-600' :
-                        agenda.status === 'Notice' ? 'bg-yellow-100 text-yellow-600' :
-                        agenda.status === 'Executed' ? 'bg-green-100 text-green-600' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {agenda.status}
-                      </span>
-                    </div>
+      <div className="flex flex-col gap-4">
+        {mockAgendas.map((agenda, index) => (
+          <div key={agenda.id} className="bg-white border border-gray-200 rounded-lg p-6">
 
-                    <p className="text-gray-600 text-sm mb-3">
-                      {agenda.description}
-                    </p>
+            {/* Member Header */}
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-900 text-[9px] font-normal font-['Inter']">Agenda </span>
+                  <span className="text-slate-700 text-[9px] font-normal font-['Inter']">{agenda.id}</span>
+                </div>
+                <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{agenda.title}</div>
+                <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">This agenda was made by {agenda.author} on {agenda.date}</div>
+              </div>
+            </div>
 
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>by {agenda.author}</span>
-                      <span>{agenda.date}</span>
-                      {agenda.votesFor !== undefined && (
-                        <span>👍 {agenda.votesFor} 👎 {agenda.votesAgainst}</span>
-                      )}
-                    </div>
-                  </div>
+            {/* Status with clock icon */}
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12,6 12,12 16,14"></polyline>
+              </svg>
+              <span className="text-gray-600 text-[10px] font-normal font-['Inter']">
+                POLL ENDED
+              </span>
+            </div>
 
-                  <div className="ml-4">
-                    <button className="px-4 py-2 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 transition-colors">
-                      View Details
-                    </button>
-                  </div>
+            {/* Buttons at bottom */}
+            <div className="flex justify-between items-center">
+              <div
+                data-size="Small"
+                data-state="Default"
+                data-type="Primary"
+                className="w-32 px-4 py-1 rounded-md inline-flex justify-center items-center gap-1.5 cursor-pointer border"
+                style={{
+                  backgroundColor: '#2A72E5',
+                  borderColor: '#2A72E5'
+                }}
+              >
+                <div
+                  className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose"
+                  style={{color: '#FFFFFF'}}
+                >
+                  View Details
                 </div>
               </div>
-            ))}
+            </div>
           </div>
+        ))}
+      </div>
 
-          <div className="flex justify-center mt-8">
-            <Link
-              href="#"
-              className="text-gray-500 text-sm hover:text-gray-700"
-            >
-              View more agenda ({agendas.length})
-            </Link>
-          </div>
-        </>
-      )}
+      {/* Load More */}
+      <div className="flex justify-center mt-8">
+        <Link
+          href="#"
+          className="text-gray-500 text-sm hover:text-gray-700"
+        >
+          View more agenda ({mockAgendas.length + 348})
+        </Link>
+      </div>
 
-      {!isConnected && agendas.length > 0 && (
+      {/* Connect Wallet Notice */}
+      {!isConnected && (
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-700 text-center">
             💡 Connect your wallet to create new proposals and interact with agendas
