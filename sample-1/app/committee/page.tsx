@@ -11,7 +11,7 @@ export default function CommitteePage() {
     loadLayer2Candidates,
     isLoadingLayer2,
     layer2Total,
-    layer2LoadingIndex,
+    layer2Candidates,
     hasLoadedLayer2Once
   } = useDAOContext();
 
@@ -33,7 +33,7 @@ export default function CommitteePage() {
             className={`preload-btn ${isLoadingLayer2 ? 'loading' : ''}`}
           >
             {isLoadingLayer2
-              ? `Loading Layer2... (${layer2LoadingIndex}/${layer2Total})`
+              ? `Loading Layer2... (${layer2Candidates.length}/${layer2Total})`
               : hasLoadedLayer2Once
               ? '🚀 Layer2 Data Ready'
               : '📦 Preload Layer2 Data'
@@ -45,7 +45,7 @@ export default function CommitteePage() {
               <div className="progress-bar">
                 <div
                   className="progress-fill"
-                  style={{ width: `${layer2Total > 0 ? (layer2LoadingIndex / layer2Total) * 100 : 0}%` }}
+                  style={{ width: `${layer2Total > 0 ? (layer2Candidates.length / layer2Total) * 100 : 0}%` }}
                 />
               </div>
               <small>

@@ -7,7 +7,7 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi'
 export default function Header() {
   const pathname = usePathname()
   const { address, isConnected } = useAccount()
-  const { connect, connectors } = useConnect()
+  const { connect, connectors, error: connectError, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const [showDropdown, setShowDropdown] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
@@ -18,15 +18,35 @@ export default function Header() {
     setIsMounted(true)
   }, [])
 
+  // 연결 에러 로깅
+  useEffect(() => {
+    if (connectError) {
+      console.error('Connect error:', connectError)
+    }
+  }, [connectError])
+
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     console.log('Connect wallet clicked')
+    console.log('Available connectors:', connectors.map(c => ({ type: c.type, name: c.name, id: c.id })))
+
     // MetaMask connector 찾기 (injected connector)
     const injectedConnector = connectors.find(connector => connector.type === 'injected')
+    console.log('Found injected connector:', injectedConnector)
+
     if (injectedConnector) {
-      connect({ connector: injectedConnector })
+      try {
+        console.log('Attempting to connect with connector:', injectedConnector.name)
+        await connect({ connector: injectedConnector })
+        console.log('Connect function called successfully')
+      } catch (error) {
+        console.error('Connection failed:', error)
+      }
+    } else {
+      console.error('No injected connector found')
+      console.log('All available connectors:', connectors)
     }
   }
 

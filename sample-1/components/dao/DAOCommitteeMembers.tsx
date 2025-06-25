@@ -28,9 +28,9 @@ export default function DAOCommitteeMembers() {
     resetLayer2Cache,
     isLoadingLayer2,
     layer2Total,
-    layer2LoadingIndex,
+
     hasLoadedLayer2Once,
-    layer2LastFetchTimestamp
+
   } = useDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
@@ -58,6 +58,13 @@ export default function DAOCommitteeMembers() {
   // 트랜잭션 모달 상태
   const [showTransactionModal, setShowTransactionModal] = useState(false)
 
+  // Layer2 선택 모달 상태
+  const [showLayer2SelectModal, setShowLayer2SelectModal] = useState(false)
+  const [selectedMemberForChallenge, setSelectedMemberForChallenge] = useState<CommitteeMember | null>(null)
+  const [availableLayer2s, setAvailableLayer2s] = useState<Candidate[]>([])
+  const [selectedLayer2ForChallenge, setSelectedLayer2ForChallenge] = useState<Candidate | null>(null)
+  const [selectedLayer2Index, setSelectedLayer2Index] = useState<number>(-1)
+
   // 🎯 클라이언트 사이드 마운트 체크
   useEffect(() => {
     setIsMounted(true)
@@ -69,16 +76,85 @@ export default function DAOCommitteeMembers() {
     setExpandedMember(expandedMember === index ? null : index)
   }
 
+  // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
+  const canChallengeWith = (member: CommitteeMember) => {
+    if (!address || !layer2Candidates || layer2Candidates.length === 0 || !committeeMembers) {
+      return { canChallenge: false, myLayer2: null, myLayer2s: [] };
+    }
+
+    // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
+    const myLayer2s = layer2Candidates.filter(candidate => {
+      // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+        return false;
+      }
+
+      // 2. 이미 위원회 멤버인 Layer2는 다른 멤버에게 챌린지할 수 없음
+      const isAlreadyMember = committeeMembers.some(
+        m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
+      );
+      if (isAlreadyMember) {
+        return false;
+      }
+
+      // 3. 내가 operator나 manager인 Layer2인지 확인
+      return address && (
+        candidate.creationAddress.toLowerCase() === address.toLowerCase() ||
+        (candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase()) ||
+        (candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase())
+      );
+    });
+
+    // member.creationAddress 이 빈슬롯이면, 챌린지 가능
+    if (member.creationAddress === "0x0000000000000000000000000000000000000000") {
+      return {
+        canChallenge: myLayer2s.length > 0,
+        myLayer2: myLayer2s[0] || null,
+        myLayer2s: myLayer2s
+      };
+    }
+
+    // 해당 멤버보다 스테이킹이 높은 내 Layer2들 찾기
+    const challengeableLayer2s = myLayer2s.filter(layer2 =>
+      BigInt(layer2.totalStaked) > BigInt(member.totalStaked)
+    );
+
+    return {
+      canChallenge: challengeableLayer2s.length > 0,
+      myLayer2: challengeableLayer2s[0] || null,
+      myLayer2s: challengeableLayer2s
+    };
+  }
+
   const handleChallenge = async (member: CommitteeMember) => {
     if (!address || !committeeMembers) {
       console.error('❌ 챌린지 조건 불충족: 지갑 미연결 또는 멤버 데이터 없음');
       return;
     }
 
-    // 챌린지할 수 있는 Layer2 찾기
-    const { canChallenge, myLayer2 } = canChallengeWith(member);
-    if (!canChallenge || !myLayer2) {
-      console.error('❌ 챌린지 권한 없음');
+    // 선택된 Layer2가 있으면 우선 사용, 없으면 기본 로직 사용
+    let challengeLayer2: Candidate | null = null;
+
+    if (selectedLayer2ForChallenge) {
+      // 모달에서 선택된 Layer2 사용
+      challengeLayer2 = selectedLayer2ForChallenge;
+      console.log('🎯 모달에서 선택된 Layer2 사용:', challengeLayer2.name);
+
+      // 선택된 Layer2 초기화
+      setSelectedLayer2ForChallenge(null);
+    } else {
+      // 기본 로직: 첫 번째 가능한 Layer2 사용
+      const { canChallenge, myLayer2 } = canChallengeWith(member);
+      if (!canChallenge || !myLayer2) {
+        console.error('❌ 챌린지 권한 없음');
+        return;
+      }
+      challengeLayer2 = myLayer2;
+    }
+
+    if (!challengeLayer2) {
+      console.error('❌ 챌린지할 Layer2를 찾을 수 없음');
       return;
     }
 
@@ -94,12 +170,12 @@ export default function DAOCommitteeMembers() {
 
     try {
       console.log('🚀 실제 챌린지 실행!', {
-        challenger: myLayer2.name,
-        challengerContract: myLayer2.candidateContract,
+        challenger: challengeLayer2.name,
+        challengerContract: challengeLayer2.candidateContract,
         target: member.name,
         targetContract: member.candidateContract,
         memberIndex,
-        myStaking: myLayer2.totalStaked,
+        myStaking: challengeLayer2.totalStaked,
         targetStaking: member.totalStaked,
         executor: address
       });
@@ -108,7 +184,7 @@ export default function DAOCommitteeMembers() {
       setShowTransactionModal(true);
 
       await changeMember({
-        candidateContract: myLayer2.candidateContract,
+        candidateContract: challengeLayer2.candidateContract,
         targetMemberIndex: memberIndex
       });
 
@@ -323,7 +399,14 @@ export default function DAOCommitteeMembers() {
       });
       shouldStartAnalysisRef.current = true; // 로딩 완료 후 자동 분석 플래그 설정
       // 로딩 시작 후 완료되면 useEffect에서 자동 분석
-      loadLayer2Candidates();
+      loadLayer2Candidates(false, (current, total, message) => {
+        setChallengeProgress(prev => ({
+          ...prev,
+          currentMemberIndex: current,
+          totalMembers: total,
+          message: message
+        }));
+      });
       return;
     }
 
@@ -397,51 +480,9 @@ export default function DAOCommitteeMembers() {
   }
 
   // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
-  const canChallengeWith = (member: CommitteeMember) => {
 
-    if (!address || !layer2Candidates || layer2Candidates.length === 0 || !committeeMembers) return { canChallenge: false, myLayer2: null };
 
-    // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
-    const myLayer2s = layer2Candidates.filter(candidate => {
-      // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
-      const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
-      if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
-        return false;
-      }
-
-      // 2. 이미 위원회 멤버인 Layer2는 다른 멤버에게 챌린지할 수 없음
-      const isAlreadyMember = committeeMembers.some(
-        m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
-      );
-      if (isAlreadyMember) {
-        return false;
-      }
-
-      // 3. 내가 operator나 manager인 Layer2인지 확인
-      return address && (
-        candidate.creationAddress.toLowerCase() === address.toLowerCase() ||
-        (candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase()) ||
-        (candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase())
-      );
-    });
-    console.log("🚀 myLayer2s (이미 위원회 멤버 제외됨) ", myLayer2s);
-
-    // member.creationAddress 이 빈슬롯이면, 챌린지 가능
-    if (member.creationAddress === "0x0000000000000000000000000000000000000000")
-      return { canChallenge: myLayer2s.length > 0, myLayer2: myLayer2s[0] || null };
-
-    // 해당 멤버보다 스테이킹이 높은 내 Layer2가 있는지 확인
-    const challengeableLayer2 = myLayer2s.find(layer2 =>
-      BigInt(layer2.totalStaked) > BigInt(member.totalStaked)
-    );
-
-    return {
-      canChallenge: !!challengeableLayer2,
-      myLayer2: challengeableLayer2
-    };
-  }
-
-  console.log("🚀 committeeMembers ", committeeMembers);
+  // console.log("🚀 committeeMembers ", committeeMembers);
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -552,24 +593,41 @@ export default function DAOCommitteeMembers() {
                 <div className="flex items-center gap-2">
                   {/* Challenge 버튼 - 실제 챌린지 권한이 있을 때만 표시 */}
                   {(() => {
-                    const { canChallenge, myLayer2 } = canChallengeWith(member);
-                    if (canChallenge && myLayer2) {
+                    const { canChallenge, myLayer2, myLayer2s } = canChallengeWith(member);
+                    if (canChallenge && myLayer2 && myLayer2s) {
                       return (
                         <div
                           className="px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
                           style={{backgroundColor: '#2A72E5'}}
                           onClick={() => {
-                            console.log('🚀 실제 챌린지 실행!', {
-                              challenger: myLayer2.name,
-                              target: member.name,
-                              myStaking: myLayer2.totalStaked,
-                              targetStaking: member.totalStaked,
-                              myAddress: address,
-                              canExecute: true
-                            });
-                            handleChallenge(member);
+                            // 여러 Layer2가 있으면 선택 모달 표시
+                            if (myLayer2s.length > 1) {
+                              console.log('🎯 여러 Layer2 감지, 선택 모달 표시:', {
+                                availableLayer2s: myLayer2s.map(l => l.name),
+                                targetMember: member.name
+                              });
+                              setSelectedMemberForChallenge(member);
+                              setAvailableLayer2s(myLayer2s);
+                              setSelectedLayer2Index(0); // 첫 번째 옵션을 기본 선택
+                              setShowLayer2SelectModal(true);
+                            } else {
+                              // 1개만 있으면 바로 실행
+                              console.log('🚀 단일 Layer2로 바로 챌린지 실행!', {
+                                challenger: myLayer2.name,
+                                target: member.name,
+                                myStaking: myLayer2.totalStaked,
+                                targetStaking: member.totalStaked,
+                                myAddress: address,
+                                canExecute: true
+                              });
+                              handleChallenge(member);
+                            }
                           }}
-                          title={`${myLayer2.name}로 챌린지 실행 (${(Number(myLayer2.totalStaked) / 1e27).toLocaleString()} WTON)`}
+                          title={
+                            myLayer2s.length > 1
+                              ? `${myLayer2s.length}개 Layer2 중 선택`
+                              : `${myLayer2.name}로 챌린지 실행 (${(Number(myLayer2.totalStaked) / 1e27).toLocaleString()} WTON)`
+                          }
                         >
                           <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
                             Challenge
@@ -715,144 +773,61 @@ export default function DAOCommitteeMembers() {
       {/* 전역 Challenge 분석 진행사항 모달 */}
       {showGlobalChallenge && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-xl">
             {/* 모달 헤더 */}
-            <div className="p-6 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-100">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  🎯 Challenge Analysis
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Challenge Analysis
                 </h3>
-                                <div className="flex items-center gap-3">
-                  {/* 데이터 수집 시간 - 완료된 경우에만 표시 */}
-                  {challengeProgress.step === 'completed' && layer2LastFetchTimestamp > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>
-                        {new Date(layer2LastFetchTimestamp).toLocaleString('ko-KR', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        })} 수집
-                      </span>
-                    </div>
-                  )}
-
-                  {/* 새로고침 버튼 - 데이터 수집이 완료된 경우에만 표시 */}
-                  {challengeProgress.step === 'completed' && (
-                    <button
-                                            onClick={async () => {
-                        console.log('🔄 새로고침 시작 - 모든 데이터를 새로 가져옵니다');
-
-                        // 1. 즉시 로컬 상태 초기화 (이전 결과 제거)
-                        setGlobalChallengeCandidates([]);
-                        setChallengeProgress({
-                          step: 'loading-layer2',
-                          currentMemberIndex: 0,
-                          totalMembers: 0,
-                          message: '데이터를 새로 가져오는 중...',
-                          error: ''
-                        });
-
-                        try {
-                          // 2. Layer2 캐시 완전히 초기화
-                          console.log('🗑️ Layer2 캐시 초기화');
-                          resetLayer2Cache();
-
-                          // 3. 새로고침용 플래그 설정 (useEffect와 구분)
-                          shouldStartAnalysisRef.current = true;
-
-                          // 4. 강제로 Layer2 데이터 새로 로드 (캐시 체크 무시)
-                          console.log('📦 강제 Layer2 데이터 로드 시작');
-                          await loadLayer2Candidates(true); // force=true
-
-                          console.log('✅ Layer2 데이터 새로고침 완료, useEffect가 분석을 시작할 예정');
-
-                        } catch (error) {
-                          console.error('❌ 새로고침 중 오류:', error);
-                          setChallengeProgress({
-                            step: 'error',
-                            currentMemberIndex: 0,
-                            totalMembers: 0,
-                            message: '',
-                            error: '데이터 새로고침 중 오류가 발생했습니다.'
-                          });
-                        }
-                      }}
-                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                      title="블록체인에서 최신 데이터를 새로 가져옵니다"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      새로고침
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setShowGlobalChallenge(false);
-                      setChallengeProgress(prev => ({ ...prev, step: 'idle' }));
-                    }}
-                    className="text-gray-400 hover:text-gray-600 text-xl"
-                  >
-                    ✕
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setShowGlobalChallenge(false);
+                    setChallengeProgress(prev => ({ ...prev, step: 'idle' }));
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
 
-            <div className="p-6">
-              {/* 진행사항 표시 */}
+            <div className="px-6 py-8">
+              {/* 로딩 상태 */}
               {challengeProgress.step !== 'completed' && challengeProgress.step !== 'error' && (
-                <div className="space-y-4">
-                  {/* 현재 단계 표시 */}
-                  <div className="text-center">
-                    <div className="inline-flex items-center gap-2 mb-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                      <span className="text-lg font-medium text-gray-800">
-                        {challengeProgress.step === 'loading-layer2' && '📦 Loading Layer2 Data'}
-                        {challengeProgress.step === 'checking-members' && '🔍 Analyzing Members'}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 mb-4">{challengeProgress.message}</p>
+                <div className="text-center space-y-6">
+                  {/* 중앙 스피너/아이콘 */}
+                  <div className="flex justify-center">
+                    <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                   </div>
 
-                  {/* Layer2 로딩 진행률 */}
-                  {challengeProgress.step === 'loading-layer2' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Layer2 Registry</span>
-                        <span>{layer2LoadingIndex}/{layer2Total}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${layer2Total > 0 ? (layer2LoadingIndex / layer2Total) * 100 : 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  {/* 상태 메시지 */}
+                  <div className="space-y-2">
+                    <h4 className="text-lg font-semibold text-gray-900">
+                      {challengeProgress.step === 'loading-layer2' && 'Loading Layer2 Data'}
+                      {challengeProgress.step === 'checking-members' && 'Analyzing Members'}
+                    </h4>
+                    <p className="text-gray-600">{challengeProgress.message}</p>
+                  </div>
 
-                  {/* 멤버 분석 진행률 */}
-                  {challengeProgress.step === 'checking-members' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Committee Members</span>
-                        <span>{challengeProgress.currentMemberIndex}/{challengeProgress.totalMembers}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${challengeProgress.totalMembers > 0 ? (challengeProgress.currentMemberIndex / challengeProgress.totalMembers) * 100 : 0}%`
-                          }}
-                        />
-                      </div>
+                  {/* 진행률 바 */}
+                  <div className="space-y-3 max-w-md mx-auto">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>
+                        {challengeProgress.step === 'loading-layer2' && 'Layer2 Registry'}
+                        {challengeProgress.step === 'checking-members' && 'Committee Members'}
+                      </span>
+                      <span>{challengeProgress.currentMemberIndex}/{challengeProgress.totalMembers}</span>
                     </div>
-                  )}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${challengeProgress.totalMembers > 0 ? (challengeProgress.currentMemberIndex / challengeProgress.totalMembers) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1094,6 +1069,137 @@ export default function DAOCommitteeMembers() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+            {/* Layer2 선택 모달 - 이미지와 동일한 깔끔한 디자인 */}
+      {showLayer2SelectModal && selectedMemberForChallenge && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-xl">
+            {/* 모달 헤더 */}
+            <div className="p-6 pb-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Choose a challenge
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowLayer2SelectModal(false);
+                    setSelectedMemberForChallenge(null);
+                    setAvailableLayer2s([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+                        {/* 큰 박스 - 타겟 멤버와 챌린저들을 포함 */}
+            <div className="px-6 pb-4">
+              <div className="border border-gray-200 rounded-xl p-4">
+                {/* 타겟 멤버 정보 */}
+                <div className="mb-3">
+                  <h4 className="font-semibold text-gray-900 text-lg mb-1">
+                    {selectedMemberForChallenge.name}
+                  </h4>
+                  <p className="text-gray-600">
+                    {(Number(selectedMemberForChallenge.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                  </p>
+                </div>
+
+                {/* 구분선과 챌린저 섹션 제목 */}
+                <div className="border-t border-gray-200 pt-3">
+                  <h5 className="font-medium text-gray-900 mb-2">
+                    Challenging Layer2 ({availableLayer2s.length})
+                  </h5>
+
+                  {/* 작은 챌린저 박스들 */}
+                  <div className="space-y-2">
+                    {availableLayer2s.map((layer2, index) => (
+                      <div
+                        key={index}
+                        className="p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-colors"
+                        onClick={() => {
+                          setSelectedLayer2Index(index);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            {/* 라디오 버튼 */}
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              selectedLayer2Index === index
+                                ? 'border-blue-500 bg-blue-500'
+                                : 'border-gray-300'
+                            }`}>
+                              {selectedLayer2Index === index && (
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              )}
+                            </div>
+
+                            {/* Layer2 정보 */}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-gray-900 text-sm">{layer2.name}</span>
+                                <a
+                                  href={`https://etherscan.io/address/${layer2.candidateContract}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:text-blue-700"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              </div>
+                              <p className="text-gray-600 text-sm mt-0.5">
+                                {(Number(layer2.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 우위 표시 */}
+                          <div className="text-right">
+                            <p className="text-blue-500 font-medium text-sm">
+                              +{((Number(layer2.totalStaked) - Number(selectedMemberForChallenge.totalStaked)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 버튼 */}
+            <div className="p-6 pt-3 flex justify-center">
+              <button
+                onClick={() => {
+                  if (selectedLayer2Index >= 0 && selectedLayer2Index < availableLayer2s.length && selectedMemberForChallenge) {
+                    const selectedLayer2 = availableLayer2s[selectedLayer2Index];
+                    setSelectedLayer2ForChallenge(selectedLayer2);
+                    setShowLayer2SelectModal(false);
+                    setSelectedMemberForChallenge(null);
+                    setAvailableLayer2s([]);
+                    setSelectedLayer2Index(-1);
+                    handleChallenge(selectedMemberForChallenge);
+                  }
+                }}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-lg transition-colors ${
+                  selectedLayer2Index >= 0
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+                disabled={selectedLayer2Index < 0}
+              >
+                Choose
+              </button>
             </div>
           </div>
         </div>

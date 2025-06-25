@@ -1,16 +1,8 @@
-export interface AgendaWithMetadata {
-  id: number;
-  title: string;
-  description: string;
-  author: string;
-  date: string;
-  status: string;
-  statusColor: string;
-  votesFor: number;
-  votesAgainst: number;
-  executionTime: number | null;
-  isExecuted: boolean;
-}
+import {
+  AgendaWithMetadata,
+  AgendaCreatedEvent,
+  AgendaAction,
+} from "@/types/agenda";
 
 export interface CommitteeMember {
   name: string;
@@ -41,16 +33,6 @@ export interface Candidate {
   cooldown: number; // 쿨다운 시간
 }
 
-export interface AgendaCreatedEvent {
-  agendaId: number;
-  creator: string;
-  timestamp: number;
-}
-
-export interface AgendaAction {
-  type: string;
-  data: any;
-}
 
 export interface ContractInfo {
   address: `0x${string}`;
@@ -70,11 +52,6 @@ export interface VoterInfo {
   vote: bigint;
 }
 
-export interface AgendaProposalCheck {
-  canPropose: boolean;
-  message?: string;
-}
-
 export interface DAOContextType {
   isMember: boolean;
 
@@ -87,13 +64,11 @@ export interface DAOContextType {
 
   // Layer2 Candidates 관련 (챌린징용)
   layer2Total: number;
-  layer2LoadingIndex: number;
   layer2Candidates: Candidate[];
   isLoadingLayer2: boolean;
   layer2Error: string | null;
   hasLoadedLayer2Once: boolean;
-  layer2LastFetchTimestamp: number;
-  loadLayer2Candidates: (force?: boolean) => Promise<void>;
+  loadLayer2Candidates: (force?: boolean, onProgress?: (current: number, total: number, message: string) => void) => Promise<void>;
   resetLayer2Cache: () => void;
 
 
@@ -102,11 +77,27 @@ export interface DAOContextType {
   statusMessage: string;
   contract: ContractInfo;
   daoContract: ContractInfo;
-  events: AgendaCreatedEvent[];
+  // events: AgendaCreatedEvent[];
   isPolling: boolean;
   progress: ProgressInfo | null;
+  createAgendaFees: bigint | null;
   minimumNoticePeriodSeconds: bigint | null;
   minimumVotingPeriodSeconds: bigint | null;
   quorum: bigint | null;
   getVoterInfos: (agendaId: number, voters: string[]) => Promise<VoterInfo[]>;
+
+
+  // agenda
+  agendas: AgendaWithMetadata[];
+  isLoadingAgendas: boolean;
+  agendasError: string | null;
+  refreshAgendas: () => Promise<void>;
+  refreshAgenda: (agendaId: number) => Promise<void>;
+  refreshAgendaWithoutCache: (
+    agendaId: number
+  ) => Promise<AgendaWithMetadata | null>;
+  getAgenda: (agendaId: number) => Promise<AgendaWithMetadata | null>;
+  events: AgendaCreatedEvent[];
+
+
 }

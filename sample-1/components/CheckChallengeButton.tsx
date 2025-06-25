@@ -18,7 +18,6 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
     loadLayer2Candidates,
     isLoadingLayer2,
     layer2Total,
-    layer2LoadingIndex,
     hasLoadedLayer2Once
   } = useDAOContext();
 
@@ -180,7 +179,7 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
 
   const getButtonText = () => {
     if (isLoadingLayer2) {
-      return `Loading Layer2... (${layer2LoadingIndex}/${layer2Total})`;
+      return `Loading Layer2... (${layer2Candidates.length}/${layer2Total})`;
     }
     if (isChecking) {
       return 'Checking...';
@@ -210,7 +209,7 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
           <div className="progress-bar">
             <div
               className="progress-fill"
-              style={{ width: `${layer2Total > 0 ? (layer2LoadingIndex / layer2Total) * 100 : 0}%` }}
+              style={{ width: `${layer2Total > 0 ? (layer2Candidates.length / layer2Total) * 100 : 0}%` }}
             />
           </div>
           <small>Caching Layer2 data for challenges...</small>
