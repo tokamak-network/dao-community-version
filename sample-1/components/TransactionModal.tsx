@@ -99,9 +99,9 @@ export function TransactionModal({
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
               <div className="space-y-2">
-                <p className="text-gray-800 font-medium">트랜잭션 처리 중...</p>
+                <p className="text-gray-800 font-medium">Processing transaction...</p>
                 <p className="text-sm text-gray-600">
-                  {!txHash ? '지갑에서 트랜잭션을 승인해주세요' : '블록체인 확인을 기다리는 중...'}
+                                      {!txHash ? 'Please approve the transaction in your wallet' : 'Waiting for blockchain confirmation...'}
                 </p>
               </div>
             </div>

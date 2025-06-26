@@ -28,9 +28,11 @@ export default function DAOCommitteeMembers() {
     resetLayer2Cache,
     isLoadingLayer2,
     layer2Total,
-
     hasLoadedLayer2Once,
-
+    globalChallengeCandidates,
+    setGlobalChallengeCandidates,
+    analysisCompletedTime,
+    setAnalysisCompletedTime,
   } = useDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
@@ -42,7 +44,6 @@ export default function DAOCommitteeMembers() {
 
   const [expandedMember, setExpandedMember] = useState<number | null>(null)
   const [showGlobalChallenge, setShowGlobalChallenge] = useState(false)
-  const [globalChallengeCandidates, setGlobalChallengeCandidates] = useState<Candidate[]>([])
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false)
   const [challengeProgress, setChallengeProgress] = useState({
     step: 'idle', // 'idle' | 'loading-layer2' | 'checking-members' | 'completed' | 'error'
@@ -64,6 +65,9 @@ export default function DAOCommitteeMembers() {
   const [availableLayer2s, setAvailableLayer2s] = useState<Candidate[]>([])
   const [selectedLayer2ForChallenge, setSelectedLayer2ForChallenge] = useState<Candidate | null>(null)
   const [selectedLayer2Index, setSelectedLayer2Index] = useState<number>(-1)
+
+  // 각 Layer2별 선택된 멤버 인덱스를 추적
+  const [selectedMemberIndexByLayer2, setSelectedMemberIndexByLayer2] = useState<{[key: string]: number}>({})
 
   // 🎯 클라이언트 사이드 마운트 체크
   useEffect(() => {
@@ -297,6 +301,10 @@ export default function DAOCommitteeMembers() {
         return a.challengers.length - b.challengers.length;
       });
 
+      // 분석 완료 시간 저장
+      const completionTime = new Date();
+      setAnalysisCompletedTime(completionTime);
+
       setChallengeProgress({
         step: 'completed',
         currentMemberIndex: memberChallengeMap.length,
@@ -410,9 +418,21 @@ export default function DAOCommitteeMembers() {
       return;
     }
 
-    // 3. 정보가 다 로딩된 상태이면, 즉시 챌린지 분석 시작
-    console.log('✅ Layer2 데이터 이미 존재, 즉시 분석 시작');
-    performChallengeAnalysis();
+    // 3. 정보가 다 로딩된 상태이면, 기존 분석 결과가 있는지 확인
+    if (globalChallengeCandidates.length > 0 && analysisCompletedTime) {
+      console.log('✅ 기존 분석 결과 존재, 재사용');
+      // 기존 결과가 있으면 바로 완료 상태로 설정
+      setChallengeProgress({
+        step: 'completed',
+        currentMemberIndex: globalChallengeCandidates.length,
+        totalMembers: committeeMembers?.length || 0,
+        message: `분석 완료! ${globalChallengeCandidates.length}명의 멤버에게 챌린지 가능합니다.`,
+        error: ''
+      });
+    } else {
+      console.log('✅ Layer2 데이터 이미 존재, 새로운 분석 시작');
+      performChallengeAnalysis();
+    }
 
   }
 
@@ -543,7 +563,7 @@ export default function DAOCommitteeMembers() {
           {committeeMembers.map((member, index) => (
             <div
               key={index}
-              className="bg-white border border-gray-200 rounded-lg p-6"
+              className="bg-white border border-gray-300 rounded-lg p-6"
             >
 
               {/* Member Header */}
@@ -848,210 +868,376 @@ export default function DAOCommitteeMembers() {
 
               {/* 완료 상태 - 결과 표시 */}
               {challengeProgress.step === 'completed' && (
-                <div className="space-y-4">
-                  <div className="text-center mb-4">
-                    <div className="text-green-500 text-xl mb-1">✅</div>
-                    <p className="text-gray-800 font-medium text-sm">{challengeProgress.message}</p>
+                <div className="space-y-6">
+                  {/* 상단 완료 상태 섹션 */}
+                  <div className="text-center space-y-4">
+                    {/* 초록색 체크마크 원형 아이콘 */}
+                    <div className="flex justify-center">
+                      <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center border-4 border-green-400">
+                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {/* Analysis complete! 제목 */}
+                    <h4 className="text-xl font-semibold text-gray-900">Analysis complete!</h4>
+
+                    {/* You can challenge X members. 메시지 */}
+                    <div className="flex items-center justify-center gap-2">
+
+                      <p className="text-gray-700 font-medium">
+                        You can challenge {address ? globalChallengeCandidates.filter((item: any) => {
+                          // 실시간으로 현재 지갑 상태 확인
+                          return item.challengers.some((challenger: Candidate) => {
+                            const currentTime = Math.floor(Date.now() / 1000);
+                            if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
+                              return false;
+                            }
+                            return challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
+                              (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
+                              (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase());
+                          });
+                        }).length : 0} members.
+                      </p>
+                    </div>
+
+                    {/* 수집 시간 */}
+                    <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12,6 12,12 16,14"></polyline>
+                      </svg>
+                      <span>Collected on {(analysisCompletedTime || new Date()).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric'
+                      })} at {(analysisCompletedTime || new Date()).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}</span>
+                    </div>
+
+                    {/* Refresh 버튼 */}
+                    <button
+                      onClick={async () => {
+                        // Refresh 버튼은 Layer2 데이터만 새로 가져오기
+                        console.log('🔄 Refresh 버튼 클릭 - Layer2 데이터 새로고침');
+
+                        // 1. 기존 분석 결과 지우기
+                        setGlobalChallengeCandidates([]);
+                        setAnalysisCompletedTime(null);
+
+                        // 2. Layer2 데이터 새로고침 시작
+                        setChallengeProgress({
+                          step: 'loading-layer2',
+                          currentMemberIndex: 0,
+                          totalMembers: 0,
+                          message: '온체인에서 최신 Layer2 데이터를 가져오고 있습니다...',
+                          error: ''
+                        });
+
+                        try {
+                          // Layer2 캐시 리셋 후 새로 로드
+                          resetLayer2Cache();
+                          await loadLayer2Candidates(true, (current, total, message) => {
+                            setChallengeProgress(prev => ({
+                              ...prev,
+                              currentMemberIndex: current,
+                              totalMembers: total,
+                              message: message
+                            }));
+                          });
+
+                          // 3. 새로운 데이터로 분석
+                          setChallengeProgress({
+                            step: 'checking-members',
+                            currentMemberIndex: 0,
+                            totalMembers: committeeMembers?.length || 0,
+                            message: '최신 데이터로 챌린지 분석 중...',
+                            error: ''
+                          });
+
+                          // 잠시 후 분석 시작
+                          setTimeout(() => {
+                            performChallengeAnalysis();
+                          }, 500);
+
+                        } catch (error) {
+                          console.error('❌ Layer2 데이터 새로고침 실패:', error);
+                          setChallengeProgress({
+                            step: 'error',
+                            currentMemberIndex: 0,
+                            totalMembers: 0,
+                            message: '',
+                            error: 'Layer2 데이터 새로고침 중 오류가 발생했습니다.'
+                          });
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
                   </div>
 
-                                                      {globalChallengeCandidates.length > 0 ? (
+                  {globalChallengeCandidates.length > 0 ? (
                     <div className="space-y-6">
-                      {/* 상단: 내가 도전 가능한 멤버들만 따로 표시 */}
+                                            {/* 내가 가진 Layer2 중심으로 챌린지 가능한 멤버들 표시 */}
                       {(() => {
-                        const myOpportunities = globalChallengeCandidates.filter((item: any) => item.hasMyLayer2);
+                        // 내가 소유한 Layer2들 찾기
+                        if (!address || !layer2Candidates || !globalChallengeCandidates) return null;
+
+                        const myLayer2s = layer2Candidates.filter((candidate: Candidate) => {
+                          const currentTime = Math.floor(Date.now() / 1000);
+                          if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+                            return false;
+                          }
+
+                          // 이미 위원회 멤버인 Layer2는 제외
+                          const isAlreadyMember = committeeMembers?.some(
+                            m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
+                          );
+                          if (isAlreadyMember) return false;
+
+                          return candidate.creationAddress.toLowerCase() === address.toLowerCase() ||
+                            (candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase()) ||
+                            (candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase());
+                        });
+
+                        if (myLayer2s.length === 0) return null;
 
                         return (
-                          <>
-                            {/* 내 도전 기회 */}
-                            {myOpportunities.length > 0 && (
-                              <div className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-bold text-green-800 text-lg">
-                                    🚀 내가 도전할 수 있는 멤버 ({myOpportunities.length}명)
-                                  </h4>
-                                </div>
-                                <div className="space-y-4">
-                                  {myOpportunities.map((item: any, index) => {
-                                    const myChallengers = item.challengers.filter((challenger: Candidate) => {
-                                      // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
-                                      const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
-                                      if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
-                                        return false;
-                                      }
+                          <div className="space-y-4">
+                            {myLayer2s.map((myLayer2: Candidate, index) => {
+                              // 이 Layer2로 도전할 수 있는 위원회 멤버들 찾기
+                              const challengeableMembers = globalChallengeCandidates.filter((item: any) => {
+                                return BigInt(myLayer2.totalStaked) > BigInt(item.member?.totalStaked || 0);
+                              });
 
-                                      return address && (
-                                        challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
-                                        (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
-                                        (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
-                                      );
-                                    });
+                              if (challengeableMembers.length === 0) return null;
 
-                                    return (
-                                      <div key={item.member.candidateContract} className="border-2 border-green-300 bg-green-50 rounded-xl p-5">
-                                        {/* 타겟 멤버 정보 */}
-                                        <div className="flex justify-between items-start mb-4">
-                                          <div>
-                                            <h5 className="text-lg font-bold text-gray-900">{item.member.name}</h5>
-                                            <p className="text-green-700 font-medium">
-                                              💰 스테이킹: {(Number(item.member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
-                                            </p>
-                                          </div>
-                                          <span className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium">
-                                            🎯 도전 가능!
-                                          </span>
-                                        </div>
-
-                                        {/* 내 Layer2들만 표시 */}
-                                        <div className="space-y-3">
-                                          <h6 className="font-semibold text-gray-800 mb-3">내 도전 가능한 Layer2 ({myChallengers.length}개):</h6>
-
-                                          {myChallengers.map((challenger: Candidate, idx: number) => (
-                                            <div key={idx} className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4 shadow-md">
-                                              <div className="flex justify-between items-center">
-                                                <div className="flex-1">
-                                                  <div className="flex items-center gap-2 mb-2">
-                                                    <span className="text-lg font-bold text-gray-900">{challenger.name}</span>
-                                                    <a
-                                                      href={getExplorerUrl(challenger.candidateContract, chainId)}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="text-blue-500 hover:text-blue-700 transition-colors"
-                                                      title={`익스플로러에서 ${challenger.name} 확인하기`}
-                                                    >
-                                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                      </svg>
-                                                    </a>
-                                                    <div className="flex items-center gap-1">
-                                                      <span className="bg-green-600 text-white px-2 py-1 text-xs font-bold rounded-full">
-                                                        ✅ 챌린지 실행 가능
-                                                      </span>
-                                                    </div>
-                                                  </div>
-                                                  <div className="text-sm space-y-1">
-                                                    <p className="font-bold text-green-800">
-                                                      💪 내 스테이킹: {(Number(challenger.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
-                                                    </p>
-                                                    <p className="text-xs font-mono text-gray-600">
-                                                      📍 {challenger.candidateContract.slice(0, 8)}...{challenger.candidateContract.slice(-6)}
-                                                    </p>
-                                                    <p className="text-xs text-green-700 font-medium">
-                                                      🔑 연결된 계정으로 실제 챌린지 트랜잭션 실행 가능
-                                                    </p>
-                                                  </div>
-                                                </div>
-                                                <button
-                                                  className="ml-4 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg transform hover:scale-105"
-                                                  onClick={() => console.log('🚀 챌린지 시작!', {
-                                                    challenger: challenger.name,
-                                                    target: item.member.name,
-                                                    myStaking: challenger.totalStaked,
-                                                    targetStaking: item.member.totalStaked
-                                                  })}
-                                                >
-                                                  ⚡ 실행하기!
-                                                </button>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* 하단: 원래 분석 내용 전체 (모든 멤버와 그들을 도전할 수 있는 모든 Layer2들) */}
-                            <div className="space-y-4">
-                              {myOpportunities.length > 0 && (
-                                <div className="border-t pt-6" />
-                              )}
-                              <h4 className="font-medium text-gray-800 text-lg mb-4">
-                                📊 전체 분석 결과 ({globalChallengeCandidates.length}명)
-                              </h4>
-                              <div className="space-y-4">
-                                {globalChallengeCandidates.map((item: any, index) => (
-                                  <div key={item.member.candidateContract} className="border border-gray-200 bg-gray-50 rounded-lg p-4">
-                                    {/* 멤버 기본 정보 */}
-                                    <div className="flex justify-between items-start mb-3">
-                                      <div>
-                                        <span className="font-bold text-gray-900 text-lg">{item.member.name}</span>
-                                        <p className="text-sm text-gray-600">
-                                          💰 {(Number(item.member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
-                                        </p>
-                                      </div>
-                                      {item.hasMyLayer2 && (
-                                        <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
-                                          내 도전 가능
-                                        </span>
-                                      )}
+                              return (
+                                <div key={`my-layer2-${myLayer2.candidateContract}`} className="border-2 border-blue-300 rounded-lg bg-gray-50">
+                                  {/* Layer2 헤더 */}
+                                  <div className="px-6 py-4 border-b border-blue-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <h4 className="text-lg font-semibold text-gray-900">{myLayer2.name}</h4>
+                                      <span className="px-3 py-1 bg-white text-blue-600 border border-blue-600 rounded-full text-sm font-medium">
+                                        My Candidate
+                                      </span>
                                     </div>
+                                    <p className="text-gray-600 text-md">
+                                      {(Number(myLayer2.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                    </p>
+                                  </div>
 
-                                    {/* 도전 가능한 모든 Layer2들 */}
-                                    <div className="border-t pt-3">
-                                      <p className="text-sm font-semibold text-gray-700 mb-2">
-                                        🏆 도전 가능한 Layer2 ({item.challengers.length}개):
-                                      </p>
-                                      <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                                        {item.challengers.map((challenger: Candidate, idx: number) => {
-                                          // 내 Layer2인지 확인 (쿨다운 체크 포함)
-                                          const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
-                                          const isMyLayer2 = address && (
-                                            challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
-                                            (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
-                                            (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
-                                          ) && !(challenger.cooldown > 0 && currentTime < challenger.cooldown); // 쿨다운 체크 추가
+                                  {/* 도전 가능한 위원회 멤버들 */}
+                                  <div className="p-6">
+                                    <p className="text-md font-medium text-gray-700 mb-4">
+                                    Members that this candidate can challenge ({challengeableMembers.length})
+                                    </p>
 
-                                          return (
-                                            <div key={idx} className={`border rounded-md p-2 ${
-                                              isMyLayer2 ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'
-                                            }`}>
-                                              <div className="flex justify-between items-center">
+                                    <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+                                      {challengeableMembers.map((memberItem: any, memberIndex: number) => {
+                                        const layer2Key = myLayer2.candidateContract;
+                                        const selectedIndex = selectedMemberIndexByLayer2[layer2Key] ?? 0;
+                                        const isSelected = memberIndex === selectedIndex;
+                                        const member = memberItem.member;
+
+                                        return (
+                                          <div
+                                            key={memberIndex}
+                                            className="p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                                            onClick={() => {
+                                              setSelectedMemberIndexByLayer2(prev => ({
+                                                ...prev,
+                                                [layer2Key]: memberIndex
+                                              }));
+                                            }}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center gap-3">
+                                                {/* 라디오 버튼 */}
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                                  isSelected
+                                                    ? 'border-blue-500 bg-white'
+                                                    : 'border-gray-300 bg-white'
+                                                }`}>
+                                                  {isSelected && (
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                  )}
+                                                </div>
+
                                                 <div>
                                                   <div className="flex items-center gap-2">
-                                                    <span className={`font-medium text-sm ${
-                                                      isMyLayer2 ? 'text-green-800' : 'text-gray-900'
-                                                    }`}>
-                                                      {challenger.name}
-                                                    </span>
+                                                    <span className="text-md font-semibold text-gray-900">{member?.name || 'Unknown'}</span>
                                                     <a
-                                                      href={getExplorerUrl(challenger.candidateContract, chainId)}
+                                                      href={getExplorerUrl(member?.candidateContract || '', chainId)}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                       className="text-blue-500 hover:text-blue-700 transition-colors"
-                                                      title={`익스플로러에서 ${challenger.name} 확인하기`}
                                                     >
                                                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                                       </svg>
                                                     </a>
-                                                    {isMyLayer2 && (
-                                                      <span className="bg-green-600 text-white px-1 py-0.5 text-xs rounded">
-                                                        내 소유
-                                                      </span>
-                                                    )}
                                                   </div>
-                                                  <p className="text-xs text-gray-600">
-                                                    💪 {(Number(challenger.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                                  <p className="text-md text-gray-600">
+                                                    {(Number(member?.totalStaked || 0) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
                                                   </p>
                                                 </div>
-                                                <span className="text-xs text-green-600 font-medium">
-                                                  +{((Number(challenger.totalStaked) - Number(item.member.totalStaked)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} WTON
-                                                </span>
+                                              </div>
+
+                                              <div className="text-right">
+                                                <p className="text-blue-600 font-semibold text-md">
+                                                  +{((Number(myLayer2.totalStaked) - Number(member?.totalStaked || 0)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                                </p>
                                               </div>
                                             </div>
-                                          );
-                                        })}
-                                      </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Challenge 버튼 */}
+                                    <div className="mt-4 text-center">
+                                      <button
+                                        onClick={() => {
+                                          // 선택된 멤버로 챌린지 실행
+                                          const layer2Key = myLayer2.candidateContract;
+                                          const selectedIndex = selectedMemberIndexByLayer2[layer2Key] ?? 0;
+                                          const selectedMemberItem = challengeableMembers[selectedIndex];
+                                          if (selectedMemberItem?.member) {
+                                            setSelectedLayer2ForChallenge(myLayer2);
+                                            handleChallenge(selectedMemberItem.member);
+                                          }
+                                        }}
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                                      >
+                                        Challenge
+                                      </button>
+                                      <p className="text-sm text-gray-500 mt-2">
+                                        You can execute real challenge transactions with your linked account.
+                                      </p>
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          </>
+                                </div>
+                              );
+                            })}
+                          </div>
                         );
                       })()}
+
+                      {/* 전체 멤버 목록 (참고용) */}
+                      <div className="border-t pt-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">All Analysis Results</h4>
+                        <div className="space-y-4">
+                          {globalChallengeCandidates.map((item: any, index) => {
+                        // 내가 이 멤버에게 도전할 수 있는 Layer2들 찾기
+                        const myChallengers = item.challengers.filter((challenger: Candidate) => {
+                          const currentTime = Math.floor(Date.now() / 1000);
+                          if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
+                            return false;
+                          }
+                          return address && (
+                            challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
+                            (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
+                            (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
+                          );
+                        });
+
+                        return (
+                          <div key={item.member.candidateContract || index} className="border border-gray-300 rounded-lg bg-white">
+                            {/* 박스 헤더 */}
+                            <div className="px-6 py-4 border-b border-gray-300">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h4 className="text-lg font-semibold text-gray-900">{item.member.name || 'Unknown Member'}</h4>
+                                {myChallengers.length > 0 && (
+                                  <span className="px-3 py-1 bg-white text-blue-600 border border-blue-600 rounded-full text-sm font-medium">
+                                    Challenge possible
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-gray-600 text-sm">
+                                {(Number(item.member.totalStaked || 0) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                              </p>
+                            </div>
+
+                            {/* 도전자 목록 */}
+                            <div className="p-6">
+                              <p className="text-md font-medium text-gray-700 mb-4">
+                                Challenging Layer2 ({item.challengers.length})
+                              </p>
+
+                              <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                {item.challengers.map((challenger: Candidate, challengerIndex: number) => {
+                                  // 내 Layer2인지 확인
+                                  const currentTime = Math.floor(Date.now() / 1000);
+                                  const isMyLayer2 = address && (
+                                    challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
+                                    (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
+                                    (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase())
+                                  ) && !(challenger.cooldown > 0 && currentTime < challenger.cooldown);
+
+                                  // 내 Layer2 중 첫 번째를 기본 선택 상태로 설정
+                                  const myLayer2Index = item.challengers.findIndex((c: Candidate) => {
+                                    const currentTime = Math.floor(Date.now() / 1000);
+                                    return address && (
+                                      c.creationAddress.toLowerCase() === address.toLowerCase() ||
+                                      (c.operator && c.operator.toLowerCase() === address.toLowerCase()) ||
+                                      (c.manager && c.manager.toLowerCase() === address.toLowerCase())
+                                    ) && !(c.cooldown > 0 && currentTime < c.cooldown);
+                                  });
+                                  const isSelected = isMyLayer2 && challengerIndex === myLayer2Index;
+
+                                  return (
+                                    <div key={challengerIndex} className="flex items-center justify-between p-3 bg-white-50 rounded-lg border border-gray-300">
+                                      <div className="flex items-center gap-3">
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-md font-semibold text-gray-900">{challenger.name}</span>
+                                            <a
+                                              href={getExplorerUrl(challenger.candidateContract, chainId)}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-blue-500 hover:text-blue-700 transition-colors"
+                                            >
+                                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                              </svg>
+                                            </a>
+                                            {isMyLayer2 && (
+                                              <span className="px-3 py-1 bg-white text-blue-600 border border-blue-600 rounded-full text-sm font-medium">
+                                                My Own
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-md text-gray-600">
+                                            {(Number(challenger.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right">
+                                        <p className="text-blue-600 text-md">
+                                          +{((Number(challenger.totalStaked) - Number(item.member.totalStaked || 0)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+
+                            </div>
+                          </div>
+                        );
+                      })}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8">
@@ -1062,9 +1248,13 @@ export default function DAOCommitteeMembers() {
                     </div>
                   )}
 
-                                    <div className="mt-6 pt-4 border-t border-gray-100">
+                  <div className="mt-6 pt-4 border-t border-gray-100">
                     <p className="text-xs text-gray-500 text-center">
-                      ⚡ Results from cached data • Analysis completed in real-time
+                      📊 Results based on on-chain data collected at {(analysisCompletedTime || new Date()).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
                     </p>
                   </div>
                 </div>
@@ -1101,7 +1291,7 @@ export default function DAOCommitteeMembers() {
 
                         {/* 큰 박스 - 타겟 멤버와 챌린저들을 포함 */}
             <div className="px-6 pb-4">
-              <div className="border border-gray-200 rounded-xl p-4">
+              <div className="border border-gray-300 rounded-xl p-4">
                 {/* 타겟 멤버 정보 */}
                 <div className="mb-3">
                   <h4 className="font-semibold text-gray-900 text-lg mb-1">
@@ -1113,7 +1303,7 @@ export default function DAOCommitteeMembers() {
                 </div>
 
                 {/* 구분선과 챌린저 섹션 제목 */}
-                <div className="border-t border-gray-200 pt-3">
+                <div className="border-t border-gray-300 pt-3">
                   <h5 className="font-medium text-gray-900 mb-2">
                     Challenging Layer2 ({availableLayer2s.length})
                   </h5>
@@ -1123,7 +1313,7 @@ export default function DAOCommitteeMembers() {
                     {availableLayer2s.map((layer2, index) => (
                       <div
                         key={index}
-                        className="p-2.5 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-colors"
+                        className="p-2.5 border border-gray-300 rounded-lg cursor-pointer hover:border-gray-300 transition-colors"
                         onClick={() => {
                           setSelectedLayer2Index(index);
                         }}
@@ -1133,11 +1323,11 @@ export default function DAOCommitteeMembers() {
                             {/* 라디오 버튼 */}
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                               selectedLayer2Index === index
-                                ? 'border-blue-500 bg-blue-500'
-                                : 'border-gray-300'
+                                ? 'border-blue-500 bg-white'
+                                : 'border-gray-300 bg-white'
                             }`}>
                               {selectedLayer2Index === index && (
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                               )}
                             </div>
 

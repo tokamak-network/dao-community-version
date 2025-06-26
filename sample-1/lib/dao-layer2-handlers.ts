@@ -59,7 +59,7 @@ export const loadLayer2Candidates = async (
     for (let i = 0; i < totalLayer2s; i++) {
       try {
         // 진행 상황 업데이트
-        onProgress?.(i, totalLayer2s, `Layer2 ${i + 1}/${totalLayer2s} 처리 중...`);
+        onProgress?.(i, totalLayer2s, `Processing Layer2 ${i + 1}/${totalLayer2s}...`);
 
         // 레이어2 컨트랙트 주소 조회
         const layer2Address = await readContractWithRetry(

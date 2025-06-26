@@ -84,6 +84,10 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
   // Agenda
   const [agendas, setAgendas] = useState<AgendaWithMetadata[]>([]);
 
+  // 🎯 Challenge Analysis 상태
+  const [globalChallengeCandidates, setGlobalChallengeCandidates] = useState<any[]>([]);
+  const [analysisCompletedTime, setAnalysisCompletedTime] = useState<Date | null>(null);
+
 
   console.log(`🔄 DAOProvider 렌더링 #${renderCount.current}`, {
     timestamp: new Date().toLocaleTimeString(),
@@ -404,6 +408,12 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     loadLayer2Candidates,
     resetLayer2Cache,
 
+    // Challenge Analysis 관련
+    globalChallengeCandidates,
+    setGlobalChallengeCandidates,
+    analysisCompletedTime,
+    setAnalysisCompletedTime,
+
     // // Owner 권한 관련
     // daoOwner: daoOwner.daoOwner,
     // isOwner: daoOwner.isOwner,
@@ -461,6 +471,8 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     hasLoadedLayer2Once,
     loadLayer2Candidates,
     resetLayer2Cache,
+    globalChallengeCandidates,
+    analysisCompletedTime,
     statusMessage,
     isConnected,
   ]);

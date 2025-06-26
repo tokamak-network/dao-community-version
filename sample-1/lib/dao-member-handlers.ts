@@ -218,8 +218,8 @@ export const loadCommitteeMembers = async (
       for (let slotIndex = 0; slotIndex < maxMember; slotIndex++) {
         try {
           // 진행 상황 메시지 업데이트
-          onStatusUpdate?.(`슬롯 ${slotIndex + 1}/${maxMember} 확인 중...`);
-          console.log(`슬롯 ${slotIndex + 1}/${maxMember} 처리 중...`);
+                      onStatusUpdate?.(`Checking slot ${slotIndex + 1}/${maxMember}...`);
+          console.log(`Processing slot ${slotIndex + 1}/${maxMember}...`);
 
           const memberAddress = await readContractWithRetry(
             () => publicClient.readContract({

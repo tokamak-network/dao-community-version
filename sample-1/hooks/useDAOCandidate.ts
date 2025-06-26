@@ -288,7 +288,7 @@ export function useDAOCandidate() {
   }
 
   if ((error || receiptError) && !operationState.error) {
-    const errorMessage = (error || receiptError)?.message || '트랜잭션 처리 중 오류가 발생했습니다';
+    const errorMessage = (error || receiptError)?.message || 'An error occurred while processing the transaction';
     setOperationState(prev => ({
       ...prev,
       isExecuting: false,

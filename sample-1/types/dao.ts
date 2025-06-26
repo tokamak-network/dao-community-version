@@ -71,6 +71,12 @@ export interface DAOContextType {
   loadLayer2Candidates: (force?: boolean, onProgress?: (current: number, total: number, message: string) => void) => Promise<void>;
   resetLayer2Cache: () => void;
 
+  // Challenge Analysis 관련
+  globalChallengeCandidates: any[];
+  setGlobalChallengeCandidates: (candidates: any[]) => void;
+  analysisCompletedTime: Date | null;
+  setAnalysisCompletedTime: (time: Date | null) => void;
+
 
 
   // 공통
