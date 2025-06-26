@@ -16,10 +16,7 @@ import { DAOContextType, CommitteeMember, VoterInfo, Candidate } from "@/types/d
 import { DEFAULT_CONTRACT_INFO } from "@/constants/dao";
 import { CONTRACTS } from "@/config/contracts";
 import { useChainId } from 'wagmi';
-import {
-  AgendaWithMetadata,
-  AgendaCreatedEvent,
-} from "@/types/agenda";
+
 
 import { createRobustPublicClient } from "@/lib/rpc-utils";
 
@@ -42,8 +39,9 @@ import { setupEventMonitoring } from "@/lib/dao-event-monitor";
 
 const DAOContext = createContext<DAOContextType | undefined>(undefined);
 
-let loadedMaxMembers:boolean = false;
-let loadedCommitteeMembers:boolean = false ;
+// 🎯 전역 변수로 중복 로딩 방지 (페이지 이동 시에도 유지)
+let loadedMaxMembers: boolean = false;
+let loadedCommitteeMembers: boolean = false;
 
 const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
@@ -67,7 +65,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
   // 이전 props 업데이트
   prevProps.current = { address, isConnected };
 
-  // 🎯 Committee Members 상태를 전역 상태와 동기화
+    // 🎯 Committee Members 상태를 전역 상태와 동기화
   const [committeeMembers, setCommitteeMembers] = useState<CommitteeMember[]>();
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
@@ -81,8 +79,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
   const [layer2Error, setLayer2Error] = useState<string | null>(null);
   const [hasLoadedLayer2Once, setHasLoadedLayer2Once] = useState(false);
 
-  // Agenda
-  const [agendas, setAgendas] = useState<AgendaWithMetadata[]>([]);
+
 
   // 🎯 Challenge Analysis 상태
   const [globalChallengeCandidates, setGlobalChallengeCandidates] = useState<any[]>([]);
@@ -303,28 +300,27 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
 
 
   useEffect(() => {
-    console.log("🚀 useEffect 실행", {
+    console.log("🚀 DAO Context 초기화 - 앱 시작 시 바로 멤버 정보 로드", {
       timestamp: new Date().toLocaleTimeString(),
       hasCommitteeMembers: !!committeeMembers,
       committeeCount: committeeMembers?.length || 0,
-      condition: !committeeMembers || committeeMembers.length === 0
     });
 
-    // 데이터가 없을 때만 로드
-    if (!committeeMembers || committeeMembers.length === 0) {
-      console.log("✅ 조건 만족: 데이터 로드 시작");
-      loadMaxMembers().then(() => {
-        console.log('🚀 DAO Context - loading loadMaxMembers...');
+    // 앱 시작 시 바로 DAO 멤버 정보 로드 (조건 없이)
+    console.log("🚀 앱 시작 - DAO 멤버 정보 로딩 시작");
+    loadMaxMembers().then(() => {
+      console.log('✅ DAO Context - loadMaxMembers 완료');
+    }).catch((error) => {
+      console.error('❌ DAO Context - loadMaxMembers 실패:', error);
+    });
+
+    return () => {
+      console.log("🔄 DAOProvider 언마운트", {
+        maxMember,
+        memberCount: committeeMembers?.length || 0
       });
-      return () => {
-        console.log("Provider 언마운트", {
-          maxMember,
-        });
-      }
-    } else {
-      console.log("⏭️ 조건 불만족: 데이터 이미 존재, 로드 스킵");
     }
-  }, []); // 빈 의존성 배열
+  }, []); // 빈 의존성 배열 - 앱 시작 시 한 번만 실행
 
   // 🎯 지갑 연결 상태 변경 처리
    useEffect(() => {
@@ -442,21 +438,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     quorum: null,
 
 
-    getVoterInfos: async (agendaId: number, voters: string[]): Promise<VoterInfo[]> => {
-      return [];
-    },
 
-    // agenda
-    agendas: [],
-    isLoadingAgendas: false,
-    agendasError: null,
-    refreshAgendas: async () => { },
-    refreshAgenda: async (agendaId: number) => { },
-    refreshAgendaWithoutCache: async (agendaId: number) => { return null; },
-    getAgenda: async (agendaId: number) => { return null; },
-
-    // 누락된 속성들 추가
-    createAgendaFees: null,
 
   }), [
     isMember,

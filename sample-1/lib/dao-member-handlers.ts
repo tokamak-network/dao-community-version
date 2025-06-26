@@ -233,7 +233,7 @@ export const loadCommitteeMembers = async (
 
           if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {
             console.log(`슬롯 ${slotIndex}: 빈 슬롯`);
-            onStatusUpdate?.(`슬롯 ${slotIndex + 1}/${maxMember} - 빈 슬롯`);
+            onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - empty slot`);
 
             // 빈 슬롯 객체 생성하여 추가
             const emptySlot: CommitteeMember = {
@@ -257,25 +257,25 @@ export const loadCommitteeMembers = async (
           }
 
           console.log(`슬롯 ${slotIndex}: 멤버 발견 - ${memberAddress}`);
-          onStatusUpdate?.(`슬롯 ${slotIndex + 1}/${maxMember} - 멤버 정보 로딩 중...`);
+          onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - Loading member information...`);
 
           // 공통 함수를 사용하여 멤버 상세 정보 조회
           const memberDetail = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
           memberDetails.push(memberDetail);
 
           console.log(`✅ 슬롯 ${slotIndex} 로드 완료: ${memberDetail.name}`);
-          onStatusUpdate?.(`슬롯 ${slotIndex + 1}/${maxMember} - ${memberDetail.name} 로드 완료`);
+          onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - ${memberDetail.name} Load complete`);
 
           // Batch 처리: 일정 간격으로 딜레이 추가 (RPC rate limit 고려)
           if ((slotIndex + 1) % BATCH_SIZE === 0 && slotIndex < maxMember - 1) {
             console.log(`⏸️ Batch ${Math.floor(slotIndex / BATCH_SIZE) + 1} 완료, ${BATCH_DELAY_MS}ms 대기...`);
-            onStatusUpdate?.(`배치 ${Math.floor(slotIndex / BATCH_SIZE) + 1} 완료, 잠시 대기 중...`);
+            onStatusUpdate?.(`Batch ${Math.floor(slotIndex / BATCH_SIZE) + 1} completed, waiting for a moment...`);
             await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
           }
 
         } catch (error) {
           console.error(`❌ 슬롯 ${slotIndex} 처리 실패:`, error);
-          onStatusUpdate?.(`슬롯 ${slotIndex + 1}/${maxMember} - 로드 실패 (계속 진행)`);
+          onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - Load failed (continue)`);
           continue; // 개별 슬롯 실패 시 계속 진행
         }
       }

@@ -1,8 +1,4 @@
-import {
-  AgendaWithMetadata,
-  AgendaCreatedEvent,
-  AgendaAction,
-} from "@/types/agenda";
+
 
 export interface CommitteeMember {
   name: string;
@@ -83,27 +79,8 @@ export interface DAOContextType {
   statusMessage: string;
   contract: ContractInfo;
   daoContract: ContractInfo;
-  // events: AgendaCreatedEvent[];
   isPolling: boolean;
   progress: ProgressInfo | null;
-  createAgendaFees: bigint | null;
-  minimumNoticePeriodSeconds: bigint | null;
-  minimumVotingPeriodSeconds: bigint | null;
-  quorum: bigint | null;
-  getVoterInfos: (agendaId: number, voters: string[]) => Promise<VoterInfo[]>;
-
-
-  // agenda
-  agendas: AgendaWithMetadata[];
-  isLoadingAgendas: boolean;
-  agendasError: string | null;
-  refreshAgendas: () => Promise<void>;
-  refreshAgenda: (agendaId: number) => Promise<void>;
-  refreshAgendaWithoutCache: (
-    agendaId: number
-  ) => Promise<AgendaWithMetadata | null>;
-  getAgenda: (agendaId: number) => Promise<AgendaWithMetadata | null>;
-  events: AgendaCreatedEvent[];
 
 
 }

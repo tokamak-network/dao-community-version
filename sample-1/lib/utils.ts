@@ -206,17 +206,23 @@ export function calculateAgendaStatus(
 export function getNetworkName(chainId: number): string {
   switch (chainId) {
     case 1:
-      return "mainnet";
-    case 5:
-      return "goerli";
+      return "ethereum";
+    case 137:
+      return "polygon";
+    case 56:
+      return "bsc";
+    case 42161:
+      return "arbitrum";
+    case 10:
+      return "optimism";
+    case 100:
+      return "gnosis";
+    case 1101:
+      return "polygon-zkevm";
     case 11155111:
       return "sepolia";
-    case 55004:
-      return "titan-goerli";
-    case 55007:
-      return "titan-sepolia";
     default:
-      return "unknown";
+      return "ethereum";
   }
 }
 
@@ -224,7 +230,7 @@ export function getMetadataUrl(
   agendaId: number,
   network: string = "mainnet"
 ): string {
-  return `${GITHUB_DAO_AGENDA_URL}${network}/${agendaId}.json`;
+  return `${GITHUB_DAO_AGENDA_URL}${network}/agenda-${agendaId}.json`;
 }
 
 export interface AgendaMetadata {
@@ -292,8 +298,25 @@ export async function getAllAgendaMetadata(
 }
 
 export async function getLatestBlockNumber(): Promise<number> {
-  // Mock implementation for now
-  return Math.floor(Date.now() / 1000);
+  try {
+    const publicClient = createPublicClient({
+      chain: {
+        id: Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 11155111,
+        name: 'Custom Chain',
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        rpcUrls: {
+          default: { http: [process.env.NEXT_PUBLIC_RPC_URL || ''] }
+        }
+      },
+      transport: http(process.env.NEXT_PUBLIC_RPC_URL)
+    });
+
+    const blockNumber = await publicClient.getBlockNumber();
+    return Number(blockNumber);
+  } catch (error) {
+    console.error('Error getting latest block number:', error);
+    return 0;
+  }
 }
 
 export async function fetchAgendaEvents(
@@ -306,6 +329,31 @@ export async function fetchAgendaEvents(
   toBlock: bigint,
   publicClient: any
 ) {
-  // Mock implementation for now
-  return [];
+  try {
+    console.log(`Fetching events from block ${fromBlock} to ${toBlock}`);
+
+    const logs = await publicClient.getLogs({
+      address: contract.address as `0x${string}`,
+      event: {
+        type: "event",
+        name: "AgendaCreated",
+        inputs: [
+          { indexed: true, name: "from", type: "address" },
+          { indexed: true, name: "id", type: "uint256" },
+          { indexed: false, name: "targets", type: "address[]" },
+          { indexed: false, name: "noticePeriodSeconds", type: "uint128" },
+          { indexed: false, name: "votingPeriodSeconds", type: "uint128" },
+          { indexed: false, name: "atomicExecute", type: "bool" },
+        ],
+      },
+      fromBlock: fromBlock,
+      toBlock: toBlock,
+    });
+
+    console.log(`Found ${logs.length} events in this range`);
+    return logs;
+  } catch (error) {
+    console.error('Error fetching agenda events:', error);
+    return [];
+  }
 }

@@ -60,7 +60,7 @@ export default function CommitteePage() {
         {isLoadingMembers ? (
           <div className="loading-state">
             <div className="spinner"></div>
-            <p>위원회 멤버 정보를 로드하고 있습니다...</p>
+            <p>Loading committee member information...</p>
           </div>
         ) : membersError ? (
           <div className="error-state">

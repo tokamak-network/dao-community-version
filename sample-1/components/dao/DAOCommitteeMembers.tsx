@@ -214,7 +214,7 @@ export default function DAOCommitteeMembers() {
         currentMemberIndex: 0,
         totalMembers: 0,
         message: '',
-        error: '위원회 멤버 정보를 찾을 수 없습니다.'
+        error: 'Committee member information not found.'
       });
       return;
     }
@@ -226,7 +226,7 @@ export default function DAOCommitteeMembers() {
         currentMemberIndex: 0,
         totalMembers: 0,
         message: '',
-        error: 'Layer2 데이터를 찾을 수 없습니다. 다시 시도해주세요.'
+        error: 'Layer2 data not found. Please try again.'
       });
       return;
     }
@@ -238,7 +238,7 @@ export default function DAOCommitteeMembers() {
       step: 'checking-members',
       currentMemberIndex: 0,
       totalMembers: layer2Candidates.length,
-      message: '챌린지 가능한 조합을 분석중입니다...',
+      message: 'Analyzing possible combinations for the challenge...',
       error: ''
     });
 
@@ -309,7 +309,7 @@ export default function DAOCommitteeMembers() {
         step: 'completed',
         currentMemberIndex: memberChallengeMap.length,
         totalMembers: committeeMembers.length,
-        message: `분석 완료! ${memberChallengeMap.length}명의 멤버에게 챌린지 가능합니다.`,
+        message: `Analysis complete! ${memberChallengeMap.length} members can be challenged.`,
         error: ''
       });
 
@@ -325,7 +325,7 @@ export default function DAOCommitteeMembers() {
         currentMemberIndex: 0,
         totalMembers: 0,
         message: '',
-        error: '챌린지 분석 중 오류가 발생했습니다. 다시 시도해주세요.'
+        error: 'An error occurred while analyzing the challenge. Please try again.'
       });
     } finally {
       setIsCheckingGlobal(false);
@@ -388,7 +388,7 @@ export default function DAOCommitteeMembers() {
         step: 'loading-layer2',
         currentMemberIndex: 0,
         totalMembers: 0,
-        message: '정보가 수집중입니다. 잠시만 기다려주세요...',
+        message: 'Information is being collected. Please wait a moment...',
         error: ''
       });
       shouldStartAnalysisRef.current = true; // 로딩 완료 후 자동 분석 플래그 설정
@@ -402,7 +402,7 @@ export default function DAOCommitteeMembers() {
         step: 'loading-layer2',
         currentMemberIndex: 0,
         totalMembers: 0,
-        message: '정보 수집을 시작합니다...',
+        message: 'Starting to gather information...',
         error: ''
       });
       shouldStartAnalysisRef.current = true; // 로딩 완료 후 자동 분석 플래그 설정
@@ -426,7 +426,7 @@ export default function DAOCommitteeMembers() {
         step: 'completed',
         currentMemberIndex: globalChallengeCandidates.length,
         totalMembers: committeeMembers?.length || 0,
-        message: `분석 완료! ${globalChallengeCandidates.length}명의 멤버에게 챌린지 가능합니다.`,
+        message: `Analysis complete! ${globalChallengeCandidates.length} members can be challenged.`,
         error: ''
       });
     } else {
@@ -1241,10 +1241,10 @@ export default function DAOCommitteeMembers() {
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <p className="text-gray-500">😔 현재 챌린지할 수 있는 위원회 멤버가 없습니다.</p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        위원회 멤버들보다 높은 스테이킹을 가진 Layer2가 필요합니다.
-                      </p>
+                                      <p className="text-gray-500">😔 No committee members available to challenge at the moment.</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  You need Layer2s with higher staking than committee members.
+                </p>
                     </div>
                   )}
 

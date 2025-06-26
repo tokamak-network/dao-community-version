@@ -1,8 +1,10 @@
 "use client";
 
 import { useDAOContext } from '@/contexts/DAOContext';
+import { usePathname } from 'next/navigation';
 
 export default function StatusMessage() {
+  const pathname = usePathname();
   const {
     statusMessage,
     isLoadingMembers,
@@ -12,6 +14,9 @@ export default function StatusMessage() {
   } = useDAOContext();
 
   const isLoading = isLoadingMembers;
+
+  // 아젠다 관련 페이지와 메인페이지에서는 DAO 상태 메시지를 숨김
+  if (pathname.startsWith('/agenda') || pathname === '/') return null;
 
   if (!statusMessage || !isLoading) return null;
 
