@@ -9,7 +9,7 @@ import AgendaDetail from '@/components/agenda/AgendaDetail'
 export default function AgendaDetailPage() {
   const params = useParams()
   const agendaId = Number(params?.id)
-  const { getAgenda } = useAgenda()
+  const { getAgenda, updateAgendaCalldata, getTransactionData } = useAgenda()
   const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata | null>(null)
   const [isLoadingLocal, setIsLoadingLocal] = useState(true)
   const [localStatusMessage, setLocalStatusMessage] = useState('')
@@ -24,7 +24,28 @@ export default function AgendaDetailPage() {
       const agenda = await getAgenda(agendaId)
       if (agenda) {
         console.log('Agenda from context:', agenda)
-        setLocalAgenda(agenda)
+
+        // If agenda has transaction but no creation calldata, fetch it
+        if (agenda.transaction && !agenda.creationCalldata) {
+          setLocalStatusMessage('Loading transaction details...')
+
+          // Get calldata directly for immediate display
+          const calldata = await getTransactionData(agenda.transaction)
+
+          // Update local state immediately
+          const updatedAgenda = {
+            ...agenda,
+            creationCalldata: calldata || undefined
+          }
+          setLocalAgenda(updatedAgenda)
+
+          // Also update context in background (non-blocking)
+          updateAgendaCalldata(agendaId).catch(err =>
+            console.warn('Background context update failed:', err)
+          )
+        } else {
+          setLocalAgenda(agenda)
+        }
       }
     } catch (err) {
       console.error('Error fetching agenda:', err)

@@ -71,6 +71,8 @@ interface AgendaContextType {
       vote: bigint;
     }[]
   >;
+  getTransactionData: (txHash: string) => Promise<string | null>;
+  updateAgendaCalldata: (agendaId: number) => Promise<void>;
 }
 
 const AgendaContext = createContext<AgendaContextType | undefined>(undefined);
@@ -353,7 +355,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           try {
             const metadataMap = await getAllAgendaMetadata(agendaIds);
 
-            // 메타데이터를 아젠다 데이터와 결합
+                        // 메타데이터를 아젠다 데이터와 결합
             validResults.forEach((agenda) => {
               const metadata = metadataMap[agenda.id];
               if (metadata) {
@@ -370,6 +372,23 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
                 agenda.actions = metadata.actions;
               }
             });
+
+            // 순차적으로 calldata 가져오기 (rate limiting 방지)
+            for (const agenda of validResults) {
+              const metadata = metadataMap[agenda.id];
+              if (metadata?.transaction && !agenda.creationCalldata) {
+                try {
+                  const calldata = await getTransactionData(metadata.transaction);
+                  if (calldata) {
+                    agenda.creationCalldata = calldata;
+                  }
+                  // Rate limiting을 위한 짧은 대기
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                  console.warn(`Failed to fetch calldata for agenda ${agenda.id}:`, error);
+                }
+              }
+            }
           } catch (error) {
             console.warn('Failed to load metadata for batch:', error);
           }
@@ -618,8 +637,6 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-
-
   // 특정 아젠다 새로고침
   const refreshAgenda = useCallback(async (agendaId: number) => {
     try {
@@ -763,7 +780,43 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     await loadAgendas();
   }, [loadAgendas]);
 
+  // 트랜잭션 데이터 가져오기
+  const getTransactionData = useCallback(async (txHash: string): Promise<string | null> => {
+    try {
+      const publicClient = await createRobustPublicClient();
 
+      const transaction = await publicClient.getTransaction({
+        hash: txHash as `0x${string}`
+      });
+
+      return transaction.input;
+    } catch (error) {
+      console.error(`Failed to get transaction data for ${txHash}:`, error);
+      return null;
+    }
+  }, []);
+
+  // 아젠다 업데이트 함수
+  const updateAgendaCalldata = useCallback(async (agendaId: number) => {
+    try {
+      const agenda = await getAgenda(agendaId);
+      if (agenda && agenda.transaction) {
+        const calldata = await getTransactionData(agenda.transaction);
+        if (calldata) {
+          setAgendas(prev => prev.map(agenda =>
+            agenda.id === agendaId
+              ? {
+                  ...agenda,
+                  creationCalldata: calldata,
+                }
+              : agenda
+          ));
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to update agenda ${agendaId} calldata:`, error);
+    }
+  }, [getAgenda, getTransactionData]);
 
   const contextValue = useMemo(() => ({
     agendas,
@@ -792,6 +845,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     minimumVotingPeriodSeconds,
     quorum,
     getVoterInfos,
+    getTransactionData,
+    updateAgendaCalldata,
   }), [
     agendas,
     isLoading,
@@ -809,6 +864,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     minimumVotingPeriodSeconds,
     quorum,
     getVoterInfos,
+    getTransactionData,
+    updateAgendaCalldata,
   ]);
 
   return (

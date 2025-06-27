@@ -44,6 +44,7 @@ export interface AgendaWithMetadata extends Agenda {
   discourseUrl?: string;
   network?: string;
   transaction?: string;
+  creationCalldata?: string;
   actions?: AgendaAction[];
   createdAt?: string;
   updatedAt?: string;
