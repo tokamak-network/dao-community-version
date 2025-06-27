@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ProposalInfoButtonProps {
@@ -19,6 +19,8 @@ export function ProposalInfoButton({
   onClick,
   buttonText = "Basic Information",
 }: ProposalInfoButtonProps) {
+  const isComplete = title.trim() !== "" && description.trim() !== "" && snapshotUrl.trim() !== "";
+
   return (
     <Button
       variant="outline"
@@ -27,6 +29,9 @@ export function ProposalInfoButton({
     >
       <FileText className="mr-2 h-4 w-4" />
       {buttonText}
+      {!isComplete && (
+        <AlertCircle className="ml-auto h-4 w-4 text-orange-600" />
+      )}
     </Button>
   );
 }
