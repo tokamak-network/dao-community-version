@@ -6,6 +6,9 @@ import {
   Eye,
   Save,
   FileUp,
+  ChevronUp,
+  ChevronDown,
+  Code,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProposalInfoButton } from "@/components/ui/proposal-info-button";
@@ -210,6 +213,26 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     this.handleEditActionClick(action);
   };
 
+  handleMoveActionUp = (index: number) => {
+    if (index === 0) return; // Already at top
+
+    this.setState((prevState) => {
+      const newActions = [...prevState.actions];
+      [newActions[index - 1], newActions[index]] = [newActions[index], newActions[index - 1]];
+      return { actions: newActions };
+    });
+  };
+
+  handleMoveActionDown = (index: number) => {
+    if (index === this.state.actions.length - 1) return; // Already at bottom
+
+    this.setState((prevState) => {
+      const newActions = [...prevState.actions];
+      [newActions[index], newActions[index + 1]] = [newActions[index + 1], newActions[index]];
+      return { actions: newActions };
+    });
+  };
+
   handleSaveLocally = () => {
     const proposalData = {
       title: this.state.title,
@@ -379,19 +402,53 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                     {this.state.actions.map((action, index) => (
                       <div
                         key={action.id}
-                        className="border rounded-md p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-150 border-gray-200"
-                        onClick={() => this.handleActionCardClick(action)}
+                        className="border rounded-md border-gray-200 hover:bg-gray-100 transition-colors duration-150"
                       >
-                        <div className="font-medium truncate text-gray-900">
-                          Action #{index + 1}. {action.title}
-                        </div>
-                        <div
-                          className="text-sm mt-1 truncate text-gray-500"
-                          title={action.method}
-                        >
-                          {action.method.length > 30
-                            ? `${action.method.substring(0, 27)}...`
-                            : action.method}
+                        <div className="flex items-center">
+                          <div className="flex flex-col gap-0 px-1 py-1 border-r border-gray-200">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                this.handleMoveActionUp(index);
+                              }}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-colors ${
+                                index === 0
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                              }`}
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                this.handleMoveActionDown(index);
+                              }}
+                              disabled={index === this.state.actions.length - 1}
+                              className={`p-0.5 rounded transition-colors ${
+                                index === this.state.actions.length - 1
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                              }`}
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div
+                            className="flex-1 p-4 cursor-pointer"
+                            onClick={() => this.handleActionCardClick(action)}
+                          >
+                            <div className="flex items-center text-sm font-medium text-gray-900 mb-1">
+                              <Code className="w-4 h-4 mr-2 text-gray-400" />
+                              Action #{index + 1}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {action.title}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
