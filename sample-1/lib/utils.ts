@@ -77,6 +77,17 @@ export function getResultText(result: number): string {
   }
 }
 
+export function formatDateSimple(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+
+  return `${year} / ${month} / ${day} / ${hours}:${minutes}`;
+}
+
 export function formatDate(
   timestamp: number,
   includeTimezone: boolean = true
@@ -223,30 +234,29 @@ export function calculateAgendaStatus(
     return AgendaStatus.NOTICE;
   }
 
-  // VOTING 상태:
-  // 1. noticeEndTimestamp가 0이 아니고, 현재 시간이 noticeEndTimestamp보다 크고, votingStartedTimestamp가 0
-  // 2. votingStartedTimestamp가 0이 아니고, 현재 시간이 votingEndTimestamp보다 작음
-  if (
-    (agenda.noticeEndTimestamp > BigInt(0) &&
-      now > agenda.noticeEndTimestamp &&
-      agenda.votingStartedTimestamp === BigInt(0)) ||
-    (agenda.votingStartedTimestamp > BigInt(0) &&
-      now < agenda.votingEndTimestamp)
-  ) {
+  // VOTING 상태: 투표 기간 중
+  if (agenda.votingStartedTimestamp > BigInt(0) && now < agenda.votingEndTimestamp) {
     return AgendaStatus.VOTING;
   }
 
-  // 투표가 종료된 경우, quorum 체크
-  const totalVotes =
-    agenda.countingYes + agenda.countingNo + agenda.countingAbstain;
-  const hasQuorum = totalVotes >= quorum;
+  // 투표가 종료된 경우 처리
+  if (agenda.votingStartedTimestamp > BigInt(0) && now >= agenda.votingEndTimestamp) {
+    const totalVotes = agenda.countingYes + agenda.countingNo + agenda.countingAbstain;
+    const hasQuorum = totalVotes >= quorum;
+    const isApproved = agenda.countingYes > agenda.countingNo;
 
-  // 실행 대기 상태: 투표 종료 후 실행 가능 시간 이전이고 quorum을 만족한 경우
-  if (now < agenda.executableLimitTimestamp && hasQuorum) {
-    return AgendaStatus.WAITING_EXEC;
+    // 승인되고 quorum을 만족한 경우 → 실행 대기
+    if (hasQuorum && isApproved && now < agenda.executableLimitTimestamp) {
+      return AgendaStatus.WAITING_EXEC;
+    }
   }
 
-  // 종료 상태: 실행 가능 시간이 지났거나 quorum을 만족하지 못한 경우
+  // Notice 기간이지만 투표가 시작되지 않은 경우
+  if (agenda.noticeEndTimestamp > BigInt(0) && now > agenda.noticeEndTimestamp && agenda.votingStartedTimestamp === BigInt(0)) {
+    return AgendaStatus.VOTING;
+  }
+
+  // 그 외 모든 경우는 종료
   return AgendaStatus.ENDED;
 }
 
@@ -405,63 +415,76 @@ export async function fetchAgendaEvents(
   }
 }
 
+export function getAgendaResult(
+  agenda: AgendaWithMetadata,
+  currentStatus: number,
+  quorum: bigint = BigInt(2)
+): string {
+  const totalVotes = agenda.countingYes + agenda.countingNo + agenda.countingAbstain
+
+  // If still in notice period, no result yet
+  if (currentStatus === 1) { // NOTICE
+    return "Notice Period"
+  }
+
+  // If voting is in progress, show voting status
+  if (currentStatus === 2) { // VOTING
+    return `Voting in progress... (Yes: ${agenda.countingYes.toString()}, No: ${agenda.countingNo.toString()}, Abstain: ${agenda.countingAbstain.toString()})`
+  }
+
+  // If quorum not met
+  if (totalVotes < quorum) {
+    return "NOT APPROVED"
+  }
+
+  // If Yes votes are more than No votes
+  if (agenda.countingYes > agenda.countingNo) {
+    return "ACCEPTED"
+  } else {
+    return "REJECTED"
+  }
+}
+
 export function getStatusMessage(
   agenda: AgendaWithMetadata,
   currentStatus: number,
   quorum: bigint = BigInt(2)
 ) {
-  const now = BigInt(Math.floor(Date.now() / 1000));
   const timeInfo = getAgendaTimeInfo(agenda);
-
-  // 투표 관련 계산
-  const votesFor = Number(agenda.countingYes || 0);
-  const votesAgainst = Number(agenda.countingNo || 0);
-  const votesAbstain = Number(agenda.countingAbstain || 0);
-  const totalVotes = votesFor + votesAgainst + votesAbstain;
-  const hasQuorum = totalVotes >= Number(quorum);
-  const isApproved = votesFor > votesAgainst;
 
   switch (currentStatus) {
     case AgendaStatus.NOTICE:
       return timeInfo.noticePeriod.remaining === "Ended"
-        ? "Notice period ended"
-        : `Notice ends in: ${timeInfo.noticePeriod.remaining}`;
+        ? "NOTICE ENDED"
+        : `NOTICE - ends in: ${timeInfo.noticePeriod.remaining}`;
 
     case AgendaStatus.VOTING:
-      if (timeInfo.votingPeriod.remaining === "Ended") {
-        if (!hasQuorum) {
-          return "Voting ended - NOT APPROVED";
-        } else if (isApproved) {
-          return "Voting ended - Approved, awaiting execution";
+      // 투표가 실제로 시작되었는지 확인
+      if (agenda.votingStartedTimestamp > BigInt(0)) {
+        if (timeInfo.votingPeriod.remaining === "Ended") {
+          return "VOTING ENDED";
         } else {
-          return "Voting ended - NOT APPROVED";
+          return `VOTING - ends in: ${timeInfo.votingPeriod.remaining}`;
         }
       } else {
-        return `Voting ends in: ${timeInfo.votingPeriod.remaining}`;
+        // 투표가 아직 시작되지 않은 경우
+        return "Voting in progress";
       }
 
     case AgendaStatus.WAITING_EXEC:
       if (timeInfo.executionPeriod.remaining === "Ended") {
-        return "Execution deadline passed";
+        return "EXECUTION DEADLINE PASSED";
       } else {
-        return isApproved
-          ? `Approved - Execution deadline in: ${timeInfo.executionPeriod.remaining}`
-          : `Not approved - Execution deadline in: ${timeInfo.executionPeriod.remaining}`;
+        return `WAITING EXECUTION - deadline in: ${timeInfo.executionPeriod.remaining}`;
       }
 
     case AgendaStatus.EXECUTED:
       return "EXECUTED";
 
     case AgendaStatus.ENDED:
-      if (!hasQuorum) {
-        return "ENDED - NOT APPROVED";
-      } else if (isApproved) {
-        return "ENDED - Execution deadline passed";
-      } else {
-        return "ENDED - NOT APPROVED";
-      }
+      return "ENDED";
 
     default:
-      return "Unknown";
+      return "UNKNOWN";
   }
 }

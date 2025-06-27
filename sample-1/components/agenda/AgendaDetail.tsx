@@ -1,30 +1,20 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { AgendaWithMetadata } from '@/types/agenda'
+import { formatAddress, formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, getAgendaResult } from '@/lib/utils'
 
 interface AgendaDetailProps {
-  agendaId: string
+  agenda: AgendaWithMetadata
 }
 
-export default function AgendaDetail({ agendaId }: AgendaDetailProps) {
+export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [activeTab, setActiveTab] = useState('info')
 
-  // Mock data for agenda detail
-  const agendaData = {
-    id: agendaId,
-    title: '(DAO Committee Proxy)Address of the DAO contract will be upgraded.',
-    status: 'Voting in progress',
-    creator: 'OxH65...4Zk02f06dbE05f632ae70c5950017732d5',
-    creationTime: 'Apr 4, 2023, 16:14',
-    noticeEndTime: 'Apr 10, 2023, 16:14',
-    votingStartTime: 'Apr 23, 2024, 03:01',
-    votingEndTime: 'Apr 24, 2024, 03:01',
-    agendaStatus: 'Executed',
-    agendaResult: 'Accepted',
-    executionTimeLimit: 'May 1, 2024, 03:01',
-    executedTime: 'Apr 24, 2024, 13:56',
-    description: 'Go to Description'
-  }
+  // Calculate dynamic status
+  const currentStatus = calculateAgendaStatus(agenda, BigInt(2))
+  const statusMessage = getStatusMessage(agenda, currentStatus, BigInt(2))
+  const agendaResult = getAgendaResult(agenda, currentStatus, BigInt(2))
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -52,11 +42,11 @@ export default function AgendaDetail({ agendaId }: AgendaDetailProps) {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-blue-600 text-sm font-medium">#{agendaData.id}</span>
-            <span className="text-gray-400 text-sm">Posted 2024 | 04 | 20 | 16:56</span>
+            <span className="text-blue-600 text-sm font-medium">#{agenda.id}</span>
+            <span className="text-gray-400 text-sm">Posted {formatDateSimple(Number(agenda.createdTimestamp))}</span>
           </div>
           <h1 className="text-xl font-semibold text-slate-700 font-['Inter'] mb-4">
-            {agendaData.title}
+            {agenda.title}
           </h1>
         </div>
 
@@ -96,12 +86,21 @@ export default function AgendaDetail({ agendaId }: AgendaDetailProps) {
               </button>
             </div>
 
-            {/* Voting Status - 같은 baseline */}
+                        {/* Voting Status - 같은 baseline */}
             <div className="flex items-center gap-4">
-              <span className="text-gray-700 text-sm font-medium">
-                ✓ Voting has started
+              <span className="text-gray-700 text-sm font-medium flex items-center gap-2">
+                <span>⚡</span>
+                {statusMessage}
               </span>
-              <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+              <button
+                className={`px-4 py-2 text-sm rounded-md transition-colors flex items-center gap-2 ${
+                  currentStatus === 2 && agenda.votingStartedTimestamp > BigInt(0)
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                    : 'bg-white border border-gray-300 text-gray-400 cursor-not-allowed'
+                }`}
+                disabled={!(currentStatus === 2 && agenda.votingStartedTimestamp > BigInt(0))}
+              >
+                <span>📋</span>
                 Vote
               </button>
             </div>
@@ -113,56 +112,68 @@ export default function AgendaDetail({ agendaId }: AgendaDetailProps) {
           <div className="space-y-2">
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Agenda Creator</span>
-              <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-mono">
-                0xH65...4Zk02f06dbE05f632ae70c5950017732d5
+              <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all">
+                {agenda.creator.address}
               </a>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Agenda Creation Time</span>
-              <span className="text-gray-900 text-sm">Apr 4, 2023, 16:14</span>
+              <span className="text-gray-900 text-sm">{formatDate(Number(agenda.createdTimestamp))}</span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Notice End Time</span>
-              <span className="text-gray-900 text-sm">Apr 10, 2023, 16:14</span>
+              <span className="text-gray-900 text-sm">{formatDate(Number(agenda.noticeEndTimestamp))}</span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Voting Start Time</span>
-              <span className="text-gray-900 text-sm">Apr 23, 2024, 03:01</span>
+              <span className="text-gray-900 text-sm">
+                {agenda.votingStartedTimestamp > BigInt(0) ? formatDate(Number(agenda.votingStartedTimestamp)) : "-"}
+              </span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Voting End Time</span>
-              <span className="text-gray-900 text-sm">Apr 24, 2024, 03:01</span>
+              <span className="text-gray-900 text-sm">
+                {agenda.votingEndTimestamp > BigInt(0) ? formatDate(Number(agenda.votingEndTimestamp)) : "-"}
+              </span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Agenda Status</span>
-              <span className="text-gray-900 text-sm">Executed</span>
+              <span className="text-gray-900 text-sm">{statusMessage}</span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Agenda Result</span>
-              <span className="text-gray-900 text-sm">Accepted</span>
+              <span className="text-gray-900 text-sm font-medium">
+                {agendaResult}
+              </span>
             </div>
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Agenda Execution Time Limit</span>
-              <span className="text-gray-900 text-sm">May 1, 2024, 03:01</span>
+              <span className="text-gray-900 text-sm">
+                {agenda.executableLimitTimestamp > BigInt(0) ? formatDate(Number(agenda.executableLimitTimestamp)) : "-"}
+              </span>
             </div>
 
-            <div className="flex justify-between py-2">
-              <span className="text-gray-600 text-sm">Executed Time</span>
-              <span className="text-gray-900 text-sm">Apr 24, 2024, 13:56</span>
-            </div>
+            {agenda.executed && (
+              <div className="flex justify-between py-2">
+                <span className="text-gray-600 text-sm">Executed Time</span>
+                <span className="text-gray-900 text-sm">
+                  {agenda.executedTimestamp > BigInt(0) ? formatDate(Number(agenda.executedTimestamp)) : "-"}
+                </span>
+              </div>
+            )}
 
             <div className="flex justify-between py-2">
               <span className="text-gray-600 text-sm">Description</span>
-              <a href="#" className="text-blue-600 hover:text-blue-700 text-sm">
-                Go to Description
-              </a>
+              <div className="text-gray-900 text-sm max-w-md text-right">
+                {agenda.description || 'No description available'}
+              </div>
             </div>
           </div>
         )}
