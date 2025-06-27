@@ -82,11 +82,11 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
           <div className="text-center py-8">
             <div className="text-gray-600">Loading voting records...</div>
           </div>
-        ) : votes.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {votes
-              .filter(vote => vote.hasVoted) // Only show votes that have been cast
-              .map((vote, index) => (
+        ) : (() => {
+          const votedRecords = votes.filter(vote => vote.hasVoted)
+          return votedRecords.length > 0 ? (
+            <div className="divide-y divide-gray-200">
+              {votedRecords.map((vote, index) => (
                 <div key={index} className="py-4">
                   <div className="text-sm">
                     <a href="#" className="text-blue-600 hover:text-blue-700 font-mono">
@@ -105,12 +105,13 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
                   </div>
                 </div>
               ))}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <div className="text-gray-600">No voting records available</div>
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-gray-600">No voting records available</div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
