@@ -61,7 +61,6 @@ interface AgendaContextType {
   minimumNoticePeriodSeconds: bigint | null;
   minimumVotingPeriodSeconds: bigint | null;
   quorum: bigint | null;
-  isCommitteeMember: (address: string) => boolean;
   getVoterInfos: (
     agendaId: number,
     voters: string[]
@@ -619,12 +618,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 위원회 멤버 체크 함수
-  const isCommitteeMember = useCallback((checkAddress: string): boolean => {
-    return committeeMembers.some(member =>
-      member.toLowerCase() === checkAddress.toLowerCase()
-    );
-  }, [committeeMembers]);
+
 
   // 특정 아젠다 새로고침
   const refreshAgenda = useCallback(async (agendaId: number) => {
@@ -769,6 +763,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     await loadAgendas();
   }, [loadAgendas]);
 
+
+
   const contextValue = useMemo(() => ({
     agendas,
     isLoading,
@@ -795,7 +791,6 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     minimumNoticePeriodSeconds,
     minimumVotingPeriodSeconds,
     quorum,
-    isCommitteeMember,
     getVoterInfos,
   }), [
     agendas,
@@ -813,7 +808,6 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     minimumNoticePeriodSeconds,
     minimumVotingPeriodSeconds,
     quorum,
-    isCommitteeMember,
     getVoterInfos,
   ]);
 

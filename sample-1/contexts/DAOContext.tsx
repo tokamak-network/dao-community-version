@@ -383,10 +383,34 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
     return cleanup;
   }, [handleMemberChanged, handleActivityRewardClaimed, handleLayer2Registered]);
 
+  // 위원회 멤버 체크 함수
+  const isCommitteeMember = useCallback((checkAddress: string): boolean => {
+    if (!committeeMembers || !checkAddress) return false;
+
+    return committeeMembers.some(member => {
+      const lowerCheckAddress = checkAddress.toLowerCase();
+
+      // creationAddress와 비교
+      if (member.creationAddress.toLowerCase() === lowerCheckAddress) {
+        return true;
+      }
+
+      // manager 주소가 Zero 주소가 아니면 manager 주소와도 비교
+      if (member.manager &&
+          member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+          member.manager.toLowerCase() === lowerCheckAddress) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [committeeMembers]);
+
   //  useMemo로 value 최적화
   const contextValue = useMemo(() => ({
     // Member 관련
     isMember,
+    isCommitteeMember,
 
     // Committee Members 관련
     committeeMembers,
@@ -442,6 +466,7 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
 
   }), [
     isMember,
+    isCommitteeMember,
     committeeMembers,
     isLoadingMembers,
     membersError,

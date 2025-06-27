@@ -50,6 +50,7 @@ export interface VoterInfo {
 
 export interface DAOContextType {
   isMember: boolean;
+  isCommitteeMember: (address: string) => boolean;
 
   // Committee Members 관련
   committeeMembers: CommitteeMember[] | undefined;
