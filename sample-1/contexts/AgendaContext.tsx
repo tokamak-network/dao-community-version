@@ -334,9 +334,8 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
               voters: Array.from(agendaData.voters),
               creator: {
                 address: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-              },
-              title: `Agenda #${agendaId}`,
-              description: `Agenda ${agendaId} from blockchain`,
+                signature: ""
+              }
             };
 
             return agenda;
@@ -376,7 +375,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
             console.warn('Failed to load metadata for batch:', error);
           }
         }
-
+        console.log(validResults)
         // 배치 결과를 즉시 상태에 추가 (점진적 표시)
         setAgendas((prev) => {
           const existingAgendas = new Map(prev.map((a) => [a.id, a]));

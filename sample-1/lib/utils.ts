@@ -138,7 +138,7 @@ export function getOrdinalSuffix(day: number): string {
 
 export function getRemainingTime(timestamp: bigint): string {
   const now = BigInt(Math.floor(Date.now() / 1000));
-  if (timestamp <= now) return "0";
+  if (timestamp <= now) return "Ended";
 
   const remaining = timestamp - now;
   const days = remaining / BigInt(86400);
@@ -154,6 +154,35 @@ export function getRemainingTime(timestamp: bigint): string {
   }
 }
 
+export function getAgendaTimeInfo(agenda: {
+  createdTimestamp: bigint;
+  noticeEndTimestamp: bigint;
+  votingStartedTimestamp: bigint;
+  votingEndTimestamp: bigint;
+  executableLimitTimestamp: bigint;
+  executedTimestamp: bigint;
+}) {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+
+  return {
+    noticePeriod: {
+      start: agenda.createdTimestamp,
+      end: agenda.noticeEndTimestamp,
+      remaining: getRemainingTime(agenda.noticeEndTimestamp),
+    },
+    votingPeriod: {
+      start: agenda.votingStartedTimestamp,
+      end: agenda.votingEndTimestamp,
+      remaining: getRemainingTime(agenda.votingEndTimestamp),
+    },
+    executionPeriod: {
+      start: agenda.votingEndTimestamp,
+      end: agenda.executableLimitTimestamp,
+      remaining: getRemainingTime(agenda.executableLimitTimestamp),
+    },
+  };
+}
+
 export function formatAddress(address: string | { address: string }): string {
   if (!address) return "";
 
@@ -165,6 +194,7 @@ export function formatAddress(address: string | { address: string }): string {
 
 export function calculateAgendaStatus(
   agenda: {
+    status: number;
     createdTimestamp: bigint;
     noticeEndTimestamp: bigint;
     votingStartedTimestamp: bigint;
@@ -180,27 +210,44 @@ export function calculateAgendaStatus(
 ): number {
   const now = BigInt(Math.floor(Date.now() / 1000));
 
+  // 이미 실행된 경우
   if (agenda.executed || agenda.executedTimestamp > BigInt(0)) {
     return AgendaStatus.EXECUTED;
   }
 
-  if (now > agenda.executableLimitTimestamp) {
-    return AgendaStatus.ENDED;
-  }
-
-  if (now > agenda.votingEndTimestamp) {
-    return AgendaStatus.WAITING_EXEC;
-  }
-
-  if (now >= agenda.votingStartedTimestamp) {
-    return AgendaStatus.VOTING;
-  }
-
-  if (now >= agenda.createdTimestamp && now < agenda.noticeEndTimestamp) {
+  // NOTICE 상태: noticeEndTimestamp가 0이 아니고, 현재 시간이 noticeEndTimestamp보다 이전
+  if (
+    agenda.noticeEndTimestamp > BigInt(0) &&
+    now < agenda.noticeEndTimestamp
+  ) {
     return AgendaStatus.NOTICE;
   }
 
-  return AgendaStatus.NONE;
+  // VOTING 상태:
+  // 1. noticeEndTimestamp가 0이 아니고, 현재 시간이 noticeEndTimestamp보다 크고, votingStartedTimestamp가 0
+  // 2. votingStartedTimestamp가 0이 아니고, 현재 시간이 votingEndTimestamp보다 작음
+  if (
+    (agenda.noticeEndTimestamp > BigInt(0) &&
+      now > agenda.noticeEndTimestamp &&
+      agenda.votingStartedTimestamp === BigInt(0)) ||
+    (agenda.votingStartedTimestamp > BigInt(0) &&
+      now < agenda.votingEndTimestamp)
+  ) {
+    return AgendaStatus.VOTING;
+  }
+
+  // 투표가 종료된 경우, quorum 체크
+  const totalVotes =
+    agenda.countingYes + agenda.countingNo + agenda.countingAbstain;
+  const hasQuorum = totalVotes >= quorum;
+
+  // 실행 대기 상태: 투표 종료 후 실행 가능 시간 이전이고 quorum을 만족한 경우
+  if (now < agenda.executableLimitTimestamp && hasQuorum) {
+    return AgendaStatus.WAITING_EXEC;
+  }
+
+  // 종료 상태: 실행 가능 시간이 지났거나 quorum을 만족하지 못한 경우
+  return AgendaStatus.ENDED;
 }
 
 export function getNetworkName(chainId: number): string {
@@ -355,5 +402,66 @@ export async function fetchAgendaEvents(
   } catch (error) {
     console.error('Error fetching agenda events:', error);
     return [];
+  }
+}
+
+export function getStatusMessage(
+  agenda: AgendaWithMetadata,
+  currentStatus: number,
+  quorum: bigint = BigInt(2)
+) {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const timeInfo = getAgendaTimeInfo(agenda);
+
+  // 투표 관련 계산
+  const votesFor = Number(agenda.countingYes || 0);
+  const votesAgainst = Number(agenda.countingNo || 0);
+  const votesAbstain = Number(agenda.countingAbstain || 0);
+  const totalVotes = votesFor + votesAgainst + votesAbstain;
+  const hasQuorum = totalVotes >= Number(quorum);
+  const isApproved = votesFor > votesAgainst;
+
+  switch (currentStatus) {
+    case AgendaStatus.NOTICE:
+      return timeInfo.noticePeriod.remaining === "Ended"
+        ? "Notice period ended"
+        : `Notice ends in: ${timeInfo.noticePeriod.remaining}`;
+
+    case AgendaStatus.VOTING:
+      if (timeInfo.votingPeriod.remaining === "Ended") {
+        if (!hasQuorum) {
+          return "Voting ended - NOT APPROVED";
+        } else if (isApproved) {
+          return "Voting ended - Approved, awaiting execution";
+        } else {
+          return "Voting ended - NOT APPROVED";
+        }
+      } else {
+        return `Voting ends in: ${timeInfo.votingPeriod.remaining}`;
+      }
+
+    case AgendaStatus.WAITING_EXEC:
+      if (timeInfo.executionPeriod.remaining === "Ended") {
+        return "Execution deadline passed";
+      } else {
+        return isApproved
+          ? `Approved - Execution deadline in: ${timeInfo.executionPeriod.remaining}`
+          : `Not approved - Execution deadline in: ${timeInfo.executionPeriod.remaining}`;
+      }
+
+    case AgendaStatus.EXECUTED:
+      return "EXECUTED";
+
+    case AgendaStatus.ENDED:
+      if (!hasQuorum) {
+        return "ENDED - NOT APPROVED";
+      } else if (isApproved) {
+        return "ENDED - Execution deadline passed";
+      } else {
+        return "ENDED - NOT APPROVED";
+      }
+
+    default:
+      return "Unknown";
   }
 }

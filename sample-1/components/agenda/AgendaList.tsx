@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useAccount } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useAgenda } from '@/contexts/AgendaContext'
+import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus } from '@/lib/utils'
 
 export default function AgendaList() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -11,18 +12,27 @@ export default function AgendaList() {
   const [sortBy, setSortBy] = useState('latest')
   const [statusFilter, setStatusFilter] = useState('all')
   const { isConnected } = useAccount();
-  const { agendas, isLoading, error, refreshAgendas, statusMessage } = useAgenda();
+  const { agendas, isLoading, error, refreshAgendas, statusMessage, quorum } = useAgenda();
 
-  // Format agenda data for display
-  const formatAgendaForDisplay = (agenda: any) => ({
-    id: `#${agenda.id}`,
-    title: agenda.title || `Agenda #${agenda.id}`,
-    author: agenda.creator?.address ? `${agenda.creator.address.slice(0, 6)}...${agenda.creator.address.slice(-4)}` : 'Unknown',
-    date: agenda.createdTimestamp ? new Date(Number(agenda.createdTimestamp) * 1000).toLocaleDateString() : 'Unknown',
-    status: agenda.status === 4 ? 'EXECUTED' : 'ACTIVE',
-    votesFor: Number(agenda.countingYes || 0),
-    votesAgainst: Number(agenda.countingNo || 0)
-  });
+      // Format agenda data for display
+  const formatAgendaForDisplay = (agenda: any) => {
+    const currentStatus = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
+    const statusMessage = getStatusMessage(agenda, currentStatus, quorum ?? BigInt(2));
+
+    return {
+      id: `#${agenda.id}`,
+      title: agenda.title || `Agenda #${agenda.id}`,
+      author: agenda.creator?.address ? formatAddress(agenda.creator.address) : 'Unknown',
+      date: agenda.createdTimestamp ? new Date(Number(agenda.createdTimestamp) * 1000).toLocaleDateString() : 'Unknown',
+      status: getStatusText(currentStatus),
+      statusClass: getStatusClass(currentStatus),
+      statusMessage: statusMessage,
+      currentStatus: currentStatus,
+      votesFor: Number(agenda.countingYes || 0),
+      votesAgainst: Number(agenda.countingNo || 0),
+      isApproved: Number(agenda.countingYes) > Number(agenda.countingNo)
+    };
+  };
 
   const displayAgendas = agendas.map(formatAgendaForDisplay);
 
@@ -97,14 +107,14 @@ export default function AgendaList() {
               </div>
             </div>
 
-            {/* Status with clock icon */}
+            {/* Status with time information */}
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12,6 12,12 16,14"></polyline>
               </svg>
-              <span className="text-gray-600 text-[10px] font-normal font-['Inter']">
-                POLL ENDED
+                                          <span className="text-gray-600 text-[10px] font-normal font-['Inter']">
+                {agenda.statusMessage}
               </span>
             </div>
 
