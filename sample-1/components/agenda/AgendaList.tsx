@@ -78,9 +78,12 @@ export default function AgendaList() {
         </div>
 
         {isConnected && (
-          <button className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          <Link
+            href="/agendas/new"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-block"
+          >
             + New proposal
-          </button>
+          </Link>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { mainnet, sepolia } from "./contracts";
+import { mainnet, sepolia } from './contracts'
 
 // 네트워크별 Public RPC URLs (Fallback 포함)
 const RPC_ENDPOINTS: Record<number, string[]> = {

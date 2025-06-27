@@ -65,45 +65,44 @@ export function useDAOContract() {
         return result as boolean;
       },
 
-      async getMemberDetails(memberAddress: string): Promise<{
-        stakedAmount: bigint;
-        votingPower: bigint;
-        isActive: boolean;
+      // 후보자 정보 조회 (실제 ABI에 있는 함수)
+      async getCandidateInfo(candidateAddress: string): Promise<{
+        candidateContract: string;
+        indexMembers: bigint;
+        memberJoinedTime: bigint;
+        rewardPeriod: bigint;
+        claimedTimestamp: bigint;
       }> {
         const result = await publicClient.readContract({
           address: CONTRACTS.daoCommittee.address,
           abi: daoCommitteeAbi,
-          functionName: 'getMemberDetails',
-          args: [memberAddress as `0x${string}`],
+          functionName: 'candidateInfos',
+          args: [candidateAddress as `0x${string}`],
         });
-        const [stakedAmount, votingPower, isActive] = result as [bigint, bigint, boolean];
-        return { stakedAmount, votingPower, isActive };
+        const [candidateContract, indexMembers, memberJoinedTime, rewardPeriod, claimedTimestamp] = result as [string, bigint, bigint, bigint, bigint];
+        return { candidateContract, indexMembers, memberJoinedTime, rewardPeriod, claimedTimestamp };
       },
 
-      // V3 함수들 (있는 경우)
-      async getCommitteeSnapshot(): Promise<{
-        members: string[];
-        stakes: bigint[];
-        totalStake: bigint;
-      }> {
-        try {
-          const result = await publicClient.readContract({
-            address: CONTRACTS.daoCommittee.address,
-            abi: daoCommitteeAbi,
-            functionName: 'getCommitteeSnapshot',
-          });
-          const [members, stakes, totalStake] = result as [string[], bigint[], bigint];
-          return { members, stakes, totalStake };
-        } catch (error) {
-          // V3 함수가 없는 경우 fallback
-          console.warn('getCommitteeSnapshot not available, falling back to basic functions');
-          const members = await this.getCommitteeMembers();
-          return {
-            members,
-            stakes: new Array(members.length).fill(BigInt(0)),
-            totalStake: BigInt(0)
-          };
-        }
+      // 클레임 가능한 리워드 조회
+      async getClaimableReward(candidateAddress: string): Promise<bigint> {
+        const result = await publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'getClaimableActivityReward',
+          args: [candidateAddress as `0x${string}`],
+        });
+        return result as bigint;
+      },
+
+      // 쿨다운 시간 조회
+      async getCooldown(address: string): Promise<bigint> {
+        const result = await publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'cooldown',
+          args: [address as `0x${string}`],
+        });
+        return result as bigint;
       },
 
       // 범용 read 함수 (타입 안전성을 위해 제거)

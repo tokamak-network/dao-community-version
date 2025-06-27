@@ -488,3 +488,65 @@ export function getStatusMessage(
       return "UNKNOWN";
   }
 }
+
+export function findMethodAbi(
+  abiArray: any[],
+  methodSignature: string
+): any | undefined {
+  return abiArray.find((func: any) => {
+    const paramTypes = func.inputs.map((input: any) => input.type).join(",");
+    return `${func.name}(${paramTypes})` === methodSignature;
+  });
+}
+
+// Parameter validation utilities for proposal actions
+export function validateParameterType(value: string, type: string): boolean {
+  try {
+    if (!value) return false;
+
+    if (type === "address") {
+      // 소문자로 변환해서 검증하여 체크섬 오류 방지
+      const lowerValue = value.toLowerCase();
+      return /^0x[a-f0-9]{40}$/.test(lowerValue);
+    } else if (type.startsWith("uint") || type.startsWith("int")) {
+      // Check if it's a valid number and not negative for uint
+      const num = BigInt(value);
+      if (type.startsWith("uint") && num < BigInt(0)) return false;
+      return true;
+    } else if (type === "bool") {
+      return value === "true" || value === "false";
+    } else if (type === "bytes" || type.startsWith("bytes")) {
+      return /^0x[0-9a-fA-F]*$/.test(value);
+    } else if (type === "string") {
+      return true; // Any string is valid
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getParameterTypeErrorMessage(type: string): string {
+  if (type === "address") {
+    return "Invalid Ethereum address";
+  } else if (type.startsWith("uint")) {
+    return "Must be a positive number";
+  } else if (type.startsWith("int")) {
+    return "Must be a valid number";
+  } else if (type === "bool") {
+    return "Must be true or false";
+  } else if (type === "bytes" || type.startsWith("bytes")) {
+    return "Must be a valid hex string starting with 0x";
+  } else if (type === "string") {
+    return "Must be a valid string";
+  }
+  return "Invalid input type";
+}
+
+export function normalizeParameterValue(value: string, type: string): string {
+  if (type === "address" && value) {
+    // 주소는 소문자로 변환하여 체크섬 오류 방지
+    return value.toLowerCase();
+  }
+  return value;
+}

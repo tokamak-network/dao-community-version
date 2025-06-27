@@ -140,7 +140,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
         const data = '0x' + calldata.slice(256, 256 + dataLength)
 
         return {
-          contract: TON_CONTRACT_ADDRESS,
+          contract: TON_CONTRACT_ADDRESS || '',
           function: 'approveAndCall(address spender, uint256 amount, bytes data)',
           parameters: {
             spender,
