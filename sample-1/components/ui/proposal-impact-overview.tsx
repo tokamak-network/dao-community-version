@@ -1,7 +1,8 @@
 "use client";
 
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { BarChart2, AlertCircle } from "lucide-react";
+import { Loader2, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Action {
   id: string;
@@ -14,6 +15,7 @@ interface Action {
   simulationResult?: "Passed" | "Failed" | "Simulating..." | "Pending";
   gasUsed?: string;
   errorMessage?: string;
+  logs?: string[];
 }
 
 interface ProposalImpactOverviewProps {
@@ -35,105 +37,150 @@ export function ProposalImpactOverview({
   onSimulateExecution,
   onToggleActionLogs,
 }: ProposalImpactOverviewProps) {
-  return (
-    <div className="bg-white p-6 rounded-lg border border-gray-200">
-      <div className="flex items-center gap-2 mb-6">
-        <BarChart2 className="w-5 h-5 text-purple-600" />
-        <h2 className="text-xl font-medium text-purple-600">Impact Overview</h2>
+  const rpcUrl = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL || "Local Node";
+
+  return simulationStep === "initial" ? (
+    <div className="flex-1 border rounded-md p-6">
+      <div className="flex flex-col items-start">
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-2">
+            Before running simulation
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            You need to run a local Hardhat node with forked network before
+            running the simulation:
+          </p>
+          <div className="bg-gray-800 text-gray-200 p-4 rounded-md text-sm font-mono mb-4">
+            <p>cd simulation-node</p>
+            <p>npm i</p>
+            <p>npx hardhat node --fork &lt;RPC URL&gt;</p>
+          </div>
+          <p className="text-sm text-gray-600">
+            After the Hardhat node is running, you can proceed with the
+            simulation.
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          className="bg-slate-100 hover:bg-slate-200 text-sm"
+          onClick={onSimulateExecution}
+        >
+          Simulate execution
+        </Button>
       </div>
-
-      {simulationStep === "initial" ? (
-        <div className="text-center py-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-2">Simulation Feature</p>
-                <p>
-                  Test your proposal actions before submission to identify potential issues
-                  and estimate gas usage. This helps ensure your proposal will execute successfully.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            onClick={onSimulateExecution}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2"
-          >
-            <BarChart2 className="w-4 h-4 mr-2" />
-            Simulate Execution
-          </Button>
+    </div>
+  ) : (
+    <div className="flex-1 p-6">
+      <div className="max-w-4xl">
+        <div className="flex justify-between items-center mb-1">
+          <h1 className="text-xl font-semibold">Simulations</h1>
         </div>
-      ) : (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Simulation Results</h3>
-
-          {generalSimulationLogs.length > 0 && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">General Logs</h4>
-              <div className="space-y-1">
-                {generalSimulationLogs.map((log, index) => (
-                  <div key={index} className="text-sm text-gray-700 font-mono">
-                    {log}
-                  </div>
+        {generalSimulationLogs.length > 0 && (
+          <div className="mb-4 p-3 bg-gray-800 text-gray-200 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
+            {generalSimulationLogs.map((log, index) => (
+              <p key={index} className="whitespace-pre-wrap">
+                {log}
+              </p>
+            ))}
+          </div>
+        )}
+        <p className="text-gray-500 mb-4">
+          Detailed simulation results per proposal action provided by {rpcUrl}
+        </p>
+        <div className="border rounded-md overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-16">
+                    Action #
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                    Title
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                    Simulation
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
+                    Gas Used
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-12">
+                    Logs
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {simulatedActions.map((action, index) => (
+                  <React.Fragment key={action.id}>
+                    <tr className="border-b">
+                      <td className="px-4 py-3 text-sm w-16">{index + 1}</td>
+                      <td className="px-4 py-3 text-sm">{action.title}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex items-center">
+                          {action.simulationResult === "Pending" ? (
+                            <span className="text-gray-500">{pendingText}</span>
+                          ) : action.simulationResult === "Simulating..." ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin text-gray-400" />
+                              <span className="text-gray-500">
+                                Simulating...
+                              </span>
+                            </>
+                          ) : action.simulationResult === "Passed" ? (
+                            <>
+                              <div className="w-2 h-2 rounded-full mr-2 bg-emerald-400"></div>
+                              <span className="text-emerald-500">Passed</span>
+                            </>
+                          ) : action.simulationResult === "Failed" ? (
+                            <>
+                              <div className="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
+                              <span className="text-red-500">Failed</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono">
+                        {action.gasUsed || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-center w-12">
+                        {action.logs && action.logs.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onToggleActionLogs(action.id)}
+                            className="h-8 w-8"
+                          >
+                            {expandedActionLogs[action.id] ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                    {expandedActionLogs[action.id] &&
+                      action.logs &&
+                      action.logs.length > 0 && (
+                        <tr className="border-b">
+                          <td colSpan={5} className="p-0">
+                            <div className="bg-gray-900 text-gray-200">
+                              <pre className="text-xs whitespace-pre-wrap p-3 m-0 overflow-x-auto max-h-48 break-all">
+                                {action.logs.join("\n")}
+                              </pre>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                  </React.Fragment>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {simulatedActions.length > 0 ? (
-            <div className="space-y-3">
-              {simulatedActions.map((action, index) => (
-                <div key={action.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">
-                      Action #{index + 1}: {action.title}
-                    </h4>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        action.simulationResult === "Passed"
-                          ? "bg-green-100 text-green-800"
-                          : action.simulationResult === "Failed"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {action.simulationResult || "Pending"}
-                    </span>
-                  </div>
-
-                  {action.gasUsed && (
-                    <p className="text-sm text-gray-600 mb-2">
-                      Gas Used: {action.gasUsed}
-                    </p>
-                  )}
-
-                  {action.errorMessage && (
-                    <div className="bg-red-50 border border-red-200 rounded p-3 mt-2">
-                      <p className="text-sm text-red-800">{action.errorMessage}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              {pendingText}
-            </div>
-          )}
-
-          <div className="pt-4">
-            <Button
-              onClick={onSimulateExecution}
-              variant="outline"
-              className="mr-2"
-            >
-              Re-run Simulation
-            </Button>
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

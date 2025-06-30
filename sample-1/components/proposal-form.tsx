@@ -52,6 +52,7 @@ interface ProposalFormState {
   simulationStep: "initial" | "results";
   simulatedActions: Action[];
   generalSimulationLogs: string[];
+  eventSourceInstance: EventSource | null;
   pendingText: string;
   expandedActionLogs: { [actionId: string]: boolean };
   showSimulation: boolean;
@@ -64,6 +65,7 @@ interface ProposalFormState {
 }
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
+  private pendingAnimationInterval: NodeJS.Timeout | null = null;
   private fileInputRef = React.createRef<HTMLInputElement>();
 
   constructor(props: {}) {
@@ -82,6 +84,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       simulationStep: "initial",
       simulatedActions: [],
       generalSimulationLogs: [],
+      eventSourceInstance: null,
       pendingText: "Pending...",
       expandedActionLogs: {},
       showSimulation: false,
@@ -91,6 +94,24 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       currentSection: "actions",
       transactionSuccess: false,
     };
+  }
+
+  componentDidMount() {
+    let dotCount = 0;
+    this.pendingAnimationInterval = setInterval(() => {
+      dotCount = (dotCount % 3) + 1;
+      this.setState({ pendingText: `Pending${Array(dotCount + 1).join(".")}` });
+    }, 500);
+  }
+
+  componentWillUnmount() {
+    if (this.state.eventSourceInstance) {
+      this.state.eventSourceInstance.close();
+      console.log("SSE connection closed on component unmount.");
+    }
+    if (this.pendingAnimationInterval) {
+      clearInterval(this.pendingAnimationInterval);
+    }
   }
 
   handleAddActionClick = () => {
@@ -162,29 +183,301 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
   };
 
   handleSimulateExecutionClick = async () => {
+    if (this.state.eventSourceInstance) {
+      this.state.eventSourceInstance.close();
+      this.setState({ eventSourceInstance: null });
+    }
+
+    const initialSimActions = this.state.actions.map((action) => ({
+      ...action,
+      simulationResult: "Pending" as "Pending",
+      gasUsed: "",
+      errorMessage: "",
+      logs: [],
+    }));
+
     this.setState({
       simulationStep: "results",
-      generalSimulationLogs: ["Starting simulation...", "Analyzing actions..."],
-      simulatedActions: this.state.actions.map(action => ({
-        ...action,
-        simulationResult: "Simulating..." as const,
-      })),
+      simulatedActions: initialSimActions,
+      generalSimulationLogs: ["Connecting to simulation server..."],
+      expandedActionLogs: {},
     });
 
-    // Simulate some delay
-    setTimeout(() => {
-      this.setState((prevState) => ({
-        simulatedActions: prevState.simulatedActions.map(action => ({
-          ...action,
-          simulationResult: "Passed" as const,
-          gasUsed: Math.floor(Math.random() * 100000 + 50000).toString(),
-        })),
-        generalSimulationLogs: [
-          ...prevState.generalSimulationLogs,
-          "Simulation completed successfully",
-        ],
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
+    const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
+    const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+
+    if (!daoAddress || !forkRpc || !localRpc) {
+      alert("Required environment variables are not set.");
+      const errorActions = this.state.actions.map((a) => ({
+        ...a,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: "Config error",
       }));
-    }, 2000);
+      this.setState({
+        simulationStep: "results",
+        simulatedActions: errorActions,
+        generalSimulationLogs: ["Configuration error. Check .env.local file."],
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actions: this.state.actions,
+          daoContractAddress: daoAddress,
+          forkRpcUrl: forkRpc,
+          localRpcUrl: localRpc,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg =
+          errorData.message ||
+          `API request failed with status ${response.status}`;
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage:
+              sa.simulationResult === "Pending" ||
+              sa.simulationResult === "Simulating..."
+                ? errorMsg
+                : sa.errorMessage,
+            logs: [...(sa.logs || []), `API Request Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Error: ${errorMsg}`,
+          ],
+        }));
+        throw new Error(errorMsg);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let firstLogReceived = false;
+
+      const processStream = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log("Stream finished.");
+            const finalLogs = this.state.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            );
+            if (
+              this.state.generalSimulationLogs.some(
+                (log) =>
+                  log.startsWith("Error:") ||
+                  log.startsWith("Critical Error:") ||
+                  log.startsWith("Stream Error:") ||
+                  log.startsWith("Initialization Error:")
+              ) === false
+            ) {
+              this.setState({
+                generalSimulationLogs: [
+                  ...finalLogs,
+                  "Simulation process completed.",
+                ],
+              });
+            }
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          console.log("[FRONTEND SSE BUFFER AFTER DECODE]", buffer);
+
+          if (!firstLogReceived && buffer.length > 0) {
+            firstLogReceived = true;
+            this.setState({
+              generalSimulationLogs: this.state.generalSimulationLogs.filter(
+                (log) => log !== "Connecting to simulation server..."
+              ),
+            });
+          }
+
+          let eventEndIndex = buffer.indexOf("\n\n");
+          while (eventEndIndex !== -1) {
+            const eventString = buffer.substring(0, eventEndIndex);
+            buffer = buffer.substring(eventEndIndex + 2);
+            console.log(
+              "[FRONTEND SSE RAW EVENT STRING]",
+              JSON.stringify(eventString)
+            );
+
+            let eventName = "message";
+            let eventDataString = eventString;
+
+            if (eventString.startsWith("event:")) {
+              const firstNewline = eventString.indexOf("\n");
+              eventName = eventString
+                .substring("event:".length, firstNewline)
+                .trim();
+              eventDataString = eventString.substring(firstNewline + 1);
+            }
+            if (eventDataString.startsWith("data:")) {
+              eventDataString = eventDataString
+                .substring("data:".length)
+                .trim();
+            }
+
+            console.log("[FRONTEND SSE PARSED EVENT INFO]", {
+              eventName,
+              eventDataString,
+            });
+
+            try {
+              const parsedData = JSON.parse(eventDataString);
+              console.log("[FRONTEND SSE JSON PARSED DATA]", parsedData);
+
+              if (eventName === "log") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] log - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+              } else if (eventName === "actionLog") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionLog - ActionID:",
+                  parsedData.actionId,
+                  "Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((action) =>
+                    action.id === parsedData.actionId
+                      ? {
+                          ...action,
+                          logs: [...(action.logs || []), parsedData.message],
+                        }
+                      : action
+                  ),
+                }));
+              } else if (eventName === "actionUpdate") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionUpdate - ActionID:",
+                  parsedData.action.id,
+                  "Data:",
+                  parsedData.action
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => {
+                    if (sa.id === parsedData.action.id) {
+                      const currentLogs = sa.logs || [];
+                      return {
+                        ...sa,
+                        ...parsedData.action,
+                        logs: parsedData.action.logs || currentLogs,
+                        simulationResult: parsedData.action.simulationResult,
+                      };
+                    }
+                    return sa;
+                  }),
+                }));
+              } else if (eventName === "error") {
+                const errorDetail = parsedData.detail || parsedData.message;
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] error - Detail:",
+                  errorDetail
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => ({
+                    ...sa,
+                    simulationResult:
+                      sa.simulationResult === "Pending" ||
+                      sa.simulationResult === "Simulating..."
+                        ? "Failed"
+                        : sa.simulationResult,
+                    errorMessage: sa.errorMessage || errorDetail,
+                    logs: [...(sa.logs || []), `SSE Error: ${errorDetail}`],
+                  })),
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    `Critical Error: ${errorDetail}`,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              } else if (eventName === "simulationComplete") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] simulationComplete - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              }
+            } catch (e) {
+              console.error(
+                "[FRONTEND SSE ERROR] Error parsing JSON or in handler:",
+                eventDataString,
+                e
+              );
+            }
+            eventEndIndex = buffer.indexOf("\n\n");
+          }
+        }
+      };
+      processStream().catch((streamError) => {
+        const errorMsg = streamError.message || "Stream processing error.";
+        console.error("Stream processing error:", streamError);
+        alert(`Error processing simulation stream: ${errorMsg}`);
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage: errorMsg,
+            logs: [...(sa.logs || []), `Stream Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Stream Error: ${errorMsg}`,
+          ],
+        }));
+      });
+    } catch (error: any) {
+      const errorMsg = error.message || "Simulation initialization failed.";
+      console.error("Initial fetch POST failed:", error);
+      alert(`Simulation initialization failed: ${errorMsg}`);
+      const errorSimActions = this.state.actions.map((action) => ({
+        ...action,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: errorMsg,
+        logs: [...(action.logs || []), `Initialization Error: ${errorMsg}`],
+      }));
+      this.setState({
+        simulatedActions: errorSimActions,
+        generalSimulationLogs: [
+          ...this.state.generalSimulationLogs.filter(
+            (log) => log !== "Connecting to simulation server..."
+          ),
+          `Initialization Error: ${errorMsg}`,
+        ],
+      });
+    }
   };
 
   resetToDefaultView = () => {
@@ -317,7 +610,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       <div className="flex flex-col min-h-screen">
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col items-center">
-            <div className="w-full max-w-7xl px-4 py-8 transition-all duration-300 mx-auto">
+            <div className="w-full max-w-5xl px-4 py-8 transition-all duration-300 mx-auto">
               <div className="space-y-8">
                 <div className="flex items-center justify-between">
                   <Tabs
@@ -402,7 +695,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                     {this.state.actions.map((action, index) => (
                       <div
                         key={action.id}
-                        className="border rounded-md border-gray-200 hover:bg-gray-100 transition-colors duration-150"
+                        className="border rounded-md border-gray-200 hover:bg-gray-100 transition-colors duration-150 overflow-hidden"
                       >
                         <div className="flex items-center">
                           <div className="flex flex-col gap-0 px-1 py-1 border-r border-gray-200">
@@ -438,14 +731,14 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                             </button>
                           </div>
                           <div
-                            className="flex-1 p-4 cursor-pointer"
+                            className="flex-1 p-4 cursor-pointer min-w-0"
                             onClick={() => this.handleActionCardClick(action)}
                           >
                             <div className="flex items-center text-sm font-medium text-gray-900 mb-1">
                               <Code className="w-4 h-4 mr-2 text-gray-400" />
                               Action #{index + 1}
                             </div>
-                            <div className="text-xs text-gray-500 truncate">
+                            <div className="text-xs text-gray-500 truncate overflow-hidden">
                               {action.title}
                             </div>
                           </div>

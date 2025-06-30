@@ -257,8 +257,8 @@ function RequiredContractAddress({
 
   if (isContractFound === null || !isContractFound) {
     return (
-      <div className="flex items-start mt-4 text-sm text-amber-700 bg-amber-50 p-3 rounded-md">
-        <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+      <div className="flex items-start mt-2 text-sm text-red-500">
+        <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
         <p>
           Contract not found on Etherscan. Select an ABI or import a JSON file
           containing your ABI.

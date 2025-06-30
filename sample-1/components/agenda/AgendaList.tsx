@@ -1,18 +1,24 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAccount } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useAgenda } from '@/contexts/AgendaContext'
 import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus } from '@/lib/utils'
 
 export default function AgendaList() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState('latest')
   const [statusFilter, setStatusFilter] = useState('all')
   const { isConnected } = useAccount();
   const { agendas, isLoading, error, refreshAgendas, statusMessage, quorum } = useAgenda();
+
+  const handleNewProposalClick = () => {
+    router.push('/agendas/new');
+  };
 
       // Format agenda data for display
   const formatAgendaForDisplay = (agenda: any) => {
@@ -77,14 +83,12 @@ export default function AgendaList() {
           </Link>
         </div>
 
-        {isConnected && (
-          <Link
-            href="/agendas/new"
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-block"
-          >
-            + New proposal
-          </Link>
-        )}
+        <button
+          onClick={handleNewProposalClick}
+          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          + New proposal
+        </button>
       </div>
 
       {/* Agenda List */}
