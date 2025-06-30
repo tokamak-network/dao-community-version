@@ -96,3 +96,20 @@ export function getChainName(chainId: number): string {
       return 'Unknown Network';
   }
 }
+
+/**
+ * 주소를 현재 체인의 익스플로러에서 새창으로 엽니다 (환경 변수 기반)
+ */
+export function openEtherscan(userAddress: string): void {
+  const explorerUrl =
+    process.env.NEXT_PUBLIC_EXPLORER_URL || "https://etherscan.io";
+  window.open(`${explorerUrl}/address/${userAddress}`, "_blank");
+}
+
+/**
+ * 주소를 체인 ID 기반 익스플로러에서 새창으로 엽니다
+ */
+export function openExplorerByChain(address: string, chainId: number): void {
+  const url = getExplorerUrl(address, chainId);
+  window.open(url, '_blank');
+}

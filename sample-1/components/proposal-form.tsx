@@ -62,6 +62,7 @@ interface ProposalFormState {
   currentSection: string;
 
   transactionSuccess: boolean;
+  canSubmit: boolean;
 }
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
@@ -93,6 +94,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       selectedActionId: null,
       currentSection: "actions",
       transactionSuccess: false,
+      canSubmit: false,
     };
   }
 
@@ -573,6 +575,10 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     this.setState({ transactionSuccess: true });
   };
 
+  handleSubmitStatusChange = (canSubmit: boolean) => {
+    this.setState({ canSubmit });
+  };
+
   render() {
     const {
       title,
@@ -675,7 +681,12 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                       Save Locally
                     </button>
                     <button
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                        this.state.canSubmit
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                      disabled={!this.state.canSubmit}
                     >
                       Submit DAO Agenda
                     </button>
@@ -787,6 +798,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                         onImpactOverviewClick={this.handleImpactOverviewClick}
                         showSimulation={this.state.showSimulation}
                         onTransactionSuccess={this.handleTransactionSuccess}
+                        onSubmitStatusChange={this.handleSubmitStatusChange}
                       />
                     ) : this.state.showImpactOverview ? (
                       <ProposalImpactOverview

@@ -169,7 +169,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         const [fees, minNotice, minVoting] = await Promise.all([
           readContractWithRetry(
             () => publicClient.readContract({
-              address: CONTRACTS.daoAgendaManager.address,
+              address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
               abi: daoAgendaManagerAbi,
               functionName: 'createAgendaFees',
             }) as Promise<bigint>,
