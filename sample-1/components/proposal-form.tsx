@@ -20,7 +20,29 @@ import { ProposalSelectAction } from "@/components/ui/proposal-select-action";
 import { ProposalEditAction } from "@/components/ui/proposal-edit-action";
 import { ProposalPreview } from "@/components/ui/proposal-preview";
 import { ProposalImpactOverview } from "@/components/ui/proposal-impact-overview";
+import { ethers, BrowserProvider, isAddress } from "ethers";
+import { TON_CONTRACT_ADDRESS, DAO_COMMITTEE_PROXY_ADDRESS, DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
+import { submitAgenda, validateAgendaParams, AgendaSubmissionParams } from "@/utils/agendaSubmission";
+import { TransactionModal, TransactionStatus } from "@/components/modals/TransactionModal";
+import { prepareAgenda } from "@/utils/agendaData";
+import { TON_ABI } from "@/utils/tonContract";
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { useAgenda } from "@/contexts/AgendaContext";
 
+interface ProposalFormProps {
+  address?: `0x${string}`;
+  isConnected?: boolean;
+  writeContract?: any;
+  writeData?: `0x${string}`;
+  writeError?: any;
+  createAgendaFees?: bigint | null;
+  minimumNoticePeriodSeconds?: bigint | null;
+  minimumVotingPeriodSeconds?: bigint | null;
+}
 
 interface Action {
   id: string;
@@ -63,13 +85,19 @@ interface ProposalFormState {
 
   transactionSuccess: boolean;
   canSubmit: boolean;
+
+  // Transaction status management
+  txState: "idle" | "submitting" | "pending" | "success" | "error";
+  showSuccessModal: boolean;
+  isTransactionPending: boolean;
+  agendaNumber: string;
 }
 
-export default class ProposalForm extends Component<{}, ProposalFormState> {
+export default class ProposalForm extends Component<ProposalFormProps, ProposalFormState> {
   private pendingAnimationInterval: NodeJS.Timeout | null = null;
   private fileInputRef = React.createRef<HTMLInputElement>();
 
-  constructor(props: {}) {
+  constructor(props: ProposalFormProps) {
     super(props);
     this.state = {
       title: "",
@@ -95,6 +123,12 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       currentSection: "actions",
       transactionSuccess: false,
       canSubmit: false,
+
+      // Transaction status management
+      txState: "idle",
+      showSuccessModal: false,
+      isTransactionPending: false,
+      agendaNumber: "",
     };
   }
 
@@ -541,7 +575,9 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     const dataStr = JSON.stringify(proposalData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
 
-    const exportFileDefaultName = `proposal-${Date.now()}.json`;
+    // Format: proposal-2025-06-17T02-38-36-622Z.json
+    const timestamp = new Date().toISOString().replace(/:/g, '-');
+    const exportFileDefaultName = `proposal-${timestamp}.json`;
 
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -577,6 +613,136 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
 
   handleSubmitStatusChange = (canSubmit: boolean) => {
     this.setState({ canSubmit });
+  };
+
+  handlePublish = async () => {
+    const { address, writeContract, createAgendaFees, minimumNoticePeriodSeconds, minimumVotingPeriodSeconds } = this.props;
+
+    if (!address) {
+      alert("Wallet not connected. Please connect your wallet first.");
+      return;
+    }
+    if (!isAddress(address)) {
+      alert("Invalid wallet address. Please reconnect your wallet.");
+      return;
+    }
+
+    if (!createAgendaFees) {
+      alert("Invalid createAgendaFees. Please reconnect your wallet.");
+      return;
+    }
+
+    if (!minimumNoticePeriodSeconds || !minimumVotingPeriodSeconds) {
+      alert("Contract settings not loaded. Please try again.");
+      return;
+    }
+
+    if (!TON_CONTRACT_ADDRESS || !DAO_COMMITTEE_PROXY_ADDRESS || !DAO_AGENDA_MANAGER_ADDRESS) {
+      alert("Contract addresses not configured. Please check environment variables.");
+      return;
+    }
+
+    try {
+      this.setState({
+        txState: "submitting",
+        showSuccessModal: true,
+        isTransactionPending: true
+      });
+
+      // Prepare agenda data using our utility
+      const { param } = await prepareAgenda({
+        actions: this.state.actions,
+        snapshotUrl: this.state.snapshotUrl,
+        discourseUrl: this.state.discourseUrl,
+        minimumNoticePeriodSeconds,
+        minimumVotingPeriodSeconds,
+        daoCommitteeProxyAddress: DAO_COMMITTEE_PROXY_ADDRESS,
+      });
+
+      // Check TON balance
+      const provider = new BrowserProvider(window.ethereum as any);
+      const tonContract = new ethers.Contract(
+        TON_CONTRACT_ADDRESS,
+        TON_ABI,
+        provider
+      );
+      const tonBalanceRaw = await tonContract.balanceOf(address);
+      const balanceInTon = Number(ethers.formatUnits(tonBalanceRaw, 18));
+      const feeInTon = Number(ethers.formatUnits(createAgendaFees, 18));
+
+      if (balanceInTon < feeInTon) {
+        alert(
+          `The agenda fee is ${feeInTon} TON, but your wallet TON balance is insufficient. Current TON balance: ${balanceInTon} TON`
+        );
+        this.setState({
+          txState: "idle",
+          showSuccessModal: false,
+          isTransactionPending: false
+        });
+        return;
+      }
+
+      // Get agenda number before transaction
+      console.log("Getting agenda number before transaction...");
+      const daoAgendaManager = new ethers.Contract(
+        DAO_AGENDA_MANAGER_ADDRESS,
+        ["function numAgendas() view returns (uint256)"],
+        provider
+      );
+      const numAgendas = await daoAgendaManager.numAgendas();
+      const agendaNumber = numAgendas.toString();
+      console.log("Current agenda number:", agendaNumber);
+      this.setState({ agendaNumber });
+
+      if (!writeContract) {
+        throw new Error("Contract write not ready");
+      }
+
+      // Execute transaction
+      await writeContract({
+        address: TON_CONTRACT_ADDRESS as `0x${string}`,
+        abi: TON_ABI,
+        functionName: "approveAndCall",
+        args: [
+          DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`,
+          createAgendaFees,
+          param,
+        ],
+      });
+
+      // Transaction submitted successfully
+      this.setState({ txState: "pending" });
+
+    } catch (error) {
+      console.error("Error publishing proposal:", error);
+
+      if (error && typeof error === "object") {
+        if ((error as any).code)
+          console.error("Error code:", (error as any).code);
+        if ((error as any).message)
+          console.error("Error message:", (error as any).message);
+        if ((error as any).data)
+          console.error("Error data:", (error as any).data);
+
+        if (
+          (error as any).message &&
+          (error as any).message.includes("User denied transaction signature")
+        ) {
+          this.setState({
+            txState: "idle",
+            showSuccessModal: false,
+            isTransactionPending: false
+          });
+          return;
+        }
+      }
+
+      this.setState({
+        txState: "error",
+        showSuccessModal: true,
+        isTransactionPending: false
+      });
+    }
   };
 
   render() {
@@ -681,12 +847,14 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
                       Save Locally
                     </button>
                     <button
+                      onClick={this.handlePublish}
+                      disabled={!this.state.canSubmit}
+
                       className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
                         this.state.canSubmit
                           ? "bg-blue-600 text-white hover:bg-blue-700"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
-                      disabled={!this.state.canSubmit}
                     >
                       Submit DAO Agenda
                     </button>
@@ -849,6 +1017,25 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
           </div>
         </div>
 
+        {/* Transaction Modal */}
+        <TransactionModal
+          isOpen={this.state.showSuccessModal}
+          onClose={() => this.setState({
+            showSuccessModal: false,
+            txState: "idle",
+            isTransactionPending: false
+          })}
+          status={this.state.txState === "pending" ? "pending" :
+                 this.state.txState === "submitting" ? "submitting" :
+                 this.state.txState === "success" ? "confirmed" :
+                 this.state.txState === "error" ? "error" : "submitting"}
+          txHash={this.props.writeData}
+          agendaNumber={this.state.agendaNumber}
+          onSaveLocally={() => {
+            // TODO: Implement save locally with signature
+            console.log("Save locally clicked");
+          }}
+        />
 
       </div>
     );
