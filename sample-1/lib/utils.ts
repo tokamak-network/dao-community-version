@@ -387,8 +387,6 @@ export async function fetchAgendaEvents(
   publicClient: any
 ) {
   try {
-    console.log(`Fetching events from block ${fromBlock} to ${toBlock}`);
-
     const logs = await publicClient.getLogs({
       address: contract.address as `0x${string}`,
       event: {
@@ -407,7 +405,6 @@ export async function fetchAgendaEvents(
       toBlock: toBlock,
     });
 
-    console.log(`Found ${logs.length} events in this range`);
     return logs;
   } catch (error) {
     console.error('Error fetching agenda events:', error);

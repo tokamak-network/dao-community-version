@@ -159,6 +159,14 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
   const [quorum, setQuorum] = useState<bigint | null>(null);
   const [committeeMembers, setCommitteeMembers] = useState<string[]>([]);
 
+  // Runtime checks for contract addresses
+  if (!CONTRACTS.daoAgendaManager.address) {
+    throw new Error('DAO_AGENDA_MANAGER_ADDRESS is not configured');
+  }
+  if (!CONTRACTS.daoCommittee.address) {
+    throw new Error('DAO_COMMITTEE_PROXY_ADDRESS is not configured');
+  }
+
   // 컨트랙트 설정값들 로드
   useEffect(() => {
     const loadContractSettings = async () => {
@@ -177,7 +185,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           ),
           readContractWithRetry(
             () => publicClient.readContract({
-              address: CONTRACTS.daoAgendaManager.address,
+              address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
               abi: daoAgendaManagerAbi,
               functionName: 'minimumNoticePeriodSeconds',
             }) as Promise<bigint>,
@@ -185,7 +193,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           ),
           readContractWithRetry(
             () => publicClient.readContract({
-              address: CONTRACTS.daoAgendaManager.address,
+              address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
               abi: daoAgendaManagerAbi,
               functionName: 'minimumVotingPeriodSeconds',
             }) as Promise<bigint>,
@@ -200,7 +208,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         // DAO Committee에서 quorum 가져오기
         const quorumValue = await readContractWithRetry(
           () => publicClient.readContract({
-            address: CONTRACTS.daoCommittee.address,
+            address: CONTRACTS.daoCommittee.address as `0x${string}`,
             abi: DAO_ABI,
             functionName: 'quorum',
           }) as Promise<bigint>,
@@ -225,7 +233,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         // maxMember 가져오기
         const maxMember = await readContractWithRetry(
           () => publicClient.readContract({
-            address: CONTRACTS.daoCommittee.address,
+            address: CONTRACTS.daoCommittee.address as `0x${string}`,
             abi: DAO_ABI,
             functionName: 'maxMember',
           }) as Promise<bigint>,
@@ -237,7 +245,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           try {
             const member = await readContractWithRetry(
               () => publicClient.readContract({
-                address: CONTRACTS.daoCommittee.address,
+                address: CONTRACTS.daoCommittee.address as `0x${string}`,
                 abi: DAO_ABI,
                 functionName: 'members',
                 args: [BigInt(i)],
@@ -275,7 +283,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       // 총 아젠다 개수 가져오기
       const numAgendas = await readContractWithRetry(
         () => publicClient.readContract({
-          address: CONTRACTS.daoAgendaManager.address,
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
           abi: daoAgendaManagerAbi,
           functionName: 'numAgendas',
         }) as Promise<bigint>,
@@ -306,7 +314,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           const agendaId = i - j; // 최신순으로 가져오기
           return readContractWithRetry(
             () => publicClient.readContract({
-              address: CONTRACTS.daoAgendaManager.address,
+              address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
               abi: daoAgendaManagerAbi,
               functionName: 'agendas',
               args: [BigInt(agendaId)],
@@ -476,7 +484,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         try {
           const fetchedEvents = await fetchAgendaEvents(
             {
-              address: CONTRACTS.daoAgendaManager.address,
+              address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
               abi: daoAgendaManagerAbi,
               chainId: chain.id,
             },
@@ -606,7 +614,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           try {
             const info = await readContractWithRetry(
               () => publicClient.readContract({
-                address: CONTRACTS.daoAgendaManager.address,
+                address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
                 abi: daoAgendaManagerAbi,
                 functionName: 'voterInfos',
                 args: [BigInt(agendaId), voter as `0x${string}`],
@@ -644,7 +652,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
       const agendaData = await readContractWithRetry(
         () => publicClient.readContract({
-          address: CONTRACTS.daoAgendaManager.address,
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
           abi: daoAgendaManagerAbi,
           functionName: 'agendas',
           args: [BigInt(agendaId)],
@@ -691,7 +699,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
       const agendaData = await readContractWithRetry(
         () => publicClient.readContract({
-          address: CONTRACTS.daoAgendaManager.address,
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
           abi: daoAgendaManagerAbi,
           functionName: 'agendas',
           args: [BigInt(agendaId)],
@@ -828,12 +836,12 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     getAgenda,
     statusMessage,
     contract: {
-      address: CONTRACTS.daoAgendaManager.address,
+      address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
       abi: daoAgendaManagerAbi,
       chainId: chain.id,
     },
     daoContract: {
-      address: CONTRACTS.daoCommittee.address,
+      address: CONTRACTS.daoCommittee.address as `0x${string}`,
       abi: DAO_ABI,
       chainId: chain.id,
     },

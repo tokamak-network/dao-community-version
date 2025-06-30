@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronUp, ChevronDown } from "lucide-react";
 
@@ -19,25 +19,257 @@ interface Action {
 }
 
 interface ProposalImpactOverviewProps {
-  simulationStep: "initial" | "results";
-  generalSimulationLogs: string[];
-  simulatedActions: Action[];
-  pendingText: string;
-  expandedActionLogs: { [actionId: string]: boolean };
-  onSimulateExecution: () => void;
-  onToggleActionLogs: (actionId: string) => void;
+  actions: Action[];
 }
 
 export function ProposalImpactOverview({
-  simulationStep,
-  generalSimulationLogs,
-  simulatedActions,
-  pendingText,
-  expandedActionLogs,
-  onSimulateExecution,
-  onToggleActionLogs,
+  actions,
 }: ProposalImpactOverviewProps) {
+  // Simulation state management
+  const [simulationStep, setSimulationStep] = useState<"initial" | "results">("initial");
+  const [simulatedActions, setSimulatedActions] = useState<Action[]>([]);
+  const [generalSimulationLogs, setGeneralSimulationLogs] = useState<string[]>([]);
+  const [expandedActionLogs, setExpandedActionLogs] = useState<{ [actionId: string]: boolean }>({});
+  const [eventSourceInstance, setEventSourceInstance] = useState<EventSource | null>(null);
+  const [pendingText, setPendingText] = useState("Pending...");
+
   const rpcUrl = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL || "Local Node";
+
+  // Pending text animation
+  useEffect(() => {
+    let dotCount = 0;
+    const interval = setInterval(() => {
+      dotCount = (dotCount % 3) + 1;
+      setPendingText(`Pending${Array(dotCount + 1).join(".")}`);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Cleanup SSE on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceInstance) {
+        eventSourceInstance.close();
+        console.log("SSE connection closed on component unmount.");
+      }
+    };
+  }, [eventSourceInstance]);
+
+  const handleSimulateExecution = async () => {
+    // Close existing SSE connection
+    if (eventSourceInstance) {
+      eventSourceInstance.close();
+      setEventSourceInstance(null);
+    }
+
+    const initialSimActions = actions.map((action) => ({
+      ...action,
+      simulationResult: "Pending" as "Pending",
+      gasUsed: "",
+      errorMessage: "",
+      logs: [],
+    }));
+
+    setSimulationStep("results");
+    setSimulatedActions(initialSimActions);
+    setGeneralSimulationLogs(["Connecting to simulation server..."]);
+    setExpandedActionLogs({});
+
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
+    const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
+    const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+
+    if (!daoAddress || !forkRpc || !localRpc) {
+      alert("Required environment variables are not set.");
+      const errorActions = actions.map((a) => ({
+        ...a,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: "Config error",
+      }));
+      setSimulationStep("results");
+      setSimulatedActions(errorActions);
+      setGeneralSimulationLogs(["Configuration error. Check .env.local file."]);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actions: actions,
+          daoContractAddress: daoAddress,
+          forkRpcUrl: forkRpc,
+          localRpcUrl: localRpc,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg =
+          errorData.message ||
+          `API request failed with status ${response.status}`;
+        setSimulatedActions(prevActions =>
+          prevActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage:
+              sa.simulationResult === "Pending" ||
+              sa.simulationResult === "Simulating..."
+                ? errorMsg
+                : sa.errorMessage,
+            logs: [...(sa.logs || []), `API Request Error: ${errorMsg}`],
+          }))
+        );
+        setGeneralSimulationLogs(prevLogs =>
+          prevLogs.filter(log => log !== "Connecting to simulation server...").concat(`Error: ${errorMsg}`)
+        );
+        throw new Error(errorMsg);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to read response body");
+      }
+
+            const processStream = async () => {
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            let currentEventType = "";
+            let currentData = "";
+
+            for (const line of lines) {
+              if (line.trim() === "") {
+                // Empty line indicates end of SSE message
+                if (currentEventType && currentData) {
+                  console.log("[FRONTEND SSE] Processing complete event:", currentEventType, currentData);
+
+                  if (currentData === "[DONE]") {
+                    console.log("Simulation stream completed");
+                    return;
+                  }
+
+                  try {
+                    const eventData = JSON.parse(currentData);
+                    const completeEvent = { ...eventData, type: currentEventType };
+                    console.log("[FRONTEND SSE] Complete event with type:", completeEvent);
+                    handleSSEEvent(completeEvent);
+                  } catch (parseError) {
+                    console.error("Failed to parse SSE data:", parseError, "Raw data:", currentData);
+                  }
+                }
+                currentEventType = "";
+                currentData = "";
+                continue;
+              }
+
+              console.log("[FRONTEND SSE] Received line:", line);
+
+              if (line.startsWith("event: ")) {
+                currentEventType = line.slice(7).trim();
+                console.log("[FRONTEND SSE] Event type:", currentEventType);
+              } else if (line.startsWith("data: ")) {
+                currentData = line.slice(6);
+                console.log("[FRONTEND SSE] Data part:", currentData);
+              }
+            }
+
+            // Handle any remaining event at the end
+            if (currentEventType && currentData) {
+              console.log("[FRONTEND SSE] Processing final event:", currentEventType, currentData);
+
+              if (currentData === "[DONE]") {
+                console.log("Simulation stream completed");
+                return;
+              }
+
+              try {
+                const eventData = JSON.parse(currentData);
+                const completeEvent = { ...eventData, type: currentEventType };
+                console.log("[FRONTEND SSE] Final complete event:", completeEvent);
+                handleSSEEvent(completeEvent);
+              } catch (parseError) {
+                console.error("Failed to parse final SSE data:", parseError, "Raw data:", currentData);
+              }
+            }
+          }
+        } catch (streamError) {
+          console.error("Stream processing error:", streamError);
+        }
+      };
+
+      await processStream();
+
+    } catch (error) {
+      console.error("Simulation error:", error);
+    }
+  };
+
+  const handleSSEEvent = (event: any) => {
+    switch (event.type) {
+      case "log":
+        setGeneralSimulationLogs(prevLogs => [...prevLogs, event.message]);
+        break;
+
+      case "actionLog":
+        setSimulatedActions(prevActions =>
+          prevActions.map((action) =>
+            action.id === event.actionId
+              ? {
+                  ...action,
+                  logs: [...(action.logs || []), event.message],
+                }
+              : action
+          )
+        );
+        break;
+
+      case "actionUpdate":
+        console.log("[FRONTEND SSE] Processing actionUpdate:", event);
+        setSimulatedActions(prevActions =>
+          prevActions.map((action) =>
+            action.id === event.action?.id
+              ? {
+                  ...action,
+                  simulationResult: event.action.simulationResult,
+                  gasUsed: event.action.gasUsed || action.gasUsed,
+                  errorMessage: event.action.errorMessage || action.errorMessage,
+                }
+              : action
+          )
+        );
+        break;
+
+      case "error":
+        setGeneralSimulationLogs(prevLogs => [...prevLogs, `Error: ${event.message}`]);
+        break;
+
+      case "simulationComplete":
+        setGeneralSimulationLogs(prevLogs => [...prevLogs, "Simulation completed"]);
+        break;
+
+      default:
+        console.log("Unknown SSE event type:", event.type);
+    }
+  };
+
+  const toggleActionLogs = (actionId: string) => {
+    setExpandedActionLogs(prev => ({
+      ...prev,
+      [actionId]: !prev[actionId]
+    }));
+  };
 
   return simulationStep === "initial" ? (
     <div className="flex-1 border rounded-md p-6">
@@ -63,7 +295,7 @@ export function ProposalImpactOverview({
         <Button
           variant="secondary"
           className="bg-slate-100 hover:bg-slate-200 text-sm"
-          onClick={onSimulateExecution}
+          onClick={handleSimulateExecution}
         >
           Simulate execution
         </Button>
@@ -149,7 +381,7 @@ export function ProposalImpactOverview({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => onToggleActionLogs(action.id)}
+                            onClick={() => toggleActionLogs(action.id)}
                             className="h-8 w-8"
                           >
                             {expandedActionLogs[action.id] ? (

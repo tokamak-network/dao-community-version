@@ -42,7 +42,7 @@ export const loadLayer2Candidates = async (
     // 1. Layer2Registry에서 총 레이어2 개수 조회
     const numLayer2s = await readContractWithRetry(
       () => publicClient.readContract({
-        address: CONTRACTS.layer2Registry.address,
+        address: CONTRACTS.layer2Registry.address as `0x${string}`,
         abi: layer2RegistryAbi,
         functionName: 'numLayer2s',
       }) as Promise<bigint>,
@@ -64,7 +64,7 @@ export const loadLayer2Candidates = async (
         // 레이어2 컨트랙트 주소 조회
         const layer2Address = await readContractWithRetry(
           () => publicClient.readContract({
-            address: CONTRACTS.layer2Registry.address,
+            address: CONTRACTS.layer2Registry.address as `0x${string}`,
             abi: layer2RegistryAbi,
             functionName: 'layer2ByIndex',
             args: [BigInt(i)],
@@ -100,7 +100,7 @@ export const loadLayer2Candidates = async (
         // 오퍼레이터 정보 조회
         const operatorManager = await readContractWithRetry(
           () => publicClient.readContract({
-            address: CONTRACTS.layer2Manager.address,
+            address: CONTRACTS.layer2Manager.address as `0x${string}`,
             abi: layer2ManagerAbi,
             functionName: 'operatorOfLayer',
             args: [layer2Address as `0x${string}`],
@@ -144,7 +144,7 @@ export const loadLayer2Candidates = async (
         // DAO Committee에서 cooldown 조회
         const cooldown = await readContractWithRetry(
           () => publicClient.readContract({
-            address: CONTRACTS.daoCommittee.address,
+            address: CONTRACTS.daoCommittee.address as `0x${string}`,
             abi: daoCommitteeAbi,
             functionName: 'cooldown',
             args: [layer2Address as `0x${string}`],

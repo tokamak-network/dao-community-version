@@ -23,7 +23,7 @@ import { ProposalImpactOverview } from "@/components/ui/proposal-impact-overview
 import { ethers, BrowserProvider, isAddress } from "ethers";
 import { TON_CONTRACT_ADDRESS, DAO_COMMITTEE_PROXY_ADDRESS, DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
 import { submitAgenda, validateAgendaParams, AgendaSubmissionParams } from "@/utils/agendaSubmission";
-import { AgendaSubmissionModal, AgendaSubmissionStatus } from "@/components/modals/AgendaSubmissionModal";
+import { TransactionModal, TransactionStatus } from "@/components/modals/TransactionModal";
 import { prepareAgenda } from "@/utils/agendaData";
 import { TON_ABI } from "@/utils/tonContract";
 import {
@@ -39,7 +39,6 @@ interface ProposalFormProps {
   writeContract?: any;
   writeData?: `0x${string}`;
   writeError?: any;
-  isPending?: boolean;
   createAgendaFees?: bigint | null;
   minimumNoticePeriodSeconds?: bigint | null;
   minimumVotingPeriodSeconds?: bigint | null;
@@ -82,7 +81,7 @@ interface ProposalFormState {
   canSubmit: boolean;
 
   // Transaction status management
-  txState: "idle" | "submitting" | "pending" | "confirmed" | "error";
+  txState: "idle" | "submitting" | "pending" | "success" | "error";
   showSuccessModal: boolean;
   isTransactionPending: boolean;
   agendaNumber: string;
@@ -128,67 +127,12 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     // No simulation-related cleanup needed anymore
   }
 
-  componentDidUpdate(prevProps: ProposalFormProps) {
-    // wagmi writeError 감지
-    if (this.props.writeError && this.props.writeError !== prevProps.writeError) {
-      console.log("=== Wagmi Write Error Detected ===");
-      console.log("Error:", this.props.writeError);
-
-      // 사용자 취소 에러 확인
-      const errorMessage = this.props.writeError.message || "";
-      const errorCode = this.props.writeError.code;
-
-      if (
-        errorCode === 4001 ||
-        errorMessage.includes("User denied transaction signature") ||
-        errorMessage.includes("User rejected the request") ||
-        errorMessage.includes("User cancelled") ||
-        errorMessage.includes("user rejected transaction") ||
-        errorMessage.includes("User denied")
-      ) {
-        console.log("User cancelled transaction via wagmi");
-        // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
-        this.setState({
-          txState: "error",
-          showSuccessModal: true,
-          isTransactionPending: false
-        });
-
-        // 2초 후 모달 자동 닫기
-        setTimeout(() => {
-          this.setState({
-            txState: "idle",
-            showSuccessModal: false,
-            isTransactionPending: false
-          });
-        }, 2000);
-      } else {
-        // 다른 에러
-        this.setState({
-          txState: "error",
-          showSuccessModal: true,
-          isTransactionPending: false
-        });
-      }
-    }
-
-            // 트랜잭션 성공 감지
-    if (this.props.writeData && this.props.writeData !== prevProps.writeData) {
-      console.log("Transaction successful:", this.props.writeData);
-      this.setState({
-        txState: "confirmed",
-        showSuccessModal: true,
-        isTransactionPending: false
-      });
-    }
-  }
-
   handleAddActionClick = () => {
     this.setState({
       showSelectAction: true,
       showEditAction: false,
       showImpactOverview: false,
-      // simulationStep: "initial", // Moved to ProposalImpactOverview
+      simulationStep: "initial",
       activeTab: "edit",
       isEditMode: false,
       activeEditSection: "",
@@ -251,6 +195,300 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     });
   };
 
+  // Simulation logic moved to ProposalImpactOverview component
+
+    const initialSimActions = this.state.actions.map((action) => ({
+      ...action,
+      simulationResult: "Pending" as "Pending",
+      gasUsed: "",
+      errorMessage: "",
+      logs: [],
+    }));
+
+    this.setState({
+      simulationStep: "results",
+      simulatedActions: initialSimActions,
+      generalSimulationLogs: ["Connecting to simulation server..."],
+      expandedActionLogs: {},
+    });
+
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
+    const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
+    const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+
+    if (!daoAddress || !forkRpc || !localRpc) {
+      alert("Required environment variables are not set.");
+      const errorActions = this.state.actions.map((a) => ({
+        ...a,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: "Config error",
+      }));
+      this.setState({
+        simulationStep: "results",
+        simulatedActions: errorActions,
+        generalSimulationLogs: ["Configuration error. Check .env.local file."],
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actions: this.state.actions,
+          daoContractAddress: daoAddress,
+          forkRpcUrl: forkRpc,
+          localRpcUrl: localRpc,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg =
+          errorData.message ||
+          `API request failed with status ${response.status}`;
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage:
+              sa.simulationResult === "Pending" ||
+              sa.simulationResult === "Simulating..."
+                ? errorMsg
+                : sa.errorMessage,
+            logs: [...(sa.logs || []), `API Request Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Error: ${errorMsg}`,
+          ],
+        }));
+        throw new Error(errorMsg);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let firstLogReceived = false;
+
+      const processStream = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log("Stream finished.");
+            const finalLogs = this.state.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            );
+            if (
+              this.state.generalSimulationLogs.some(
+                (log) =>
+                  log.startsWith("Error:") ||
+                  log.startsWith("Critical Error:") ||
+                  log.startsWith("Stream Error:") ||
+                  log.startsWith("Initialization Error:")
+              ) === false
+            ) {
+              this.setState({
+                generalSimulationLogs: [
+                  ...finalLogs,
+                  "Simulation process completed.",
+                ],
+              });
+            }
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          console.log("[FRONTEND SSE BUFFER AFTER DECODE]", buffer);
+
+          if (!firstLogReceived && buffer.length > 0) {
+            firstLogReceived = true;
+            this.setState({
+              generalSimulationLogs: this.state.generalSimulationLogs.filter(
+                (log) => log !== "Connecting to simulation server..."
+              ),
+            });
+          }
+
+          let eventEndIndex = buffer.indexOf("\n\n");
+          while (eventEndIndex !== -1) {
+            const eventString = buffer.substring(0, eventEndIndex);
+            buffer = buffer.substring(eventEndIndex + 2);
+            console.log(
+              "[FRONTEND SSE RAW EVENT STRING]",
+              JSON.stringify(eventString)
+            );
+
+            let eventName = "message";
+            let eventDataString = eventString;
+
+            if (eventString.startsWith("event:")) {
+              const firstNewline = eventString.indexOf("\n");
+              eventName = eventString
+                .substring("event:".length, firstNewline)
+                .trim();
+              eventDataString = eventString.substring(firstNewline + 1);
+            }
+            if (eventDataString.startsWith("data:")) {
+              eventDataString = eventDataString
+                .substring("data:".length)
+                .trim();
+            }
+
+            console.log("[FRONTEND SSE PARSED EVENT INFO]", {
+              eventName,
+              eventDataString,
+            });
+
+            try {
+              const parsedData = JSON.parse(eventDataString);
+              console.log("[FRONTEND SSE JSON PARSED DATA]", parsedData);
+
+              if (eventName === "log") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] log - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+              } else if (eventName === "actionLog") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionLog - ActionID:",
+                  parsedData.actionId,
+                  "Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((action) =>
+                    action.id === parsedData.actionId
+                      ? {
+                          ...action,
+                          logs: [...(action.logs || []), parsedData.message],
+                        }
+                      : action
+                  ),
+                }));
+              } else if (eventName === "actionUpdate") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] actionUpdate - ActionID:",
+                  parsedData.action.id,
+                  "Data:",
+                  parsedData.action
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => {
+                    if (sa.id === parsedData.action.id) {
+                      const currentLogs = sa.logs || [];
+                      return {
+                        ...sa,
+                        ...parsedData.action,
+                        logs: parsedData.action.logs || currentLogs,
+                        simulationResult: parsedData.action.simulationResult,
+                      };
+                    }
+                    return sa;
+                  }),
+                }));
+              } else if (eventName === "error") {
+                const errorDetail = parsedData.detail || parsedData.message;
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] error - Detail:",
+                  errorDetail
+                );
+                this.setState((prevState) => ({
+                  simulatedActions: prevState.simulatedActions.map((sa) => ({
+                    ...sa,
+                    simulationResult:
+                      sa.simulationResult === "Pending" ||
+                      sa.simulationResult === "Simulating..."
+                        ? "Failed"
+                        : sa.simulationResult,
+                    errorMessage: sa.errorMessage || errorDetail,
+                    logs: [...(sa.logs || []), `SSE Error: ${errorDetail}`],
+                  })),
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    `Critical Error: ${errorDetail}`,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              } else if (eventName === "simulationComplete") {
+                console.log(
+                  "[FRONTEND SSE EVENT TYPE] simulationComplete - Message:",
+                  parsedData.message
+                );
+                this.setState((prevState) => ({
+                  generalSimulationLogs: [
+                    ...prevState.generalSimulationLogs,
+                    parsedData.message,
+                  ],
+                }));
+                reader.cancel();
+                break;
+              }
+            } catch (e) {
+              console.error(
+                "[FRONTEND SSE ERROR] Error parsing JSON or in handler:",
+                eventDataString,
+                e
+              );
+            }
+            eventEndIndex = buffer.indexOf("\n\n");
+          }
+        }
+      };
+      processStream().catch((streamError) => {
+        const errorMsg = streamError.message || "Stream processing error.";
+        console.error("Stream processing error:", streamError);
+        alert(`Error processing simulation stream: ${errorMsg}`);
+        this.setState((prevState) => ({
+          simulatedActions: prevState.simulatedActions.map((sa) => ({
+            ...sa,
+            simulationResult: "Failed",
+            errorMessage: errorMsg,
+            logs: [...(sa.logs || []), `Stream Error: ${errorMsg}`],
+          })),
+          generalSimulationLogs: [
+            ...prevState.generalSimulationLogs.filter(
+              (log) => log !== "Connecting to simulation server..."
+            ),
+            `Stream Error: ${errorMsg}`,
+          ],
+        }));
+      });
+    } catch (error: any) {
+      const errorMsg = error.message || "Simulation initialization failed.";
+      console.error("Initial fetch POST failed:", error);
+      alert(`Simulation initialization failed: ${errorMsg}`);
+      const errorSimActions = this.state.actions.map((action) => ({
+        ...action,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: errorMsg,
+        logs: [...(action.logs || []), `Initialization Error: ${errorMsg}`],
+      }));
+      this.setState({
+        simulatedActions: errorSimActions,
+        generalSimulationLogs: [
+          ...this.state.generalSimulationLogs.filter(
+            (log) => log !== "Connecting to simulation server..."
+          ),
+          `Initialization Error: ${errorMsg}`,
+        ],
+      });
+    }
+  };
+
   resetToDefaultView = () => {
     this.setState({
       showSelectAction: false,
@@ -262,6 +500,8 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       showSimulation: false,
     });
   };
+
+
 
   handleActionCardClick = (action: Action) => {
     this.handleEditActionClick(action);
@@ -338,31 +578,6 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
 
   handleSubmitStatusChange = (canSubmit: boolean) => {
     this.setState({ canSubmit });
-  };
-
-  handleSubmitPR = async (): Promise<{ success: boolean; url?: string; error?: string }> => {
-    try {
-      console.log("🚀 Submitting PR to repository...");
-
-      // TODO: 실제 PR 제출 API 구현
-      // 여기서는 데모용으로 2초 후 성공으로 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const mockPrUrl = "https://github.com/tokamak-network/dao-agenda-metadata/pull/123";
-
-      console.log("✅ PR submission successful:", mockPrUrl);
-
-      return {
-        success: true,
-        url: mockPrUrl
-      };
-    } catch (error) {
-      console.error("❌ PR submission failed:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred"
-      };
-    }
   };
 
   handlePublish = async () => {
@@ -464,50 +679,25 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       this.setState({ txState: "pending" });
 
     } catch (error) {
-      console.error("=== Transaction Error Details ===");
-      console.error("Full error object:", error);
-      console.error("Error type:", typeof error);
-      console.error("Error constructor:", error?.constructor?.name);
+      console.error("Error publishing proposal:", error);
 
       if (error && typeof error === "object") {
-        console.error("Error code:", (error as any).code);
-        console.error("Error message:", (error as any).message);
-        console.error("Error data:", (error as any).data);
-        console.error("Error cause:", (error as any).cause);
-        console.error("Error details:", (error as any).details);
-
-        // Log all properties of the error object
-        console.error("All error properties:", Object.keys(error));
-        console.error("Error JSON:", JSON.stringify(error, null, 2));
-
-        // Check for user cancellation/rejection
-        const errorMessage = (error as any).message || "";
-        const errorCode = (error as any).code;
+        if ((error as any).code)
+          console.error("Error code:", (error as any).code);
+        if ((error as any).message)
+          console.error("Error message:", (error as any).message);
+        if ((error as any).data)
+          console.error("Error data:", (error as any).data);
 
         if (
-          errorCode === 4001 || // MetaMask user rejection code
-          errorMessage.includes("User denied transaction signature") ||
-          errorMessage.includes("User rejected the request") ||
-          errorMessage.includes("User cancelled") ||
-          errorMessage.includes("user rejected transaction") ||
-          errorMessage.includes("User denied")
+          (error as any).message &&
+          (error as any).message.includes("User denied transaction signature")
         ) {
-          console.log("User cancelled transaction");
-          // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
           this.setState({
-            txState: "error",
-            showSuccessModal: true,
+            txState: "idle",
+            showSuccessModal: false,
             isTransactionPending: false
           });
-
-          // 2초 후 모달 자동 닫기
-          setTimeout(() => {
-            this.setState({
-              txState: "idle",
-              showSuccessModal: false,
-              isTransactionPending: false
-            });
-          }, 2000);
           return;
         }
       }
@@ -532,14 +722,15 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       editingAction,
       showEditAction,
       showImpactOverview,
-      showSimulation,
-      isEditMode,
-      activeEditSection,
-      selectedActionId,
-      currentSection,
-      transactionSuccess,
-      canSubmit,
+      simulationStep,
+      simulatedActions,
+      generalSimulationLogs,
+      pendingText,
+      expandedActionLogs,
+
     } = this.state;
+
+
 
     const getCurrentStep = () => {
       const isBasicInfoComplete =
@@ -785,8 +976,8 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
           </div>
         </div>
 
-        {/* Agenda Submission Modal */}
-        <AgendaSubmissionModal
+        {/* Transaction Modal */}
+        <TransactionModal
           isOpen={this.state.showSuccessModal}
           onClose={() => this.setState({
             showSuccessModal: false,
@@ -795,40 +986,14 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
           })}
           status={this.state.txState === "pending" ? "pending" :
                  this.state.txState === "submitting" ? "submitting" :
-                 this.state.txState === "confirmed" ? "confirmed" :
+                 this.state.txState === "success" ? "confirmed" :
                  this.state.txState === "error" ? "error" : "submitting"}
           txHash={this.props.writeData}
           agendaNumber={this.state.agendaNumber}
           onSaveLocally={() => {
-            // 로컬에 아젠다 메타데이터 저장
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const agendaData = {
-              agendaNumber: this.state.agendaNumber,
-              title: this.state.title,
-              description: this.state.description,
-              snapshotUrl: this.state.snapshotUrl,
-              discourseUrl: this.state.discourseUrl,
-              actions: this.state.actions,
-              txHash: this.props.writeData,
-              createdAt: new Date().toISOString(),
-              network: process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"
-            };
-
-            const blob = new Blob([JSON.stringify(agendaData, null, 2)], {
-              type: 'application/json'
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `agenda-${this.state.agendaNumber}-${timestamp}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            console.log("✅ Agenda metadata saved locally");
+            // TODO: Implement save locally with signature
+            console.log("Save locally clicked");
           }}
-          onSubmitPR={this.handleSubmitPR}
         />
 
       </div>

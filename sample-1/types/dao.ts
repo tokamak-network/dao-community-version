@@ -1,5 +1,3 @@
-
-
 export interface CommitteeMember {
   name: string;
   description: string;
@@ -29,6 +27,10 @@ export interface Candidate {
   cooldown: number; // 쿨다운 시간
 }
 
+export interface AgendaProposalCheck {
+  canPropose: boolean;
+  message?: string;
+}
 
 export interface ContractInfo {
   address: `0x${string}`;
@@ -74,14 +76,10 @@ export interface DAOContextType {
   analysisCompletedTime: Date | null;
   setAnalysisCompletedTime: (time: Date | null) => void;
 
-
-
   // 공통
   statusMessage: string;
   contract: ContractInfo;
   daoContract: ContractInfo;
   isPolling: boolean;
   progress: ProgressInfo | null;
-
-
 }

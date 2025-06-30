@@ -58,7 +58,6 @@ export function ProposalPreview({
   onSubmitStatusChange,
 }: ProposalPreviewProps) {
   const [expandedParams, setExpandedParams] = useState<{[key: string]: boolean}>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [encodedData, setEncodedData] = useState<string>("");
   const [contractVersion, setContractVersion] = useState<string>("unknown");
   const [supportsMemoField, setSupportsMemoField] = useState<boolean>(false);
@@ -378,19 +377,7 @@ export function ProposalPreview({
     return hasValidCalldata;
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      alert("Proposal submitted successfully! (This is a demo)");
-      onTransactionSuccess?.();
-    } catch (error) {
-      console.error("Error submitting proposal:", error);
-      alert("Failed to submit proposal");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+
 
   return (
     <div className="bg-white p-6">

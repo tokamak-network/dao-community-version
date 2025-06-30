@@ -168,7 +168,7 @@ export const loadMaxMembers = async (): Promise<number> => {
     const publicClient = await createRobustPublicClient();
     let _maxMember: bigint = BigInt(0);
     _maxMember = await publicClient.readContract({
-      address: CONTRACTS.daoCommittee.address,
+      address: CONTRACTS.daoCommittee.address as `0x${string}`,
       abi: daoCommitteeAbi,
       functionName: 'maxMember',
     });
@@ -223,7 +223,7 @@ export const loadCommitteeMembers = async (
 
           const memberAddress = await readContractWithRetry(
             () => publicClient.readContract({
-              address: CONTRACTS.daoCommittee.address,
+              address: CONTRACTS.daoCommittee.address as `0x${string}`,
               abi: daoCommitteeAbi,
               functionName: 'members',
               args: [BigInt(slotIndex)],
@@ -307,7 +307,7 @@ export const refreshSpecificMember = async (
     // 해당 슬롯의 멤버 주소 조회
     const memberAddress = await readContractWithRetry(
       () => publicClient.readContract({
-        address: CONTRACTS.daoCommittee.address,
+        address: CONTRACTS.daoCommittee.address as `0x${string}`,
         abi: daoCommitteeAbi,
         functionName: 'members',
         args: [BigInt(slotIndex)],
