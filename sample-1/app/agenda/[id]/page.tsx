@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
-import { useAgenda } from '@/contexts/AgendaContext'
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { AgendaWithMetadata } from '@/types/agenda'
 import Layout from '@/components/layout/Layout'
 import AgendaDetail from '@/components/agenda/AgendaDetail'
@@ -9,7 +9,7 @@ import AgendaDetail from '@/components/agenda/AgendaDetail'
 export default function AgendaDetailPage() {
   const params = useParams()
   const agendaId = Number(params?.id)
-  const { getAgenda, updateAgendaCalldata, getTransactionData } = useAgenda()
+  const { getAgenda, updateAgendaCalldata, getTransactionData } = useCombinedDAOContext()
   const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata | null>(null)
   const [isLoadingLocal, setIsLoadingLocal] = useState(true)
   const [localStatusMessage, setLocalStatusMessage] = useState('')
@@ -40,14 +40,14 @@ export default function AgendaDetailPage() {
           setLocalAgenda(updatedAgenda)
 
           // Also update context in background (non-blocking)
-          updateAgendaCalldata(agendaId).catch(err =>
+          updateAgendaCalldata(agendaId).catch((err: unknown) =>
             console.warn('Background context update failed:', err)
           )
         } else {
           setLocalAgenda(agenda)
         }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error fetching agenda:', err)
       setLocalStatusMessage('Error loading agenda details')
     } finally {

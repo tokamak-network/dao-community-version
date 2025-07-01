@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { AgendaWithMetadata } from '@/types/agenda'
 import { formatAddress } from '@/lib/utils'
 import { Interface } from 'ethers'
-import { useAgenda } from '@/contexts/AgendaContext'
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { TON_CONTRACT_ADDRESS, getCurrentChain } from '@/config/contracts'
 
 interface AgendaEffectsProps {
@@ -27,7 +27,7 @@ interface SubmissionData {
 }
 
 export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
-  const { getTransactionData } = useAgenda()
+  const { getTransactionData } = useCombinedDAOContext()
   const [expandedParams, setExpandedParams] = useState<{
     [key: string]: boolean
   }>({})
