@@ -32,7 +32,6 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { useAgenda } from "@/contexts/AgendaContext";
 
 interface ProposalFormProps {
   address?: `0x${string}`;

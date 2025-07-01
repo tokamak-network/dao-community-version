@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import { ethers, AbiCoder, BrowserProvider } from "ethers";
-import { useAgenda } from "@/contexts/AgendaContext";
+import { useCombinedDAOContext } from "@/contexts/CombinedDAOContext";
 import { getExplorerUrl, openEtherscan } from "@/utils/explorer";
 import { useChainId } from "wagmi";
 import { TON_CONTRACT_ADDRESS } from "@/config/contracts";
@@ -67,7 +67,7 @@ export function ProposalPreview({
     createAgendaFees,
     minimumNoticePeriodSeconds,
     minimumVotingPeriodSeconds,
-  } = useAgenda();
+  } = useCombinedDAOContext();
 
   const chainId = useChainId();
    // Encode parameters when component mounts or actions change

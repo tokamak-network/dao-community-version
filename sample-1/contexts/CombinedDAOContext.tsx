@@ -251,9 +251,6 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     setPreviousConnectionState(isConnected);
   }, [isConnected, address, previousConnectionState, daoFunctions]);
 
-  //----------------------------------------
-  // Agenada
-  //----------------------------------------
 
   //----------------------------------------
   // Events
