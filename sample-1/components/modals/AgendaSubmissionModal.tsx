@@ -360,7 +360,7 @@ export function AgendaSubmissionModal({
 
                 {/* PR Status Messages */}
                 {prStatus === PrSubmissionStatus.SUBMITTING && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2 text-md text-gray-600">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
                     <span>Submitting PR to repository...</span>
                   </div>
