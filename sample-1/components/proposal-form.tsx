@@ -82,7 +82,7 @@ interface ProposalFormState {
   canSubmit: boolean;
 
   // Transaction status management
-  txState: "idle" | "submitting" | "pending" | "confirmed" | "error";
+  txState: "idle" | "preparing" | "approving" | "pending" | "confirmed" | "error" | "cancelled";
   showSuccessModal: boolean;
   isTransactionPending: boolean;
   agendaNumber: string;
@@ -149,7 +149,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
         console.log("User cancelled transaction via wagmi");
         // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
         this.setState({
-          txState: "error",
+          txState: "cancelled",
           showSuccessModal: true,
           isTransactionPending: false
         });
@@ -340,6 +340,71 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     this.setState({ canSubmit });
   };
 
+  // Network switching utility
+  switchNetwork = async (chainId: number) => {
+    if (!window.ethereum) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const hexChainId = `0x${chainId.toString(16)}`;
+
+    try {
+      // Try to switch to the network
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: hexChainId }],
+      });
+    } catch (switchError: any) {
+      // This error code indicates that the chain has not been added to MetaMask
+      if (switchError.code === 4902) {
+        try {
+          // Add the network to MetaMask
+          const networkConfig = this.getNetworkConfig(chainId);
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [networkConfig],
+          });
+        } catch (addError) {
+          throw new Error(`Failed to add network: ${addError}`);
+        }
+      } else {
+        throw new Error(`Failed to switch network: ${switchError.message}`);
+      }
+    }
+  };
+
+  // Get network configuration for adding to wallet
+  getNetworkConfig = (chainId: number) => {
+    switch (chainId) {
+      case 1:
+        return {
+          chainId: '0x1',
+          chainName: 'Ethereum Mainnet',
+          nativeCurrency: {
+            name: 'Ether',
+            symbol: 'ETH',
+            decimals: 18,
+          },
+          rpcUrls: ['https://ethereum.publicnode.com'],
+          blockExplorerUrls: ['https://etherscan.io'],
+        };
+      case 11155111:
+        return {
+          chainId: '0xaa36a7',
+          chainName: 'Sepolia Testnet',
+          nativeCurrency: {
+            name: 'Sepolia Ether',
+            symbol: 'ETH',
+            decimals: 18,
+          },
+          rpcUrls: ['https://ethereum-sepolia.publicnode.com'],
+          blockExplorerUrls: ['https://sepolia.etherscan.io'],
+        };
+      default:
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+  };
+
   handleSubmitPR = async (): Promise<{ success: boolean; url?: string; error?: string }> => {
     try {
       console.log("🚀 Submitting PR to repository...");
@@ -393,13 +458,42 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     }
 
     try {
+      // Step 1: Network validation first (before showing modal)
+      console.log("🌐 Step 1: Checking network connection...");
+      console.log("🔍 TON_CONTRACT_ADDRESS:", TON_CONTRACT_ADDRESS);
+      console.log("🔍 User Address:", address);
+      console.log("🔍 Network Chain ID:", process.env.NEXT_PUBLIC_CHAIN_ID);
+
+      const provider = new BrowserProvider(window.ethereum as any);
+      const network = await provider.getNetwork();
+      console.log("🔍 Connected Network:", network.chainId, network.name);
+
+      // Check network mismatch and switch if needed
+      const expectedChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
+      if (Number(network.chainId) !== expectedChainId) {
+        console.log("🔄 Network mismatch detected. Switching network...");
+        try {
+          await this.switchNetwork(expectedChainId);
+          // After switching, get the updated network info
+          const updatedNetwork = await provider.getNetwork();
+          console.log("✅ Network switched to:", updatedNetwork.chainId, updatedNetwork.name);
+        } catch (switchError) {
+          console.error("❌ Failed to switch network:", switchError);
+          const networkName = expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet";
+          alert(`Please switch your wallet to ${networkName} (Chain ID: ${expectedChainId}) and try again.`);
+          return;
+        }
+      }
+
+      // Step 2: Show modal after network is confirmed
+      console.log("✅ Network validation complete. Showing modal...");
       this.setState({
-        txState: "submitting",
+        txState: "preparing",
         showSuccessModal: true,
         isTransactionPending: true
       });
 
-      // Prepare agenda data using our utility
+      // Step 3: Prepare agenda data
       const { param } = await prepareAgenda({
         actions: this.state.actions,
         snapshotUrl: this.state.snapshotUrl,
@@ -409,8 +503,26 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
         daoCommitteeProxyAddress: DAO_COMMITTEE_PROXY_ADDRESS,
       });
 
-      // Check TON balance
-      const provider = new BrowserProvider(window.ethereum as any);
+      // Step 4: Check TON balance
+      console.log("💰 Step 4: Checking TON balance...");
+
+      // Verify TON contract exists
+      console.log("🔍 Checking if TON contract exists...");
+      const code = await provider.getCode(TON_CONTRACT_ADDRESS);
+      console.log("🔍 Contract code length:", code.length, "Code:", code.slice(0, 20) + "...");
+
+      if (code === "0x") {
+        const errorMsg = `TON contract not found at address: ${TON_CONTRACT_ADDRESS} on network ${network.chainId}`;
+        console.error("❌", errorMsg);
+        alert(errorMsg);
+        this.setState({
+          txState: "error",
+          showSuccessModal: true,
+          isTransactionPending: false
+        });
+        return;
+      }
+
       const tonContract = new ethers.Contract(
         TON_CONTRACT_ADDRESS,
         TON_ABI,
@@ -495,7 +607,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
           console.log("User cancelled transaction");
           // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
           this.setState({
-            txState: "error",
+            txState: "cancelled",
             showSuccessModal: true,
             isTransactionPending: false
           });
@@ -794,9 +906,11 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
             isTransactionPending: false
           })}
           status={this.state.txState === "pending" ? "pending" :
-                 this.state.txState === "submitting" ? "submitting" :
+                 this.state.txState === "preparing" ? "preparing" :
+                 this.state.txState === "approving" ? "approving" :
                  this.state.txState === "confirmed" ? "confirmed" :
-                 this.state.txState === "error" ? "error" : "submitting"}
+                 this.state.txState === "error" ? "error" :
+                 this.state.txState === "cancelled" ? "cancelled" : "preparing"}
           txHash={this.props.writeData}
           agendaNumber={this.state.agendaNumber}
           onSaveLocally={() => {

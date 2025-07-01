@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { X, ExternalLink, CheckCircle, AlertCircle, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export type AgendaSubmissionStatus = "submitting" | "pending" | "confirmed" | "error";
+export type AgendaSubmissionStatus = "preparing" | "approving" | "pending" | "confirmed" | "error" | "cancelled";
 
 export enum PrSubmissionStatus {
   IDLE = "idle",
@@ -46,7 +46,16 @@ export function AgendaSubmissionModal({
 
   const handleSaveAndSubmit = async () => {
     try {
+      // 1단계: 로컬 저장 먼저 (메타데이터 생성 + 파일 다운로드)
+      if (shouldSaveLocally && onSaveLocally) {
+        console.log("🔄 Step 1: Starting local save (metadata generation + file download)...");
+        await onSaveLocally();
+        console.log("✅ Step 1 completed: File downloaded to your computer");
+      }
+
+      // 2단계: PR 제출 (다운로드된 메타데이터 재사용)
       if (shouldSubmitPR && onSubmitPR) {
+        console.log("🔄 Step 2: Starting PR submission with downloaded metadata...");
         setPrStatus(PrSubmissionStatus.SUBMITTING);
         setPrError(null);
 
@@ -55,22 +64,17 @@ export function AgendaSubmissionModal({
         if (result.success) {
           setPrStatus(PrSubmissionStatus.SUCCESS);
           setPrUrl(result.url || null);
-
-          // PR 제출 성공 후 로컬에도 저장
-          if (shouldSaveLocally && onSaveLocally) {
-            onSaveLocally();
-          }
+          console.log("✅ Step 2 completed: PR successfully submitted to repository");
         } else {
           setPrStatus(PrSubmissionStatus.ERROR);
           setPrError(result.error || "Unknown error occurred");
+          console.log("❌ Step 2 failed: PR submission error");
         }
-      } else if (shouldSaveLocally && onSaveLocally) {
-        // 로컬 저장만
-        onSaveLocally();
       }
     } catch (error) {
       setPrStatus(PrSubmissionStatus.ERROR);
       setPrError(error instanceof Error ? error.message : "Unknown error occurred");
+      console.log("❌ Process failed:", error);
     }
   };
 
@@ -83,14 +87,18 @@ export function AgendaSubmissionModal({
 
   const getStatusTitle = () => {
     switch (status) {
-      case "submitting":
-        return "Submitting DAO Agenda";
+      case "preparing":
+        return "Preparing Transaction";
+      case "approving":
+        return "Waiting for Wallet Approval";
       case "pending":
-        return "Agenda Submission in Progress";
+        return "Transaction Pending";
       case "confirmed":
         return "Agenda Submitted Successfully";
       case "error":
         return "Agenda Submission Failed";
+      case "cancelled":
+        return "Transaction Cancelled";
       default:
         return "";
     }
@@ -98,14 +106,18 @@ export function AgendaSubmissionModal({
 
   const getStatusMessage = () => {
     switch (status) {
-      case "submitting":
-        return "Please confirm the transaction in your wallet...";
+      case "preparing":
+        return "Checking network, balance, and preparing transaction data...";
+      case "approving":
+        return "Please approve the transaction in your wallet to proceed...";
       case "pending":
-        return "Your agenda is being submitted to the blockchain...";
+        return "Transaction submitted. Waiting for blockchain confirmation...";
       case "confirmed":
         return "Your agenda has been successfully submitted to the DAO!";
       case "error":
         return "There was an error submitting your agenda. Please try again.";
+      case "cancelled":
+        return "Transaction cancelled by user.";
       default:
         return "";
     }
@@ -134,7 +146,17 @@ export function AgendaSubmissionModal({
             <h3 className="text-lg font-medium">
               {status === "confirmed"
                 ? "Transaction Confirmed"
-                : "Transaction in Progress"}
+                : status === "preparing"
+                ? "Preparing Transaction"
+                : status === "approving"
+                ? "Wallet Approval Required"
+                : status === "pending"
+                ? "Transaction in Progress"
+                : status === "error"
+                ? "Transaction Failed"
+                : status === "cancelled"
+                ? "Transaction Cancelled"
+                : "Transaction Status"}
             </h3>
             <button
               onClick={handleCloseModal}
@@ -169,11 +191,57 @@ export function AgendaSubmissionModal({
             )}
 
             {/* Loading states */}
+            {status === "preparing" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center space-x-2 py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="text-sm text-gray-600">
+                    Preparing transaction...
+                  </span>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">{getStatusMessage()}</p>
+                </div>
+              </div>
+            )}
+
+            {status === "approving" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center space-x-2 py-4">
+                  <div className="animate-pulse rounded-full h-6 w-6 bg-blue-500"></div>
+                  <span className="text-sm text-gray-600">
+                    Waiting for wallet approval...
+                  </span>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">{getStatusMessage()}</p>
+                </div>
+              </div>
+            )}
+
             {status === "pending" && (
               <div className="flex items-center justify-center space-x-2 py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
                 <span className="text-sm text-gray-600">
                   Waiting for blockchain confirmation...
+                </span>
+              </div>
+            )}
+
+            {status === "error" && (
+              <div className="flex items-center justify-center space-x-2 py-4">
+                <AlertCircle className="h-6 w-6 text-red-500" />
+                <span className="text-sm text-red-600">
+                  {getStatusMessage()}
+                </span>
+              </div>
+            )}
+
+            {status === "cancelled" && (
+              <div className="flex items-center justify-center space-x-2 py-4">
+                <X className="h-6 w-6 text-gray-500" />
+                <span className="text-sm text-gray-600">
+                  {getStatusMessage()}
                 </span>
               </div>
             )}
@@ -338,8 +406,8 @@ export function AgendaSubmissionModal({
               </div>
             )}
 
-            {/* Loading for submitting status */}
-            {status === "submitting" && <LoadingDots />}
+            {/* Loading for preparing/approving status */}
+            {(status === "preparing" || status === "approving") && <LoadingDots />}
           </div>
         </div>
 
