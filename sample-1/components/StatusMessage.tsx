@@ -1,6 +1,6 @@
 "use client";
 
-import { useDAOContext } from '@/contexts/DAOContext';
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext';
 import { usePathname } from 'next/navigation';
 
 export default function StatusMessage() {
@@ -11,7 +11,7 @@ export default function StatusMessage() {
     // isLoadingAgendas,  // 현재 사용하지 않음
     // isLoadingOwner,    // 현재 사용하지 않음
     // isLoadingTonBalance // 현재 사용하지 않음
-  } = useDAOContext();
+  } = useCombinedDAOContext();
 
   const isLoading = isLoadingMembers;
 

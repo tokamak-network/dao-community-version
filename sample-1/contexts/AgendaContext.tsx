@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import React, {
   createContext,
   useContext,
   useEffect,
@@ -137,6 +137,12 @@ const getAgendaStatusColor = (status: number): string => {
 
 export function AgendaProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount();
+
+  console.log("🏗️ AgendaProvider 마운트됨", {
+    timestamp: new Date().toLocaleTimeString(),
+    isConnected,
+    address
+  });
 
   // 상태 관리
   const [agendas, setAgendas] = useState<AgendaWithMetadata[]>([]);
@@ -596,6 +602,114 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // 실시간 아젠다 데이터 업데이트 함수 (sample-2에서 가져옴)
+  const updateAgendaData = useCallback(async (
+    agendaId: number,
+    shouldSort: boolean = false
+  ) => {
+    console.log("🔄 updateAgendaData - Starting update for agenda ID:", agendaId);
+
+    try {
+      const publicClient = await createRobustPublicClient();
+
+      // 아젠다 데이터 가져오기
+      console.log("📊 updateAgendaData - Fetching contract data...");
+      const agendaData = await readContractWithRetry(
+        () => publicClient.readContract({
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
+          abi: daoAgendaManagerAbi,
+          functionName: 'agendas',
+          args: [BigInt(agendaId)],
+        }) as Promise<{
+          createdTimestamp: bigint;
+          noticeEndTimestamp: bigint;
+          votingPeriodInSeconds: bigint;
+          votingStartedTimestamp: bigint;
+          votingEndTimestamp: bigint;
+          executableLimitTimestamp: bigint;
+          executedTimestamp: bigint;
+          countingYes: bigint;
+          countingNo: bigint;
+          countingAbstain: bigint;
+          status: number;
+          result: number;
+          voters: readonly string[];
+          executed: boolean;
+        }>,
+        `Update agenda ${agendaId}`
+      );
+      console.log("✅ updateAgendaData - Contract data received:", agendaData);
+
+      // 메타데이터 가져오기
+      console.log("📄 updateAgendaData - Fetching metadata...");
+      let metadata: AgendaMetadata | null = null;
+      try {
+        const networkName = getNetworkName(chain.id);
+        const metadataUrl = getMetadataUrl(agendaId, networkName);
+        console.log("🔗 updateAgendaData - Metadata URL:", metadataUrl);
+
+        const response = await fetch(metadataUrl, {
+          cache: "no-store", // 캐시 비활성화
+        });
+
+        if (response.ok) {
+          metadata = await response.json();
+          console.log("✅ updateAgendaData - Metadata received:", metadata);
+        } else {
+          console.log("⚠️ updateAgendaData - No metadata found");
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to load metadata for agenda ${agendaId}:`, error);
+      }
+
+      // 상태 업데이트
+      setAgendas((prevAgendas) => {
+        console.log("📋 updateAgendaData - Previous agendas count:", prevAgendas.length);
+        console.log("🔍 updateAgendaData - Previous agenda IDs:", prevAgendas.map((a) => a.id));
+
+        // 기존 아젠다 데이터 가져오기
+        const existingAgenda = prevAgendas.find((a) => a.id === agendaId);
+        console.log("🔍 updateAgendaData - Existing agenda found:", !!existingAgenda);
+
+        // 아젠다 데이터와 메타데이터 결합
+        const updatedAgenda: AgendaWithMetadata = {
+          ...agendaData,
+          id: agendaId,
+          voters: Array.from(agendaData.voters),
+          title: metadata?.title || existingAgenda?.title || `Agenda #${agendaId}`,
+          description: metadata?.description || existingAgenda?.description || `Agenda ${agendaId} from blockchain`,
+          creator: {
+            address: metadata ? getCreatorAddress(metadata.creator) : (existingAgenda?.creator?.address || "0x0000000000000000000000000000000000000000" as `0x${string}`),
+            signature: metadata ? getCreatorSignature(metadata.creator) : existingAgenda?.creator?.signature,
+          },
+          snapshotUrl: metadata?.snapshotUrl || existingAgenda?.snapshotUrl,
+          discourseUrl: metadata?.discourseUrl || existingAgenda?.discourseUrl,
+          network: metadata?.network || existingAgenda?.network,
+          transaction: metadata?.transaction || existingAgenda?.transaction,
+          actions: metadata?.actions || existingAgenda?.actions,
+        };
+        console.log("✅ updateAgendaData - Combined data:", updatedAgenda);
+
+        const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
+        existingAgendas.set(agendaId, updatedAgenda);
+        const newAgendas = Array.from(existingAgendas.values());
+        const finalAgendas = shouldSort
+          ? newAgendas.sort((a, b) => b.id - a.id)
+          : newAgendas;
+
+        console.log("📊 updateAgendaData - New agendas count:", finalAgendas.length);
+        console.log("🔍 updateAgendaData - New agenda IDs:", finalAgendas.map((a) => a.id));
+        console.log("🔄 updateAgendaData - Should sort:", shouldSort);
+
+        return finalAgendas;
+      });
+
+      console.log("✅ updateAgendaData - Agenda data update completed for ID:", agendaId);
+    } catch (error) {
+      console.error("❌ updateAgendaData - Error updating agenda data:", error);
+    }
+  }, []);
+
   // 이벤트가 변경될 때마다 아젠다 목록 업데이트
   useEffect(() => {
     if (events.length > 0 && agendas.length > 0) {
@@ -603,6 +717,135 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
       setAgendas(updatedAgendas);
     }
   }, [events, updateAgendasWithCreatorInfo]);
+
+  // 실시간 이벤트 감지 (sample-2에서 가져옴)
+  useEffect(() => {
+    console.log("🚀 Real-time events - useEffect 실행됨", {
+      timestamp: new Date().toISOString(),
+      chainId: chain.id,
+      contractAddress: CONTRACTS.daoAgendaManager.address,
+      hasUpdateAgendaData: !!updateAgendaData,
+      updateAgendaDataType: typeof updateAgendaData
+    });
+
+    console.log("🚀 Real-time events - Setting up event watchers...", {
+      timestamp: new Date().toISOString(),
+      chainId: chain.id,
+      contractAddress: CONTRACTS.daoAgendaManager.address,
+      hasUpdateAgendaData: !!updateAgendaData
+    });
+
+    const setupEventWatchers = async () => {
+      try {
+        // 이벤트 전용 RPC 클라이언트 생성 (지갑 연결과 독립적)
+        const publicClient = createPublicClient({
+          chain: {
+            ...chain,
+            id: chain.id,
+          },
+          transport: http(
+            process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT ||
+            process.env.NEXT_PUBLIC_RPC_URL ||
+            'https://ethereum-sepolia-rpc.publicnode.com'
+          ),
+        });
+
+        console.log("✅ Real-time events - Event-specific public client created", {
+          eventRpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT,
+          fallbackRpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+          chainId: chain.id
+        });
+
+        // AgendaCreated 이벤트 감지
+        const unwatchAgendaCreated = publicClient.watchEvent({
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
+          event: {
+            type: 'event',
+            name: 'AgendaCreated',
+            inputs: [
+              { name: 'id', type: 'uint256', indexed: true },
+              { name: 'from', type: 'address', indexed: true },
+              { name: 'noticePeriod', type: 'uint256', indexed: false },
+              { name: 'votingPeriod', type: 'uint256', indexed: false },
+            ],
+          },
+          onLogs: (logs) => {
+            console.log("🎉 New AgendaCreated event detected:", logs);
+            logs.forEach((log) => {
+              const agendaId = Number(log.args.id);
+              console.log(`📋 Processing new agenda ID: ${agendaId}`);
+              updateAgendaData(agendaId, true); // shouldSort = true for new agendas
+            });
+          },
+        });
+
+        // AgendaVoteCasted 이벤트 감지
+        const unwatchVoteCasted = publicClient.watchEvent({
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
+          event: {
+            type: 'event',
+            name: 'AgendaVoteCasted',
+            inputs: [
+              { name: 'id', type: 'uint256', indexed: true },
+              { name: 'from', type: 'address', indexed: true },
+              { name: 'isSupport', type: 'uint8', indexed: false },
+              { name: 'stake', type: 'uint256', indexed: false },
+            ],
+          },
+          onLogs: (logs) => {
+            console.log("🗳️ New AgendaVoteCasted event detected:", logs);
+            logs.forEach((log) => {
+              const agendaId = Number(log.args.id);
+              console.log(`🗳️ Processing vote for agenda ID: ${agendaId}`);
+              updateAgendaData(agendaId, false); // shouldSort = false for vote updates
+            });
+          },
+        });
+
+        // AgendaExecuted 이벤트 감지
+        const unwatchAgendaExecuted = publicClient.watchEvent({
+          address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
+          event: {
+            type: 'event',
+            name: 'AgendaExecuted',
+            inputs: [
+              { name: 'id', type: 'uint256', indexed: true },
+              { name: 'from', type: 'address', indexed: true },
+            ],
+          },
+          onLogs: (logs) => {
+            console.log("⚡ New AgendaExecuted event detected:", logs);
+            logs.forEach((log) => {
+              const agendaId = Number(log.args.id);
+              console.log(`⚡ Processing executed agenda ID: ${agendaId}`);
+              updateAgendaData(agendaId, false); // shouldSort = false for execution updates
+            });
+          },
+        });
+
+        console.log("✅ Real-time events - All event watchers setup complete");
+
+        // Cleanup function
+        return () => {
+          console.log("🧹 Real-time events - Cleaning up event watchers...");
+          unwatchAgendaCreated();
+          unwatchVoteCasted();
+          unwatchAgendaExecuted();
+          console.log("✅ Real-time events - Cleanup complete");
+        };
+      } catch (error) {
+        console.error("❌ Real-time events - Error setting up event watchers:", error);
+      }
+    };
+
+    const cleanupPromise = setupEventWatchers();
+
+    return () => {
+      cleanupPromise.then((cleanup) => {
+        if (cleanup) cleanup();
+      });
+    };
+  }, []); // 한 번만 실행 - updateAgendaData는 변경되지 않음
 
   // VoterInfos 조회 함수
   const getVoterInfos = useCallback(async (agendaId: number, voters: string[]) => {

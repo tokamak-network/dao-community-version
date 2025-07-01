@@ -4,8 +4,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { config } from '@/config/wagmi'
-import { DAOProvider } from '@/contexts/DAOContext'
-import { AgendaProvider } from '@/contexts/AgendaContext'
+import { CombinedDAOProvider } from '@/contexts/CombinedDAOContext'
 
 
 
@@ -18,19 +17,19 @@ const queryClient = new QueryClient({
 })
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  console.log("🏗️ Providers 렌더링", {
-    timestamp: new Date().toLocaleTimeString()
-  });
+  if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
+    console.log("🏗️ Providers 렌더링", {
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <WagmiProvider config={config}>
         <QueryClientProvider client={queryClient}>
-          <DAOProvider>
-            <AgendaProvider>
-              {children}
-            </AgendaProvider>
-          </DAOProvider>
+          <CombinedDAOProvider>
+            {children}
+          </CombinedDAOProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </div>

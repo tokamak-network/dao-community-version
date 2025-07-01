@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { AgendaWithMetadata } from '@/types/agenda'
 import { formatAddress } from '@/lib/utils'
 import { useAgenda } from "@/contexts/AgendaContext"
-import { useDAOContext } from "@/contexts/DAOContext"
+import { useCombinedDAOContext } from "@/contexts/CombinedDAOContext"
 
 interface AgendaCommentsProps {
   agenda: AgendaWithMetadata
@@ -20,7 +20,7 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
   const [isLoadingVotes, setIsLoadingVotes] = useState(false)
 
   const { getVoterInfos } = useAgenda()
-  const { committeeMembers } = useDAOContext()
+  const { committeeMembers } = useCombinedDAOContext()
 
   // Load voting data
   useEffect(() => {

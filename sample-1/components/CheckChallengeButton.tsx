@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
-import { useDAOContext } from '@/contexts/DAOContext';
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext';
 import { CommitteeMember, Candidate } from '@/types/dao';
 
 interface CheckChallengeButtonProps {
@@ -19,7 +19,7 @@ export function CheckChallengeButton({ targetMember, className = "" }: CheckChal
     isLoadingLayer2,
     layer2Total,
     hasLoadedLayer2Once
-  } = useDAOContext();
+  } = useCombinedDAOContext();
 
   const [challengeCandidates, setChallengeCandidates] = useState<Candidate[]>([]);
   const [isChecking, setIsChecking] = useState(false);

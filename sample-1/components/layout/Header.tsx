@@ -25,12 +25,28 @@ export default function Header() {
     }
   }, [connectError])
 
+  // 계정 변경 감지
+  useEffect(() => {
+    if (address) {
+      console.log('Account changed to:', address)
+    }
+  }, [address])
+
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
 
   const handleConnect = async () => {
     console.log('Connect wallet clicked')
+    console.log('Current connection status:', { isConnected, address })
     console.log('Available connectors:', connectors.map(c => ({ type: c.type, name: c.name, id: c.id })))
+
+    // 이미 연결되어 있다면 먼저 연결 해제
+    if (isConnected) {
+      console.log('Already connected, disconnecting first...')
+      disconnect()
+      // 연결 해제 후 잠시 대기
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
 
     // MetaMask connector 찾기 (injected connector)
     const injectedConnector = connectors.find(connector => connector.type === 'injected')
@@ -43,6 +59,10 @@ export default function Header() {
         console.log('Connect function called successfully')
       } catch (error) {
         console.error('Connection failed:', error)
+        // ConnectorAlreadyConnectedError인 경우 무시
+        if (error instanceof Error && error.message.includes('ConnectorAlreadyConnectedError')) {
+          console.log('Connector already connected, ignoring error')
+        }
       }
     } else {
       console.error('No injected connector found')
@@ -149,6 +169,15 @@ export default function Header() {
                     }}
                   >
                     Copy Address
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                    onClick={() => {
+                      handleConnect()
+                      setShowDropdown(false)
+                    }}
+                  >
+                    Reconnect
                   </button>
                   <button
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"

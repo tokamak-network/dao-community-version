@@ -5,7 +5,9 @@ import { daoCandidateAbi } from "@/abis/dao-candidate";
 import { seigManagerAbi } from "@/abis/seig-mamager";
 import { layer2ManagerAbi } from "@/abis/layer2-manager";
 import { operatorManagerAbi } from "@/abis/operator-manager";
-import { createRobustPublicClient, readContractWithRetry } from "@/lib/rpc-utils";
+import { readContractWithRetry } from "@/lib/rpc-utils";
+import { getSharedPublicClient } from "@/lib/shared-rpc-client";
+import { queueRPCRequest } from "./shared-rpc-client";
 
 /**
  * Committee Members 관련 핸들러 함수들
@@ -165,13 +167,17 @@ export const fetchMemberDetails = async (
 export const loadMaxMembers = async (): Promise<number> => {
   try {
     console.log("--- read maxMember");
-    const publicClient = await createRobustPublicClient();
+    const publicClient = await getSharedPublicClient();
     let _maxMember: bigint = BigInt(0);
-    _maxMember = await publicClient.readContract({
-      address: CONTRACTS.daoCommittee.address as `0x${string}`,
-      abi: daoCommitteeAbi,
-      functionName: 'maxMember',
-    });
+    _maxMember = await queueRPCRequest(
+      () => publicClient.readContract({
+        address: CONTRACTS.daoCommittee.address as `0x${string}`,
+        abi: daoCommitteeAbi,
+        functionName: 'maxMember',
+      }),
+      "DAO: maxMember 조회 (최우선)",
+      "HIGH"
+    );
     console.log("-- ", _maxMember);
     return Number(_maxMember);
   } catch (err) {
@@ -189,7 +195,7 @@ export const loadCommitteeMembers = async (
   lastFetchTimestamp?: number,
   onStatusUpdate?: (message: string) => void
 ): Promise<CommitteeMember[]> => {
-  console.log("🔄 loadCommitteeMembers 시작", {
+  console.log("🔄 loadCommitteeMembers started", {
     timestamp: new Date().toLocaleTimeString(),
     maxMember,
     currentCommitteeCount: existingMembers?.length || 0,
@@ -201,16 +207,16 @@ export const loadCommitteeMembers = async (
     // 이벤트 기반 업데이트: 기존 데이터가 있으면 그대로 사용
     // 업데이트는 오직 이벤트를 통해서만 발생 (캐시 시간 체크 없음)
     if (existingMembers && existingMembers.length > 0) {
-      console.log("⏭️ 기존 데이터 존재, 이벤트 기반 업데이트만 사용", {
+      console.log("⏭️ Existing data found, using event-based updates only", {
         committeeCount: existingMembers.length,
         updateMethod: "event-driven only"
       });
       return existingMembers;
     }
 
-    console.log("✅ 새 데이터 로드 시작");
+    console.log("✅ Starting new data load");
     if (maxMember > 0) {
-      const publicClient = await createRobustPublicClient();
+      const publicClient = await getSharedPublicClient();
 
       // 모든 슬롯(0~maxMember-1) 순회하며 멤버 정보 또는 빈 슬롯 처리
       const memberDetails: CommitteeMember[] = [];
@@ -221,18 +227,19 @@ export const loadCommitteeMembers = async (
                       onStatusUpdate?.(`Checking slot ${slotIndex + 1}/${maxMember}...`);
           console.log(`Processing slot ${slotIndex + 1}/${maxMember}...`);
 
-          const memberAddress = await readContractWithRetry(
+          const memberAddress = await queueRPCRequest(
             () => publicClient.readContract({
               address: CONTRACTS.daoCommittee.address as `0x${string}`,
               abi: daoCommitteeAbi,
               functionName: 'members',
               args: [BigInt(slotIndex)],
-            }) as Promise<string>,
-            `Member slot ${slotIndex} address`
+            }),
+            `DAO: 위원회 멤버 ${slotIndex} 조회 (최우선)`,
+            "HIGH"
           );
 
           if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {
-            console.log(`슬롯 ${slotIndex}: 빈 슬롯`);
+            console.log(`Slot ${slotIndex}: Empty slot`);
             onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - empty slot`);
 
             // 빈 슬롯 객체 생성하여 추가
@@ -256,7 +263,7 @@ export const loadCommitteeMembers = async (
             continue;
           }
 
-          console.log(`슬롯 ${slotIndex}: 멤버 발견 - ${memberAddress}`);
+          console.log(`Slot ${slotIndex}: Member found - ${memberAddress}`);
           onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - Loading member information...`);
 
           // 공통 함수를 사용하여 멤버 상세 정보 조회
@@ -302,17 +309,18 @@ export const refreshSpecificMember = async (
   });
 
   try {
-    const publicClient = await createRobustPublicClient();
+    const publicClient = await getSharedPublicClient();
 
     // 해당 슬롯의 멤버 주소 조회
-    const memberAddress = await readContractWithRetry(
+    const memberAddress = await queueRPCRequest(
       () => publicClient.readContract({
         address: CONTRACTS.daoCommittee.address as `0x${string}`,
         abi: daoCommitteeAbi,
         functionName: 'members',
         args: [BigInt(slotIndex)],
-      }) as Promise<string>,
-      `Member slot ${slotIndex} address`
+      }),
+      `DAO: 위원회 멤버 ${slotIndex} 조회 (최우선)`,
+      "HIGH"
     );
 
     if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {

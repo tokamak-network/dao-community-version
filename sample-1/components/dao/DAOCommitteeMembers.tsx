@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { useDAOContext } from '@/contexts/DAOContext'
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { useAccount, useChainId } from 'wagmi'
 import { formatTONWithUnit, formatRelativeTime, formatDateTime } from '@/utils/format'
 import { CheckChallengeButton } from '@/components/CheckChallengeButton'
@@ -33,7 +33,7 @@ export default function DAOCommitteeMembers() {
     setGlobalChallengeCandidates,
     analysisCompletedTime,
     setAnalysisCompletedTime,
-  } = useDAOContext()
+  } = useCombinedDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
   const chainId = useChainId()
@@ -237,7 +237,7 @@ export default function DAOCommitteeMembers() {
     setChallengeProgress({
       step: 'checking-members',
       currentMemberIndex: 0,
-      totalMembers: layer2Candidates.length,
+      totalMembers: committeeMembers.length,
       message: 'Analyzing possible combinations for the challenge...',
       error: ''
     });
@@ -250,7 +250,20 @@ export default function DAOCommitteeMembers() {
         hasMyLayer2: boolean;
       }> = [];
 
-      committeeMembers.forEach(member => {
+      // forEach 대신 for 루프 사용하여 실시간 진행률 표시
+      for (let index = 0; index < committeeMembers.length; index++) {
+        const member = committeeMembers[index];
+
+        // 진행률 업데이트 (실시간)
+        setChallengeProgress(prev => ({
+          ...prev,
+          currentMemberIndex: index + 1,
+          message: `Analyzing member ${index + 1}/${committeeMembers.length}: ${member.name}...`
+        }));
+
+        // 짧은 대기 시간으로 UI 업데이트 보장
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         // 이 멤버보다 스테이킹이 높은 Layer2들 찾기
         const challengers = layer2Candidates.filter(candidate => {
           // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
@@ -291,7 +304,7 @@ export default function DAOCommitteeMembers() {
             hasMyLayer2
           });
         }
-      });
+      }
 
       // 내가 챌린지할 수 있는 멤버를 앞에 배치
       memberChallengeMap.sort((a, b) => {
@@ -382,7 +395,22 @@ export default function DAOCommitteeMembers() {
     // 무조건 모달 먼저 열기
     setShowGlobalChallenge(true);
 
-    // 현재 로딩 중인 경우
+    // 1. 먼저 캐시된 분석 결과가 있는지 확인 (가장 우선)
+    if (globalChallengeCandidates.length > 0 && analysisCompletedTime && hasLoadedLayer2Once && layer2Candidates.length > 0) {
+      console.log('✅ 기존 분석 결과 존재, 바로 완료 상태로 표시');
+
+      // 캐시된 데이터가 있으면 바로 완료 상태로 표시
+      setChallengeProgress({
+        step: 'completed',
+        currentMemberIndex: globalChallengeCandidates.length,
+        totalMembers: committeeMembers?.length || 0,
+        message: `Analysis complete! ${globalChallengeCandidates.length} members can be challenged.`,
+        error: ''
+      });
+      return;
+    }
+
+    // 2. 현재 로딩 중인 경우
     if (isLoadingLayer2) {
       setChallengeProgress({
         step: 'loading-layer2',
@@ -395,7 +423,7 @@ export default function DAOCommitteeMembers() {
       return;
     }
 
-    // 아직 로드하지 않은 경우 또는 데이터가 없는 경우
+    // 3. 아직 로드하지 않은 경우 또는 데이터가 없는 경우
     if (!hasLoadedLayer2Once || layer2Candidates.length === 0) {
       console.log('🚀 Layer2 데이터 로딩 시작');
       setChallengeProgress({
@@ -418,21 +446,9 @@ export default function DAOCommitteeMembers() {
       return;
     }
 
-    // 3. 정보가 다 로딩된 상태이면, 기존 분석 결과가 있는지 확인
-    if (globalChallengeCandidates.length > 0 && analysisCompletedTime) {
-      console.log('✅ 기존 분석 결과 존재, 재사용');
-      // 기존 결과가 있으면 바로 완료 상태로 설정
-      setChallengeProgress({
-        step: 'completed',
-        currentMemberIndex: globalChallengeCandidates.length,
-        totalMembers: committeeMembers?.length || 0,
-        message: `Analysis complete! ${globalChallengeCandidates.length} members can be challenged.`,
-        error: ''
-      });
-    } else {
-      console.log('✅ Layer2 데이터 이미 존재, 새로운 분석 시작');
-      performChallengeAnalysis();
-    }
+    // 4. Layer2 데이터는 있지만 분석 결과가 없는 경우 - 새로운 분석 시작
+    console.log('✅ Layer2 데이터 존재, 새로운 분석 시작');
+    performChallengeAnalysis();
 
   }
 
@@ -823,13 +839,13 @@ export default function DAOCommitteeMembers() {
                     <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                   </div>
 
-                  {/* 상태 메시지 */}
-                  <div className="space-y-2">
+                  {/* 상태 메시지 - 고정 높이 */}
+                  <div className="space-y-2 min-h-[80px] flex flex-col justify-center">
                     <h4 className="text-lg font-semibold text-gray-900">
                       {challengeProgress.step === 'loading-layer2' && 'Loading Layer2 Data'}
                       {challengeProgress.step === 'checking-members' && 'Analyzing Members'}
                     </h4>
-                    <p className="text-gray-600">{challengeProgress.message}</p>
+                    <p className="text-gray-600 min-h-[24px] flex items-center justify-center">{challengeProgress.message}</p>
                   </div>
 
                   {/* 진행률 바 */}
@@ -933,7 +949,7 @@ export default function DAOCommitteeMembers() {
                           step: 'loading-layer2',
                           currentMemberIndex: 0,
                           totalMembers: 0,
-                          message: '온체인에서 최신 Layer2 데이터를 가져오고 있습니다...',
+                          message: 'Fetching latest Layer2 data from blockchain...',
                           error: ''
                         });
 
@@ -954,7 +970,7 @@ export default function DAOCommitteeMembers() {
                             step: 'checking-members',
                             currentMemberIndex: 0,
                             totalMembers: committeeMembers?.length || 0,
-                            message: '최신 데이터로 챌린지 분석 중...',
+                            message: 'Analyzing challenges with latest data...',
                             error: ''
                           });
 
@@ -970,7 +986,7 @@ export default function DAOCommitteeMembers() {
                             currentMemberIndex: 0,
                             totalMembers: 0,
                             message: '',
-                            error: 'Layer2 데이터 새로고침 중 오류가 발생했습니다.'
+                            error: 'An error occurred while refreshing Layer2 data.'
                           });
                         }
                       }}

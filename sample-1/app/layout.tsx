@@ -1,6 +1,7 @@
 import './globals.css'
 import { Providers } from './providers'
 import StatusMessage from '@/components/StatusMessage'
+import RPCWorkerStatus from '@/components/RPCWorkerStatus'
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import { Inter, JetBrains_Mono } from 'next/font/google'
@@ -36,6 +37,10 @@ export default function RootLayout({
             {children}
           </main>
           <StatusMessage />
+          {/* 개발 모드에서만 멀티워커 상태 표시 */}
+          {process.env.NODE_ENV === 'development' && (
+            <RPCWorkerStatus showDetails={true} />
+          )}
         </Providers>
       </body>
     </html>

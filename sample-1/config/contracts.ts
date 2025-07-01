@@ -13,10 +13,10 @@ export const POLLING_INTERVAL = Number(
 
 // Contract read settings
 export const CONTRACT_READ_SETTINGS = {
-  BATCH_SIZE: Number(process.env.NEXT_PUBLIC_CONTRACT_BATCH_SIZE || "5"),
+  BATCH_SIZE: Number(process.env.NEXT_PUBLIC_CONTRACT_BATCH_SIZE || "3"),
   BATCH_DELAY_MS: Number(
-    process.env.NEXT_PUBLIC_CONTRACT_BATCH_DELAY_MS || "100"
-  ),
+    process.env.NEXT_PUBLIC_CONTRACT_BATCH_DELAY_MS || "1500"
+  ), // Rate limiting을 위해 1.5초로 증가
   CACHE_DURATION_MS: Number(
     process.env.NEXT_PUBLIC_CONTRACT_CACHE_DURATION_MS || "12000"
   ), // 12 초

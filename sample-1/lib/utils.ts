@@ -323,13 +323,18 @@ export async function getAgendaMetadata(
     const response = await fetch(metadataUrl);
 
     if (!response.ok) {
+      // 404 에러 로그를 숨김 - 메타데이터가 없는 것은 정상적인 상황
       return null;
     }
 
     const metadata = await response.json();
     return metadata;
   } catch (error) {
-    console.error(`Failed to fetch metadata for agenda ${agendaId}:`, error);
+    // 404 에러가 아닌 다른 에러만 로그 출력
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      // 네트워크 에러만 로그 출력
+      console.error(`Network error fetching metadata for agenda ${agendaId}:`, error);
+    }
     return null;
   }
 }

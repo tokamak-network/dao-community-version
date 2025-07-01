@@ -1,6 +1,6 @@
 "use client";
 
-import { useDAOContext } from '@/contexts/DAOContext';
+import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext';
 import { CommitteeMemberCard } from '@/components/CommitteeMemberCard';
 
 export default function CommitteePage() {
@@ -13,7 +13,7 @@ export default function CommitteePage() {
     layer2Total,
     layer2Candidates,
     hasLoadedLayer2Once
-  } = useDAOContext();
+  } = useCombinedDAOContext();
 
   const handlePreloadLayer2 = async () => {
     await loadLayer2Candidates();
