@@ -46,16 +46,9 @@ export function AgendaSubmissionModal({
 
   const handleSaveAndSubmit = async () => {
     try {
-      // 1단계: 로컬 저장 먼저 (메타데이터 생성 + 파일 다운로드)
-      if (shouldSaveLocally && onSaveLocally) {
-        console.log("🔄 Step 1: Starting local save (metadata generation + file download)...");
-        await onSaveLocally();
-        console.log("✅ Step 1 completed: File downloaded to your computer");
-      }
-
-      // 2단계: PR 제출 (다운로드된 메타데이터 재사용)
       if (shouldSubmitPR && onSubmitPR) {
-        console.log("🔄 Step 2: Starting PR submission with downloaded metadata...");
+        // PR 제출 (서명 → 메타데이터 생성 → 다운로드 → GitHub PR 제출을 한 번에)
+        console.log("🚀 Starting complete PR submission process...");
         setPrStatus(PrSubmissionStatus.SUBMITTING);
         setPrError(null);
 
@@ -64,12 +57,17 @@ export function AgendaSubmissionModal({
         if (result.success) {
           setPrStatus(PrSubmissionStatus.SUCCESS);
           setPrUrl(result.url || null);
-          console.log("✅ Step 2 completed: PR successfully submitted to repository");
+          console.log("✅ PR submission completed: Signature → Download → PR submitted to repository");
         } else {
           setPrStatus(PrSubmissionStatus.ERROR);
           setPrError(result.error || "Unknown error occurred");
-          console.log("❌ Step 2 failed: PR submission error");
+          console.log("❌ PR submission failed:", result.error);
         }
+      } else if (shouldSaveLocally && onSaveLocally) {
+        // 로컬 저장만 (서명 → 메타데이터 생성 → 다운로드)
+        console.log("💾 Starting local save only process...");
+        await onSaveLocally();
+        console.log("✅ Local save completed: Signature → Download");
       }
     } catch (error) {
       setPrStatus(PrSubmissionStatus.ERROR);

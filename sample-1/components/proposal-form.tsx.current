@@ -195,9 +195,17 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     });
   };
 
-  // Simulation logic moved to ProposalImpactOverview component
-
-    const initialSimActions = this.state.actions.map((action) => ({
+  resetToDefaultView = () => {
+    this.setState({
+      showImpactOverview: false,
+      showSelectAction: false,
+      showEditAction: false,
+      isEditMode: false,
+      activeEditSection: "",
+      selectedActionId: null,
+      currentSection: "proposal"
+    });
+  };
       ...action,
       simulationResult: "Pending" as "Pending",
       gasUsed: "",

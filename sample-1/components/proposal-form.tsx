@@ -410,17 +410,90 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
     try {
       console.log("🚀 Submitting PR to repository...");
 
-      // TODO: 실제 PR 제출 API 구현
-      // 여기서는 데모용으로 2초 후 성공으로 시뮬레이션
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Generate complete agenda metadata for PR submission
+      const { address } = this.props;
+      if (!address) {
+        throw new Error("Wallet not connected");
+      }
 
-      const mockPrUrl = "https://github.com/tokamak-network/dao-agenda-metadata/pull/123";
+      // Generate signature and metadata (reuse from onSaveLocally logic)
+      const signatureTimestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
+      const signatureMessage = createAgendaSignatureMessage(
+        this.state.agendaNumber,
+        this.props.writeData || "",
+        signatureTimestamp
+      );
 
-      console.log("✅ PR submission successful:", mockPrUrl);
+      const signature = await signMessage(signatureMessage, address);
+
+      const agendaData = {
+        id: this.state.agendaNumber,
+        title: this.state.title,
+        description: this.state.description,
+        network: process.env.NEXT_PUBLIC_CHAIN_ID === "1" ? "mainnet" : "sepolia",
+        transaction: this.props.writeData || "",
+        creator: {
+          address: address,
+          signature: signature
+        },
+        actions: this.state.actions.map(action => ({
+          title: action.title,
+          contractAddress: action.contractAddress,
+          method: action.method,
+          calldata: action.calldata,
+          abi: action.abi,
+          sendEth: action.sendEth
+        })),
+        createdAt: signatureTimestamp,
+        snapshotUrl: this.state.snapshotUrl,
+        discourseUrl: this.state.discourseUrl
+      };
+
+      // 먼저 로컬에 다운로드
+      console.log("💾 Downloading metadata locally before PR submission...");
+      const downloadTimestamp = new Date().toISOString().replace(/:/g, '-');
+      const blob = new Blob([JSON.stringify(agendaData, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `agenda-${agendaData.id}-${downloadTimestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log("✅ Metadata downloaded locally");
+
+      // 잠시 대기 (다운로드 완료 보장)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 그 다음 PR 제출
+      console.log("🚀 Now submitting PR to GitHub...");
+
+      // Submit PR to API
+      const response = await fetch('/api/submit-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agendaData,
+          message: `Agenda submission for ${agendaData.network} network - ${agendaData.title}`
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit PR');
+      }
+
+      const result = await response.json();
+      console.log("✅ PR submission successful:", result.prUrl);
 
       return {
         success: true,
-        url: mockPrUrl
+        url: result.prUrl
       };
     } catch (error) {
       console.error("❌ PR submission failed:", error);
