@@ -926,11 +926,11 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
               }
 
               // Generate signature message
-              const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
+              const signatureTimestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
               const signatureMessage = createAgendaSignatureMessage(
                 this.state.agendaNumber,
                 this.props.writeData || "",
-                timestamp
+                signatureTimestamp
               );
 
               // Request signature from user
@@ -955,7 +955,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                   abi: action.abi,
                   sendEth: action.sendEth
                 })),
-                createdAt: timestamp,
+                createdAt: signatureTimestamp,
                 snapshotUrl: this.state.snapshotUrl,
                 discourseUrl: this.state.discourseUrl
               };
@@ -978,6 +978,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
             } catch (error) {
               console.error("❌ Failed to generate signed metadata:", error);
               alert("Failed to generate signed metadata. Please try again.");
+              throw error; // Re-throw error to prevent PR submission
             }
           }}
           onSubmitPR={this.handleSubmitPR}
