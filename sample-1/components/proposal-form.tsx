@@ -427,7 +427,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       const signature = await signMessage(signatureMessage, address);
 
       const agendaData = {
-        id: this.state.agendaNumber,
+        id: Number(this.state.agendaNumber),
         title: this.state.title,
         description: this.state.description,
         network: process.env.NEXT_PUBLIC_CHAIN_ID === "1" ? "mainnet" : "sepolia",
@@ -1011,7 +1011,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
 
               // Create complete metadata with signature
               const metadata = {
-                id: this.state.agendaNumber,
+                id: Number(this.state.agendaNumber),
                 title: this.state.title,
                 description: this.state.description,
                 network: process.env.NEXT_PUBLIC_CHAIN_ID === "1" ? "mainnet" : "sepolia",
