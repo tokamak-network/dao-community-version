@@ -26,6 +26,7 @@ import { submitAgenda, validateAgendaParams, AgendaSubmissionParams } from "@/ut
 import { AgendaSubmissionModal, AgendaSubmissionStatus } from "@/components/modals/AgendaSubmissionModal";
 import { prepareAgenda } from "@/utils/agendaData";
 import { TON_ABI } from "@/utils/tonContract";
+import { createAgendaSignatureMessage, signMessage } from "@/lib/signature";
 import {
   useAccount,
   useWriteContract,
@@ -913,34 +914,71 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                  this.state.txState === "cancelled" ? "cancelled" : "preparing"}
           txHash={this.props.writeData}
           agendaNumber={this.state.agendaNumber}
-          onSaveLocally={() => {
-            // 로컬에 아젠다 메타데이터 저장
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const agendaData = {
-              agendaNumber: this.state.agendaNumber,
-              title: this.state.title,
-              description: this.state.description,
-              snapshotUrl: this.state.snapshotUrl,
-              discourseUrl: this.state.discourseUrl,
-              actions: this.state.actions,
-              txHash: this.props.writeData,
-              createdAt: new Date().toISOString(),
-              network: process.env.NEXT_PUBLIC_CHAIN_ID || "11155111"
-            };
+          onSaveLocally={async () => {
+            try {
+              console.log("🔄 Generating signed metadata for local save...");
 
-            const blob = new Blob([JSON.stringify(agendaData, null, 2)], {
-              type: 'application/json'
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `agenda-${this.state.agendaNumber}-${timestamp}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+              // Generate complete metadata with signature
+              const { address } = this.props;
+              if (!address) {
+                alert("Wallet not connected");
+                return;
+              }
 
-            console.log("✅ Agenda metadata saved locally");
+              // Generate signature message
+              const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, ".00Z");
+              const signatureMessage = createAgendaSignatureMessage(
+                this.state.agendaNumber,
+                this.props.writeData || "",
+                timestamp
+              );
+
+              // Request signature from user
+              const signature = await signMessage(signatureMessage, address);
+
+              // Create complete metadata with signature
+              const metadata = {
+                id: this.state.agendaNumber,
+                title: this.state.title,
+                description: this.state.description,
+                network: process.env.NEXT_PUBLIC_CHAIN_ID === "1" ? "mainnet" : "sepolia",
+                transaction: this.props.writeData || "",
+                creator: {
+                  address: address,
+                  signature: signature
+                },
+                actions: this.state.actions.map(action => ({
+                  title: action.title,
+                  contractAddress: action.contractAddress,
+                  method: action.method,
+                  calldata: action.calldata,
+                  abi: action.abi,
+                  sendEth: action.sendEth
+                })),
+                createdAt: timestamp,
+                snapshotUrl: this.state.snapshotUrl,
+                discourseUrl: this.state.discourseUrl
+              };
+
+              // Download the signed metadata
+              const downloadTimestamp = new Date().toISOString().replace(/:/g, '-');
+              const blob = new Blob([JSON.stringify(metadata, null, 2)], {
+                type: 'application/json'
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `agenda-${this.state.agendaNumber}-${downloadTimestamp}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+
+              console.log("✅ Signed agenda metadata saved locally");
+            } catch (error) {
+              console.error("❌ Failed to generate signed metadata:", error);
+              alert("Failed to generate signed metadata. Please try again.");
+            }
           }}
           onSubmitPR={this.handleSubmitPR}
         />
