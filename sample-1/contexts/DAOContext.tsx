@@ -326,6 +326,9 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
    useEffect(() => {
      if (previousConnectionState !== isConnected) {
        if (isConnected && address) {
+         // 네트워크 체크 및 자동 스위칭
+         checkAndSwitchNetwork();
+
          // isMember 체크
          const memberCheck = committeeMembers?.some(member => member.creationAddress.toLowerCase() === address.toLowerCase());
          setIsMember(memberCheck || false);
@@ -337,6 +340,75 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
        setPreviousConnectionState(isConnected);
      }
    }, [isConnected, address, previousConnectionState, committeeMembers]);
+
+  // 네트워크 체크 및 자동 스위칭 함수
+  const checkAndSwitchNetwork = async () => {
+    try {
+      if (!window.ethereum) {
+        console.warn("MetaMask not detected");
+        return;
+      }
+
+      const { BrowserProvider } = await import("ethers");
+      const provider = new BrowserProvider(window.ethereum as any);
+      const network = await provider.getNetwork();
+
+      const expectedChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
+      console.log("🔍 Network check - Current:", network.chainId, "Expected:", expectedChainId);
+
+      if (Number(network.chainId) !== expectedChainId) {
+        console.log("🔄 Network mismatch detected. Attempting to switch...");
+
+        const hexChainId = `0x${expectedChainId.toString(16)}`;
+
+        try {
+          // 네트워크 스위칭 시도
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: hexChainId }],
+          });
+          console.log("✅ Network switched successfully");
+        } catch (switchError: any) {
+          // 네트워크가 추가되지 않은 경우 추가
+          if (switchError.code === 4902) {
+            try {
+              const networkConfig = expectedChainId === 1 ? {
+                chainId: '0x1',
+                chainName: 'Ethereum Mainnet',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                rpcUrls: ['https://ethereum.publicnode.com'],
+                blockExplorerUrls: ['https://etherscan.io'],
+              } : {
+                chainId: '0xaa36a7',
+                chainName: 'Sepolia Testnet',
+                nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+                rpcUrls: ['https://ethereum-sepolia.publicnode.com'],
+                blockExplorerUrls: ['https://sepolia.etherscan.io'],
+              };
+
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [networkConfig],
+              });
+              console.log("✅ Network added and switched successfully");
+            } catch (addError) {
+              console.error("❌ Failed to add network:", addError);
+              const networkName = expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet";
+              alert(`Please manually switch to ${networkName} (Chain ID: ${expectedChainId}) in your wallet.`);
+            }
+          } else {
+            console.error("❌ Failed to switch network:", switchError);
+            const networkName = expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet";
+            alert(`Please manually switch to ${networkName} (Chain ID: ${expectedChainId}) in your wallet.`);
+          }
+        }
+      } else {
+        console.log("✅ Network is correct");
+      }
+    } catch (error) {
+      console.error("❌ Network check failed:", error);
+    }
+  };
 
   // 🎯 Committee Members 로드 후 isMember 체크
   useEffect(() => {

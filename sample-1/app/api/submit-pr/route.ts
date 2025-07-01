@@ -126,37 +126,100 @@ export async function POST(request: Request) {
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
-    // 2. 새로운 브랜치 생성
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8); // 6자리 랜덤 문자열
-    const branchName = `agenda-${agendaData.id}-${timestamp}-${random}`;
+    // 2. 유니크한 브랜치 이름 생성
     const baseBranch = "main";
+    let branchName = "";
+    let branchExists = true;
+    let attempts = 0;
+    const maxAttempts = 5;
 
-    // 포크 저장소의 기본 브랜치에서 최신 커밋 SHA 가져오기
-    let refData;
+    // 브랜치 이름이 유니크할 때까지 시도
+    while (branchExists && attempts < maxAttempts) {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 8);
+      branchName = `agenda-${agendaData.id}-${timestamp}-${random}`;
+
+      // 브랜치 존재 여부 확인
+      try {
+        await octokit.git.getRef({
+          owner: forkOwner,
+          repo: forkRepo,
+          ref: `heads/${branchName}`,
+        });
+        console.log(`[SubmitPR] Branch ${branchName} already exists, trying new name...`);
+        branchExists = true;
+        attempts++;
+        // 1초 대기 후 재시도 (timestamp 변경을 위해)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        // 404 에러면 브랜치가 존재하지 않음 (정상)
+        console.log(`[SubmitPR] Branch ${branchName} is available`);
+        branchExists = false;
+      }
+    }
+
+    if (branchExists) {
+      throw new Error(`Failed to generate unique branch name after ${maxAttempts} attempts`);
+    }
+
+    // 포크를 최신 상태로 동기화 (git fetch upstream + merge)
+    console.log("[SubmitPR] Fetching latest from upstream...");
+
+    // 1. 원본 저장소에서 최신 SHA 가져오기 (git fetch upstream)
+    const { data: upstreamRef } = await octokit.git.getRef({
+      owner: baseOwner,
+      repo: baseRepo,
+      ref: `heads/${baseBranch}`,
+    });
+    console.log("[SubmitPR] Upstream latest SHA:", upstreamRef.object.sha);
+
+    // 2. 포크의 main 브랜치를 원본 SHA로 업데이트 (git merge upstream/main)
+    let forkUpdateSuccess = false;
     try {
-      // 먼저 포크 저장소에서 기본 브랜치의 SHA를 가져오기 시도
-      const { data } = await octokit.git.getRef({
+      await octokit.git.updateRef({
         owner: forkOwner,
         repo: forkRepo,
         ref: `heads/${baseBranch}`,
+        sha: upstreamRef.object.sha,
+        force: true,
       });
-      refData = data;
-      console.log("[SubmitPR] Using fork repository SHA:", data.object.sha);
-    } catch (error) {
-      console.log(
-        "[SubmitPR] Failed to get fork SHA, trying base repository...",
-        error
-      );
-      // 포크 저장소에서 실패하면 원본 저장소에서 가져오기
-      const { data } = await octokit.git.getRef({
-        owner: baseOwner,
-        repo: baseRepo,
-        ref: `heads/${baseBranch}`,
-      });
-      refData = data;
-      console.log("[SubmitPR] Using base repository SHA:", data.object.sha);
+      console.log("[SubmitPR] Fork successfully synced to latest upstream");
+      forkUpdateSuccess = true;
+
+      // 포크 업데이트 후 잠시 대기 (GitHub API 동기화 시간)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (updateError) {
+      console.log("[SubmitPR] Fork update failed:", updateError instanceof Error ? updateError.message : String(updateError));
+      forkUpdateSuccess = false;
     }
+
+    // 3. 업데이트 확인: 포크에서 실제로 SHA 존재하는지 검증
+    let refData;
+    if (forkUpdateSuccess) {
+      try {
+        const { data: forkRef } = await octokit.git.getRef({
+          owner: forkOwner,
+          repo: forkRepo,
+          ref: `heads/${baseBranch}`,
+        });
+
+        if (forkRef.object.sha === upstreamRef.object.sha) {
+          console.log("[SubmitPR] Fork verification success - using fork SHA");
+          refData = forkRef;
+        } else {
+          console.log("[SubmitPR] Fork SHA mismatch - using upstream SHA as fallback");
+          refData = upstreamRef;
+        }
+      } catch (verifyError) {
+        console.log("[SubmitPR] Fork verification failed - using upstream SHA as fallback");
+        refData = upstreamRef;
+      }
+    } else {
+      console.log("[SubmitPR] Using upstream SHA (fork update failed)");
+      refData = upstreamRef;
+    }
+
+    console.log("[SubmitPR] Final SHA for branch creation:", refData.object.sha);
 
     // 포크한 저장소에 새 브랜치 생성
     console.log(
