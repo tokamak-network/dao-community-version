@@ -256,6 +256,65 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   // Events
   //----------------------------------------
 
+  // 아젠다 이벤트 모니터링 설정
+  useEffect(() => {
+    if (!agendaFunctions.updateAgendaData) {
+      return; // updateAgendaData 함수가 준비되면 즉시 이벤트 모니터링 시작
+    }
+
+    console.log('🎯 Setting up agenda event monitoring...', {
+      timestamp: new Date().toISOString(),
+      hasUpdateAgendaData: !!agendaFunctions.updateAgendaData
+    });
+
+    // 아젠다 이벤트 핸들러들 생성
+    const handleAgendaCreated = createAgendaCreatedHandler(agendaFunctions.updateAgendaData);
+    const handleAgendaVoteCasted = createAgendaVoteCastedHandler(agendaFunctions.updateAgendaData);
+    const handleAgendaExecuted = createAgendaExecutedHandler(agendaFunctions.updateAgendaData);
+
+    // 아젠다 이벤트 모니터링 설정
+    const cleanupAgenda = setupAgendaEventMonitoring(
+      handleAgendaCreated,
+      handleAgendaVoteCasted,
+      handleAgendaExecuted
+    );
+
+    console.log('✅ Agenda event monitoring setup completed');
+
+    // 컴포넌트 언마운트 시 이벤트 워처 정리
+    return cleanupAgenda;
+  }, [agendaFunctions.updateAgendaData]);
+
+  // DAO 이벤트 모니터링 설정
+  useEffect(() => {
+    console.log('🎯 Setting up DAO event monitoring...', {
+      timestamp: new Date().toISOString(),
+      hasRefreshSpecificMember: !!daoFunctions.refreshSpecificMember,
+      hasResetLayer2Cache: !!daoFunctions.resetLayer2Cache
+    });
+
+    // DAO 이벤트 핸들러들 생성
+    const handleMemberChanged = createMemberChangedHandler(daoFunctions.refreshSpecificMember);
+    const handleActivityRewardClaimed = createActivityRewardClaimedHandler(
+      daoFunctions.refreshSpecificMember,
+      maxMember,
+      committeeMembers
+    );
+    const handleLayer2Registered = createLayer2RegisteredHandler(daoFunctions.resetLayer2Cache);
+
+    // DAO 이벤트 모니터링 설정
+    const cleanupDAO = setupEventMonitoring(
+      chain.id,
+      handleMemberChanged,
+      handleActivityRewardClaimed,
+      handleLayer2Registered
+    );
+
+    console.log('✅ DAO event monitoring setup completed');
+
+    // 컴포넌트 언마운트 시 이벤트 워처 정리
+    return cleanupDAO;
+  }, [maxMember, committeeMembers, daoFunctions.refreshSpecificMember, daoFunctions.resetLayer2Cache]);
 
   // 모듈화된 함수들을 사용한 contextValue
   const contextValue = useMemo(() => ({
