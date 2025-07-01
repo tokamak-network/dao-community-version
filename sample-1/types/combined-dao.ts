@@ -74,6 +74,20 @@ export interface CombinedDAOContextType extends Omit<DAOContextType, keyof Overl
   setGlobalChallengeCandidates: (candidates: any[]) => void;
   analysisCompletedTime: Date | null;
   setAnalysisCompletedTime: (time: Date | null) => void;
+  challengeProgress: {
+    step: 'idle' | 'loading-layer2' | 'checking-members' | 'completed' | 'error';
+    currentMemberIndex: number;
+    totalMembers: number;
+    message: string;
+    error: string;
+  };
+  setChallengeProgress: (progress: {
+    step: 'idle' | 'loading-layer2' | 'checking-members' | 'completed' | 'error';
+    currentMemberIndex: number;
+    totalMembers: number;
+    message: string;
+    error: string;
+  }) => void;
 }
 
 // 중복되는 필드들 정의 (AgendaContextType 것을 우선시하기 위해)

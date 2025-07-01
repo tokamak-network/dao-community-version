@@ -155,6 +155,8 @@ export function createDAOContextFunctions(
    * Layer2 후보자들 로드 (DAOContext.tsx와 동일하게)
    */
   const loadLayer2Candidates = async (force = false, onProgress?: (current: number, total: number, message: string) => void) => {
+    console.log('🔍 dao-context-functions.loadLayer2Candidates 호출됨', { force, hasLoadedLayer2Once, layer2CandidatesLength: layer2Candidates.length });
+
     setIsLoadingLayer2(true);
     setLayer2Error(null);
 
@@ -167,10 +169,12 @@ export function createDAOContextFunctions(
         onProgress
       );
 
-      // 상태 업데이트
+      // 상태 업데이트 (캐시된 데이터가 있든 없든 항상 실행)
       setLayer2Candidates(result.candidates);
       setLayer2Total(result.total);
-      setHasLoadedLayer2Once(true);
+      setHasLoadedLayer2Once(true); // 항상 true로 설정
+
+      console.log('✅ dao-context-functions.loadLayer2Candidates 완료 - setHasLoadedLayer2Once(true) 실행됨');
 
       console.log(`✅ Layer2 후보 로드 완료: ${result.candidates.length}개`);
     } catch (error) {

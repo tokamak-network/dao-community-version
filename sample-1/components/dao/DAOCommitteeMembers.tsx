@@ -33,6 +33,8 @@ export default function DAOCommitteeMembers() {
     setGlobalChallengeCandidates,
     analysisCompletedTime,
     setAnalysisCompletedTime,
+    challengeProgress,
+    setChallengeProgress,
   } = useCombinedDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
@@ -45,13 +47,6 @@ export default function DAOCommitteeMembers() {
   const [expandedMember, setExpandedMember] = useState<number | null>(null)
   const [showGlobalChallenge, setShowGlobalChallenge] = useState(false)
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false)
-  const [challengeProgress, setChallengeProgress] = useState({
-    step: 'idle', // 'idle' | 'loading-layer2' | 'checking-members' | 'completed' | 'error'
-    currentMemberIndex: 0,
-    totalMembers: 0,
-    message: '',
-    error: ''
-  })
 
   // Layer2 로딩 완료 후 자동 분석 시작을 위한 ref
   const shouldStartAnalysisRef = useRef(false)
@@ -73,6 +68,40 @@ export default function DAOCommitteeMembers() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // 🎯 모달이 열릴 때 캐시된 상태 즉시 반영
+  useEffect(() => {
+    if (showGlobalChallenge) {
+      // 캐시된 분석 결과가 있으면 즉시 완료 상태로 표시
+      if (globalChallengeCandidates.length > 0 && analysisCompletedTime && hasLoadedLayer2Once && layer2Candidates.length > 0) {
+        console.log('✅ 모달 열림 - 캐시된 분석 결과 즉시 반영');
+        setChallengeProgress({
+          step: 'completed',
+          currentMemberIndex: globalChallengeCandidates.length,
+          totalMembers: committeeMembers?.length || 0,
+          message: `Analysis complete! ${globalChallengeCandidates.length} members can be challenged.`,
+          error: ''
+        });
+      }
+    }
+  }, [showGlobalChallenge, globalChallengeCandidates.length, analysisCompletedTime, hasLoadedLayer2Once, layer2Candidates.length]);
+
+  // 🎯 Layer2 로딩 완료 시 캐시된 상태 재확인
+  useEffect(() => {
+    if (showGlobalChallenge && !isLoadingLayer2 && hasLoadedLayer2Once && layer2Candidates.length > 0) {
+      // Layer2 로딩이 완료되고 캐시된 분석 결과가 있으면 즉시 완료 상태로 표시
+      if (globalChallengeCandidates.length > 0 && analysisCompletedTime) {
+        console.log('✅ Layer2 로딩 완료 - 캐시된 분석 결과 반영');
+        setChallengeProgress({
+          step: 'completed',
+          currentMemberIndex: globalChallengeCandidates.length,
+          totalMembers: committeeMembers?.length || 0,
+          message: `Analysis complete! ${globalChallengeCandidates.length} members can be challenged.`,
+          error: ''
+        });
+      }
+    }
+  }, [isLoadingLayer2, hasLoadedLayer2Once, layer2Candidates.length, showGlobalChallenge, globalChallengeCandidates.length, analysisCompletedTime]);
 
   // 이벤트 모니터링은 DAOContext에서 직접 처리됨
 
@@ -255,11 +284,14 @@ export default function DAOCommitteeMembers() {
         const member = committeeMembers[index];
 
         // 진행률 업데이트 (실시간)
-        setChallengeProgress(prev => ({
-          ...prev,
+        setChallengeProgress({
+          ...challengeProgress,
+          step: 'checking-members',
           currentMemberIndex: index + 1,
-          message: `Analyzing member ${index + 1}/${committeeMembers.length}: ${member.name}...`
-        }));
+          totalMembers: committeeMembers.length,
+          message: `Analyzing member ${index + 1}/${committeeMembers.length}: ${member.name}...`,
+          error: ''
+        });
 
         // 짧은 대기 시간으로 UI 업데이트 보장
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -436,12 +468,14 @@ export default function DAOCommitteeMembers() {
       shouldStartAnalysisRef.current = true; // 로딩 완료 후 자동 분석 플래그 설정
       // 로딩 시작 후 완료되면 useEffect에서 자동 분석
       loadLayer2Candidates(false, (current, total, message) => {
-        setChallengeProgress(prev => ({
-          ...prev,
+        setChallengeProgress({
+          ...challengeProgress,
+          step: 'loading-layer2',
           currentMemberIndex: current,
           totalMembers: total,
-          message: message
-        }));
+          message: message,
+          error: ''
+        });
       });
       return;
     }
@@ -792,20 +826,6 @@ export default function DAOCommitteeMembers() {
         </div>
       )}
 
-      {committeeMembers && committeeMembers.length > 0 && (
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 text-center">
-            {!isMounted ? (
-              <>💡 Loading wallet status...</>
-            ) : !isWalletConnected ? (
-              <>💡 Connect your wallet to interact with committee members</>
-            ) : (
-              <>ℹ️ You can challenge any committee member. Retire and claim buttons appear only for memberships you created or manage.</>
-            )}
-          </p>
-        </div>
-      )}
-
       {/* 전역 Challenge 분석 진행사항 모달 */}
       {showGlobalChallenge && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -819,7 +839,7 @@ export default function DAOCommitteeMembers() {
                 <button
                   onClick={() => {
                     setShowGlobalChallenge(false);
-                    setChallengeProgress(prev => ({ ...prev, step: 'idle' }));
+                    // setChallengeProgress(prev => ({ ...prev, step: 'idle' })); // Do not reset progress on close
                   }}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
@@ -957,12 +977,14 @@ export default function DAOCommitteeMembers() {
                           // Layer2 캐시 리셋 후 새로 로드
                           resetLayer2Cache();
                           await loadLayer2Candidates(true, (current, total, message) => {
-                            setChallengeProgress(prev => ({
-                              ...prev,
+                            setChallengeProgress({
+                              ...challengeProgress,
+                              step: 'loading-layer2',
                               currentMemberIndex: current,
                               totalMembers: total,
-                              message: message
-                            }));
+                              message: message,
+                              error: ''
+                            });
                           });
 
                           // 3. 새로운 데이터로 분석

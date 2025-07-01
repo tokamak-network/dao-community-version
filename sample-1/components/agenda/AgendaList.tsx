@@ -89,14 +89,6 @@ export default function AgendaList() {
         </button>
       </div>
 
-      {/* Loading indicator at the top when loading */}
-      {isLoading && (
-        <div className="flex justify-center items-center mb-6 gap-3">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-          <p className="text-gray-600 text-sm">{statusMessage || "Loading..."}</p>
-        </div>
-      )}
-
       {/* Agenda List */}
       <div className="flex flex-col gap-4">
         {displayAgendas.length === 0 && !isLoading ? (
@@ -157,7 +149,13 @@ export default function AgendaList() {
         )}
       </div>
 
-
+      {/* Loading indicator at the bottom when loading */}
+      {isLoading && (
+        <div className="flex justify-center items-center mt-8 gap-3">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+          <p className="text-gray-600 text-sm">{statusMessage || "Loading..."}</p>
+        </div>
+      )}
 
       {/* Load More */}
       {!isLoading && displayAgendas.length > 0 && (
@@ -168,15 +166,6 @@ export default function AgendaList() {
           >
             View more agenda ({displayAgendas.length})
           </Link>
-        </div>
-      )}
-
-      {/* Connect Wallet Notice */}
-      {!isConnected && (
-        <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 text-center">
-            💡 Connect your wallet to create new proposals and interact with agendas
-          </p>
         </div>
       )}
     </div>

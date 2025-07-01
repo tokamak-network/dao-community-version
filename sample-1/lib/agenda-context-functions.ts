@@ -203,7 +203,7 @@ export function createAgendaContextFunctions(
         const processedCount = totalAgendas - i;
         const progress = Math.round((processedCount / totalAgendas) * 100);
 
-        stateSetters.setStatusMessage(`아젠다 로딩 중... (${processedCount}/${totalAgendas}) [${progress}%]`);
+        stateSetters.setStatusMessage(`Loading agendas... (${processedCount}/${totalAgendas}) [${progress}%]`);
 
         const batchPromises = Array.from({ length: currentBatch }, (_, j) => {
           const agendaId = i - j; // 최신순으로 가져오기

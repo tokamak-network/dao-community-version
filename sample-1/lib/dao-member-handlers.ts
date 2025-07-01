@@ -22,77 +22,82 @@ export const fetchMemberDetails = async (
   slotIndex?: number
 ): Promise<CommitteeMember> => {
   try {
-    // 1. candidateInfo 조회
-    const candidateInfo = await readContractWithRetry(
+    // 1. candidateInfo 조회 (이건 반드시 먼저 필요)
+    const candidateInfo = await queueRPCRequest(
       () => publicClient.readContract({
         address: CONTRACTS.daoCommittee.address,
         abi: daoCommitteeAbi,
         functionName: 'candidateInfos',
         args: [memberAddress as `0x${string}`],
       }) as Promise<readonly [`0x${string}`, bigint, bigint, bigint, bigint]>,
-      `Member ${memberAddress} candidate info`
+      `Member ${memberAddress} candidate info`,
+      "HIGH"
     );
 
     const [candidateContract, indexMembers, memberJoinedTime, rewardPeriod, claimedTimestamp] = candidateInfo;
 
-    // 2. 순차적으로 상세 정보 조회 (RPC rate limit 고려)
-    // candidate memo
-    const memo = await readContractWithRetry(
-      () => publicClient.readContract({
-        address: candidateContract,
-        abi: daoCandidateAbi,
-        functionName: 'memo',
-        args: [],
-      }) as Promise<string>,
-      `Member candidate name`
-    );
+    // 2. 병렬로 상세 정보 조회 (모두 워커 사용)
+    const [
+      memo,
+      totalStaked,
+      claimableActivityReward,
+      lastCommitBlock,
+      operatorManager
+    ] = await Promise.all([
+      queueRPCRequest(
+        () => publicClient.readContract({
+          address: candidateContract,
+          abi: daoCandidateAbi,
+          functionName: 'memo',
+          args: [],
+        }) as Promise<string>,
+        `Member candidate name`,
+        "HIGH"
+      ),
+      queueRPCRequest(
+        () => publicClient.readContract({
+          address: candidateContract,
+          abi: daoCandidateAbi,
+          functionName: 'totalStaked',
+          args: [],
+        }) as Promise<bigint>,
+        `Member total staked`,
+        "HIGH"
+      ),
+      queueRPCRequest(
+        () => publicClient.readContract({
+          address: CONTRACTS.daoCommittee.address,
+          abi: daoCommitteeAbi,
+          functionName: 'getClaimableActivityReward',
+          args: [memberAddress as `0x${string}`],
+          blockTag: 'latest'
+        }) as Promise<bigint>,
+        `Member claimActivityReward`,
+        "HIGH"
+      ),
+      queueRPCRequest(
+        () => publicClient.readContract({
+          address: CONTRACTS.seigManager.address,
+          abi: seigManagerAbi,
+          functionName: 'lastCommitBlock',
+          args: [candidateContract],
+        }) as Promise<bigint>,
+        `Member lastCommitBlock`,
+        "HIGH"
+      ),
+      queueRPCRequest(
+        () => publicClient.readContract({
+          address: CONTRACTS.layer2Manager.address,
+          abi: layer2ManagerAbi,
+          functionName: 'operatorOfLayer',
+          args: [candidateContract as `0x${string}`],
+        }) as Promise<`0x${string}`>,
+        `Member operatorManager`,
+        "HIGH"
+      )
+    ]);
 
-    // total staked
-    const totalStaked = await readContractWithRetry(
-      () => publicClient.readContract({
-        address: candidateContract,
-        abi: daoCandidateAbi,
-        functionName: 'totalStaked',
-        args: [],
-      }) as Promise<bigint>,
-      `Member total staked`
-    );
-
-    // 청구 가능한 활동비 (최신 블록에서 조회하여 캐시 방지)
-    const claimableActivityReward = await readContractWithRetry(
-      () => publicClient.readContract({
-        address: CONTRACTS.daoCommittee.address,
-        abi: daoCommitteeAbi,
-        functionName: 'getClaimableActivityReward',
-        args: [memberAddress as `0x${string}`],
-        blockTag: 'latest'  // 👈 최신 블록에서 강제 조회
-      }) as Promise<bigint>,
-      `Member claimActivityReward`
-    );
-
-    // 마지막 커밋 블록
-    const lastCommitBlock = await readContractWithRetry(
-      () => publicClient.readContract({
-        address: CONTRACTS.seigManager.address,
-        abi: seigManagerAbi,
-        functionName: 'lastCommitBlock',
-        args: [candidateContract],
-      }) as Promise<bigint>,
-      `Member lastCommitBlock`
-    );
-
-    // operator manager
-    const operatorManager = await readContractWithRetry(
-      () => publicClient.readContract({
-        address: CONTRACTS.layer2Manager.address,
-        abi: layer2ManagerAbi,
-        functionName: 'operatorOfLayer',
-        args: [candidateContract as `0x${string}`],
-      }) as Promise<`0x${string}`>,
-      `Member operatorManager`
-    );
-
-    // 3. lastCommitBlock의 타임스탬프 가져오기
+    // 3. lastCommitBlock의 타임스탬프 가져오기 (블록 정보는 워커 필요 없음)
     let lastUpdateSeigniorageTime = 0;
     if (lastCommitBlock > 0) {
       try {
@@ -105,18 +110,19 @@ export const fetchMemberDetails = async (
       }
     }
 
-    // 4. manager 주소 조회
+    // 4. manager 주소 조회 (워커 사용)
     let managerAddress: `0x${string}` | null = null;
     if (operatorManager && operatorManager !== '0x0000000000000000000000000000000000000000') {
       try {
-        managerAddress = await readContractWithRetry(
+        managerAddress = await queueRPCRequest(
           () => publicClient.readContract({
             address: operatorManager,
             abi: operatorManagerAbi,
             functionName: 'manager',
             args: [],
           }) as Promise<`0x${string}`>,
-          `Member manager address`
+          `Member manager address`,
+          "HIGH"
         );
       } catch (error) {
         console.warn(`Failed to get manager address for operator ${operatorManager}:`, error);

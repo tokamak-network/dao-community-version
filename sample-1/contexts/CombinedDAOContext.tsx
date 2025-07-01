@@ -112,6 +112,13 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   // 🎯 Challenge Analysis 상태
   const [globalChallengeCandidates, setGlobalChallengeCandidates] = useState<any[]>([]);
   const [analysisCompletedTime, setAnalysisCompletedTime] = useState<Date | null>(null);
+  const [challengeProgress, setChallengeProgress] = useState({
+    step: 'idle' as 'idle' | 'loading-layer2' | 'checking-members' | 'completed' | 'error',
+    currentMemberIndex: 0,
+    totalMembers: 0,
+    message: '',
+    error: ''
+  });
 
   // 🎯 Agenda 상태 관리
   const [agendas, setAgendas] = useState<AgendaWithMetadata[]>([]);
@@ -274,6 +281,8 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     setGlobalChallengeCandidates,
     analysisCompletedTime,
     setAnalysisCompletedTime,
+    challengeProgress,
+    setChallengeProgress,
 
     // Agenda 관련
     agendas,
@@ -301,11 +310,11 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   }), [
     isMember, committeeMembers, isLoadingMembers, membersError,
     layer2Total, layer2Candidates, isLoadingLayer2, layer2Error, hasLoadedLayer2Once,
-    globalChallengeCandidates, analysisCompletedTime,
+    globalChallengeCandidates, analysisCompletedTime, challengeProgress,
     agendas, isLoadingAgendas, agendasError, events,
     createAgendaFees, minimumNoticePeriodSeconds, minimumVotingPeriodSeconds, agendaQuorum,
-    statusMessage, isPolling, progress
-    // daoFunctions, agendaFunctions 제거 - 함수는 의존성에서 제외
+    statusMessage, isPolling, progress,
+    daoFunctions, agendaFunctions // 함수들도 의존성에 포함하여 최신 함수들이 사용되도록 함
   ]);
 
   return (
