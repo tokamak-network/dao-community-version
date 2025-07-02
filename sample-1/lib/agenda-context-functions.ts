@@ -520,6 +520,18 @@ export function createAgendaContextFunctions(
         actions: metadata?.actions,
       };
 
+      // creationCalldata 가져오기 (transaction이 있는 경우)
+      if (metadata?.transaction) {
+        try {
+          const calldata = await getTransactionData(metadata.transaction);
+          if (calldata) {
+            updatedAgenda.creationCalldata = calldata;
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
+        }
+      }
+
       // 기존 아젠다 목록 업데이트
       stateSetters.setAgendas(prev => {
         const existingAgendas = new Map(prev.map(a => [a.id, a]));

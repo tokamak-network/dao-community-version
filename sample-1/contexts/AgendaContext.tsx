@@ -690,6 +690,18 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
         };
         console.log("✅ updateAgendaData - Combined data:", updatedAgenda);
 
+        // creationCalldata 가져오기 (transaction이 있는 경우)
+        if (metadata?.transaction) {
+          try {
+            const calldata = await getTransactionData(metadata.transaction);
+            if (calldata) {
+              updatedAgenda.creationCalldata = calldata;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
+          }
+        }
+
         const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
         existingAgendas.set(agendaId, updatedAgenda);
         const newAgendas = Array.from(existingAgendas.values());
@@ -998,6 +1010,18 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
          transaction: metadata?.transaction,
          actions: metadata?.actions,
        };
+
+      // creationCalldata 가져오기 (transaction이 있는 경우)
+      if (metadata?.transaction) {
+        try {
+          const calldata = await getTransactionData(metadata.transaction);
+          if (calldata) {
+            updatedAgenda.creationCalldata = calldata;
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
+        }
+      }
 
       // 기존 아젠다 목록 업데이트
       setAgendas(prev => {
