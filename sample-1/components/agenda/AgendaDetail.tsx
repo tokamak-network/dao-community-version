@@ -46,7 +46,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [isCheckingVotes, setIsCheckingVotes] = useState(false)
 
   const { address } = useAccount()
-  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum } = useCombinedDAOContext()
   const chainId = useChainId();
 
   // agenda prop이 변경될 때 localAgenda 업데이트
@@ -54,9 +54,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     setLocalAgenda(agenda)
   }, [agenda])
 
-  // Calculate dynamic status
-  const currentStatus = calculateAgendaStatus(localAgenda, BigInt(Math.floor(Date.now() / 1000)))
-  const statusMessage = getStatusMessage(localAgenda, currentStatus)
+  // Calculate dynamic status (use quorum for consistency with list)
+  const currentStatus = calculateAgendaStatus(localAgenda, quorum ?? BigInt(2));
+  const statusMessage = getStatusMessage(localAgenda, currentStatus, quorum ?? BigInt(2));
 
   // Get candidate contract address
   const { data: candidateContractAddress } = useContractRead({
@@ -606,19 +606,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             <div className="flex items-center gap-4">
               <span className="text-gray-700 text-sm font-medium flex items-center gap-2">
                 <Zap className="h-4 w-4 mr-0.5" />
-                <span className="text-sm font-medium">
-                {!localAgenda.voters || localAgenda.voters.length === 0
-                  ? "Voting not started"
-                  : currentStatus === AgendaStatus.WAITING_EXEC &&
-                    Number(localAgenda.countingYes) <=
-                      Number(localAgenda.countingNo)
-                  ? "Proposal not approved"
-                  : currentStatus === AgendaStatus.ENDED &&
-                    Number(localAgenda.countingYes) <=
-                      Number(localAgenda.countingNo)
-                  ? "Proposal not approved"
-                  : statusMessage}
-                </span>
+                <span className="text-sm font-medium">{statusMessage}</span>
               </span>
               {renderActionButton()}
             </div>
@@ -742,7 +730,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             isLoading: isVoting,
           }}
           title="Cast Your Vote"
-          txHash={voteData ? voteData : null}
+          txHash={voteData ?? null as string | null}
           stepLabels={["Approve wallet", "Check blockchain", "Done"]}
           successMessage="Vote cast successfully!"
           errorMessage="Vote failed"

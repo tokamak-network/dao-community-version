@@ -1,9 +1,38 @@
 'use client'
 import { AgendaWithMetadata } from '@/types/agenda'
 import { formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, getAgendaResult, formatAddress } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+import { ethers } from 'ethers'
+import { DAO_COMMITTEE_PROXY_ADDRESS } from '@/config/contracts'
 
 interface AgendaInfoProps {
   agenda: AgendaWithMetadata
+}
+
+// v2.0.0 기준 currentStatus/result 텍스트 매핑
+const getCurrentResultText = (result: number) => {
+  const resultMap: { [key: number]: string } = {
+    0: 'PENDING',
+    1: 'ACCEPT',
+    2: 'REJECT',
+    3: 'DISMISS',
+    4: 'NO_CONSENSUS',
+    5: 'NO_AGENDA',
+  }
+  return resultMap[result] || `Unknown (${result})`
+}
+
+const getCurrentStatusText = (status: number) => {
+  const statusMap: { [key: number]: string } = {
+    0: 'NONE',
+    1: 'NOTICE',
+    2: 'VOTING',
+    3: 'WAITING_EXEC',
+    4: 'EXECUTED',
+    5: 'ENDED',
+    6: 'NO_AGENDA',
+  }
+  return statusMap[status] || `Unknown (${status})`
 }
 
 export default function AgendaInfo({ agenda }: AgendaInfoProps) {
@@ -12,10 +41,52 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
   const statusMessage = getStatusMessage(agenda, currentStatus)
   const agendaResult = getAgendaResult(agenda, currentStatus)
 
+  // v2.0.0 컨트랙트용 current status/result
+  const [contractVersion, setContractVersion] = useState<string | null>(null)
+  const [currentStatusData, setCurrentStatusData] = useState<{ currentResult: number; currentStatus: number } | null>(null)
+
+  useEffect(() => {
+    async function fetchCurrentStatus() {
+      try {
+        if (typeof window === 'undefined' || !(window as any).ethereum) return
+        const provider = new ethers.BrowserProvider((window as any).ethereum)
+        // 버전 확인
+        const daoContract = new ethers.Contract(
+          DAO_COMMITTEE_PROXY_ADDRESS,
+          ['function version() view returns (string)'],
+          provider
+        )
+        let version = 'legacy'
+        try {
+          version = await daoContract.version()
+        } catch {
+          version = 'legacy'
+        }
+        setContractVersion(version)
+        if (version === '2.0.0') {
+          // currentAgendaStatus 호출
+          const statusContract = new ethers.Contract(
+            DAO_COMMITTEE_PROXY_ADDRESS,
+            ['function currentAgendaStatus(uint256) external view returns (uint256 currentResult, uint256 currentStatus)'],
+            provider
+          )
+          const [currentResult, currentStatus] = await statusContract.currentAgendaStatus(agenda.id)
+          setCurrentStatusData({ currentResult: Number(currentResult), currentStatus: Number(currentStatus) })
+        }
+      } catch (e) {
+        setContractVersion('error')
+      }
+    }
+    fetchCurrentStatus()
+  }, [agenda.id])
+
   const openTransaction = (txHash: string) => {
     const explorerUrl = process.env.NEXT_PUBLIC_EXPLORER_URL || 'https://etherscan.io'
     window.open(`${explorerUrl}/tx/${txHash}`, '_blank')
   }
+
+  // Use a more user-friendly fallback for description
+  const description = agenda.description || "No description provided for this agenda.";
 
   return (
     <div className="space-y-2">
@@ -62,6 +133,24 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
         </span>
       </div>
 
+      {/* v2.0.0 Current Status/Result (moved below Agenda Result) */}
+      {contractVersion === '2.0.0' && currentStatusData && (
+        <div className="mb-2">
+          <div className="flex justify-between py-2">
+            <span className="text-gray-600 text-sm">Current Result</span>
+            <span className="text-gray-900 text-sm font-mono">
+              {getCurrentResultText(currentStatusData.currentResult)} ({currentStatusData.currentResult})
+            </span>
+          </div>
+          <div className="flex justify-between py-2">
+            <span className="text-gray-600 text-sm">Current Status</span>
+            <span className="text-gray-900 text-sm font-mono">
+              {getCurrentStatusText(currentStatusData.currentStatus)} ({currentStatusData.currentStatus})
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between py-2">
         <span className="text-gray-600 text-sm">Agenda Execution Time Limit</span>
         <span className="text-gray-900 text-sm">
@@ -69,7 +158,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
         </span>
       </div>
 
-            {agenda.executed && (
+      {agenda.executed && (
         <div className="flex justify-between py-2">
           <span className="text-gray-600 text-sm">Executed Time</span>
           <span className="text-gray-900 text-sm">
@@ -123,10 +212,8 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
       )}
 
       <div className="flex justify-between py-2">
-        <span className="text-gray-600 text-sm">Description</span>
-        <div className="text-gray-900 text-sm max-w-md text-right">
-          {agenda.description || 'No description available'}
-        </div>
+        <span className="text-gray-600 text-sm">Agenda Description</span>
+        <span className="text-gray-900 text-sm">{description}</span>
       </div>
     </div>
   )

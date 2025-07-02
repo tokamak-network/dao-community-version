@@ -367,7 +367,7 @@ export function createAgendaContextFunctions(
           id: agendaId,
           voters: Array.from(agendaData.voters),
           title: metadata?.title || existingAgenda?.title || `Agenda #${agendaId}`,
-          description: metadata?.description || existingAgenda?.description || `Agenda ${agendaId} from blockchain`,
+          description: metadata?.description || existingAgenda?.description || `-`,
           creator: {
             address: metadata ? getCreatorAddress(metadata.creator) : (existingAgenda?.creator?.address || "0x0000000000000000000000000000000000000000" as `0x${string}`),
             signature: metadata ? getCreatorSignature(metadata.creator) : existingAgenda?.creator?.signature,
@@ -512,7 +512,7 @@ export function createAgendaContextFunctions(
           signature: metadata ? getCreatorSignature(metadata.creator) : undefined,
         },
         title: metadata?.title || `Agenda #${agendaId}`,
-        description: metadata?.description || `Agenda ${agendaId} from blockchain`,
+        description: metadata?.description || `-`,
         snapshotUrl: metadata?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl,
         network: metadata?.network,
