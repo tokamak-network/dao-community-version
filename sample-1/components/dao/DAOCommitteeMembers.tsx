@@ -13,7 +13,8 @@ import { operatorManagerAbi } from "@/abis/operator-manager"
 import { layer2RegistryAbi } from "@/abis/layer2-registry"
 import { CONTRACTS } from "@/config/contracts"
 import { useDAOCandidate } from '@/hooks/useDAOCandidate'
-import { TransactionModal } from '@/components/TransactionModal'
+import { TransactionModal } from '@/components/ui/TransactionModal'
+import { TransactionState } from '@/utils/transaction-utils'
 import { getExplorerUrl } from '@/utils/explorer'
 
 export default function DAOCommitteeMembers() {
@@ -111,15 +112,39 @@ export default function DAOCommitteeMembers() {
 
   // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
   const canChallengeWith = (member: CommitteeMember) => {
+    console.log('🔍 canChallengeWith 호출:', {
+      memberName: member.name,
+      memberContract: member.candidateContract,
+      memberStaked: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+      myAddress: address,
+      hasLayer2Candidates: !!layer2Candidates,
+      layer2CandidatesLength: layer2Candidates?.length || 0,
+      hasCommitteeMembers: !!committeeMembers
+    });
+
     if (!address || !layer2Candidates || layer2Candidates.length === 0 || !committeeMembers) {
+      console.log('❌ canChallengeWith 조건 불충족:', {
+        hasAddress: !!address,
+        hasLayer2Candidates: !!layer2Candidates,
+        layer2CandidatesLength: layer2Candidates?.length || 0,
+        hasCommitteeMembers: !!committeeMembers
+      });
       return { canChallenge: false, myLayer2: null, myLayer2s: [] };
     }
 
+    console.log('🔍 내 Layer2 필터링 시작:', {
+      totalLayer2Candidates: layer2Candidates.length,
+      myAddress: address
+    });
+
     // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
     const myLayer2s = layer2Candidates.filter(candidate => {
+      console.log(`🔍 Layer2 검사 중: ${candidate.name} (${candidate.candidateContract})`);
+
       // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
       const currentTime = Math.floor(Date.now() / 1000);
       if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+        console.log(`⏰ ${candidate.name} 쿨다운 중: ${candidate.cooldown} > ${currentTime}`);
         return false;
       }
 
@@ -128,15 +153,37 @@ export default function DAOCommitteeMembers() {
         m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
       );
       if (isAlreadyMember) {
+        console.log(`🚫 ${candidate.name} 이미 위원회 멤버임`);
         return false;
       }
 
       // 3. 내가 operator나 manager인 Layer2인지 확인
-      return address && (
-        candidate.creationAddress.toLowerCase() === address.toLowerCase() ||
-        (candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase()) ||
-        (candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase())
-      );
+      const isOwner = candidate.creationAddress.toLowerCase() === address.toLowerCase();
+      const isOperator = candidate.operator && candidate.operator.toLowerCase() === address.toLowerCase();
+      const isManager = candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase();
+      const isMyLayer2 = isOwner || isOperator || isManager;
+
+      console.log(`🔍 소유권 확인 - ${candidate.name}:`, {
+        creationAddress: candidate.creationAddress,
+        operator: candidate.operator,
+        manager: candidate.manager,
+        isOwner,
+        isOperator,
+        isManager,
+        isMyLayer2
+      });
+
+      return isMyLayer2;
+    });
+
+    console.log('✅ 내 Layer2 필터링 결과:', {
+      totalLayer2Candidates: layer2Candidates.length,
+      myLayer2sCount: myLayer2s.length,
+      myLayer2s: myLayer2s.map(l => ({
+        name: l.name,
+        contract: l.candidateContract,
+        staked: (Number(l.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+      }))
     });
 
     // member.creationAddress 이 빈슬롯이면, 챌린지 가능
@@ -148,10 +195,37 @@ export default function DAOCommitteeMembers() {
       };
     }
 
+    console.log('💰 스테이킹 비교 시작:', {
+      memberName: member.name,
+      memberStaked: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+      myLayer2sCount: myLayer2s.length
+    });
+
     // 해당 멤버보다 스테이킹이 높은 내 Layer2들 찾기
-    const challengeableLayer2s = myLayer2s.filter(layer2 =>
-      BigInt(layer2.totalStaked) > BigInt(member.totalStaked)
-    );
+    const challengeableLayer2s = myLayer2s.filter(layer2 => {
+      const layer2Staked = BigInt(layer2.totalStaked);
+      const memberStaked = BigInt(member.totalStaked);
+      const isHigher = layer2Staked > memberStaked;
+
+      console.log(`💰 스테이킹 비교 - ${layer2.name}:`, {
+        layer2Staked: (Number(layer2Staked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+        memberStaked: (Number(memberStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+        difference: Number(layer2Staked - memberStaked) / 1e27,
+        isHigher
+      });
+
+      return isHigher;
+    });
+
+    console.log('✅ 스테이킹 비교 결과:', {
+      myLayer2sCount: myLayer2s.length,
+      challengeableLayer2sCount: challengeableLayer2s.length,
+      challengeableLayer2s: challengeableLayer2s.map(l => ({
+        name: l.name,
+        contract: l.candidateContract,
+        staked: (Number(l.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+      }))
+    });
 
     return {
       canChallenge: challengeableLayer2s.length > 0,
@@ -348,8 +422,15 @@ export default function DAOCommitteeMembers() {
         });
 
         if (challengers.length > 0) {
+          console.log(`🎯 멤버 ${member.name}에 대한 챌린저 분석 시작:`, {
+            totalChallengers: challengers.length,
+            myAddress: address
+          });
+
           // 내 Layer2가 이 멤버를 챌린지할 수 있는지 확인 (쿨다운 체크 포함)
-          const hasMyLayer2 = address ? challengers.some(challenger => {
+          const myChallengers = address ? challengers.filter(challenger => {
+            console.log(`🔍 내 Layer2 확인 중: ${challenger.name} (${challenger.candidateContract})`);
+
             // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
             const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
             if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
@@ -369,11 +450,29 @@ export default function DAOCommitteeMembers() {
               isOwner,
               isOperator,
               isManager,
-              isMyLayer2: isOwner || isOperator || isManager
+              isMyLayer2: isOwner || isOperator || isManager,
+              addressMatch: {
+                creationAddress: challenger.creationAddress.toLowerCase() === address.toLowerCase(),
+                operator: challenger.operator ? challenger.operator.toLowerCase() === address.toLowerCase() : false,
+                manager: challenger.manager ? challenger.manager.toLowerCase() === address.toLowerCase() : false
+              }
             });
 
             return isOwner || isOperator || isManager;
-          }) : false;
+          }) : [];
+
+          const hasMyLayer2 = myChallengers.length > 0;
+
+          console.log(`✅ 멤버 ${member.name}에 대한 내 Layer2 분석 결과:`, {
+            totalChallengers: challengers.length,
+            myChallengersCount: myChallengers.length,
+            hasMyLayer2,
+            myChallengers: myChallengers.map(c => ({
+              name: c.name,
+              contract: c.candidateContract,
+              staked: (Number(c.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+            }))
+          });
 
           const sortedChallengers = challengers.sort((a, b) =>
             Number(BigInt(b.totalStaked) - BigInt(a.totalStaked)) // 스테이킹 높은 순
@@ -1512,11 +1611,16 @@ export default function DAOCommitteeMembers() {
           setShowTransactionModal(false);
           resetDAOCandidate();
         }}
-        isExecuting={isDAOCandidateExecuting}
-        isSuccess={isDAOCandidateSuccess}
-        error={daoCandidateError}
-        txHash={txHash}
-        operation={lastOperation}
+        state={{
+          isExecuting: isDAOCandidateExecuting,
+          isSuccess: isDAOCandidateSuccess,
+          error: daoCandidateError,
+          txHash: txHash || null,
+          operation: lastOperation,
+        }}
+        title={lastOperation === 'changeMember' ? 'Member Challenge' : lastOperation === 'retireMember' ? 'Member Retire' : 'DAO Transaction'}
+        txHash={txHash || null}
+        explorerUrl={chainId === 1 ? 'https://etherscan.io' : chainId === 11155111 ? 'https://sepolia.etherscan.io' : 'https://etherscan.io'}
       />
     </div>
   )

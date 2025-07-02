@@ -2,6 +2,18 @@ import { useState } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { daoCandidateAbi } from '@/abis/dao-candidate';
 import { CommitteeMember } from '@/types/dao';
+import {
+  TransactionState,
+  TransactionError,
+  createInitialTransactionState,
+  createExecutingState,
+  createSuccessState,
+  createErrorState,
+  updateTransactionHash,
+  resetTransactionState,
+  logTransactionState,
+  logTransactionError
+} from '@/utils/transaction-utils';
 
 // Write 함수들을 위한 파라미터 인터페이스들
 export interface ChangeMemberParams {
@@ -41,19 +53,7 @@ export function useDAOCandidate() {
     hash,
   });
 
-  const [operationState, setOperationState] = useState<{
-    isExecuting: boolean;
-    error: string | null;
-    txHash: string | null;
-    isSuccess: boolean;
-    lastOperation: string | null;
-  }>({
-    isExecuting: false,
-    error: null,
-    txHash: null,
-    isSuccess: false,
-    lastOperation: null,
-  });
+  const [operationState, setOperationState] = useState<TransactionState>(createInitialTransactionState());
 
   // Write 함수들
   const changeMember = async (params: ChangeMemberParams) => {
@@ -63,13 +63,7 @@ export function useDAOCandidate() {
 
     console.log('🔄 changeMember 실행:', params);
 
-    setOperationState({
-      isExecuting: true,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: 'changeMember',
-    });
+    setOperationState(createExecutingState('changeMember'));
 
     try {
       await writeContract({
@@ -80,14 +74,10 @@ export function useDAOCandidate() {
       });
 
       console.log('✅ changeMember 트랜잭션 전송 완료');
-    } catch (err: any) {
+        } catch (err: any) {
       console.error('❌ changeMember 실행 실패:', err);
-      const errorMessage = err?.message || 'changeMember 실행 중 오류가 발생했습니다';
-      setOperationState(prev => ({
-        ...prev,
-        isExecuting: false,
-        error: errorMessage,
-      }));
+      logTransactionError(err, 'changeMember');
+      setOperationState(prev => createErrorState(prev, err));
       throw err;
     }
   };
@@ -99,13 +89,7 @@ export function useDAOCandidate() {
 
     console.log('🗳️ castVote 실행:', params);
 
-    setOperationState({
-      isExecuting: true,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: 'castVote',
-    });
+    setOperationState(createExecutingState('castVote'));
 
     try {
       await writeContract({
@@ -119,10 +103,26 @@ export function useDAOCandidate() {
     } catch (err: any) {
       console.error('❌ castVote 실행 실패:', err);
       const errorMessage = err?.message || 'castVote 실행 중 오류가 발생했습니다';
+
+      // 지갑 승인 취소 등 사용자 취소 에러는 간단한 메시지로 처리
+      const isUserCancelled =
+        err?.code === 4001 ||
+        errorMessage.includes("User denied") ||
+        errorMessage.includes("User rejected") ||
+        errorMessage.includes("User cancelled") ||
+        errorMessage.includes("user rejected") ||
+        errorMessage.includes("denied") ||
+        errorMessage.includes("rejected") ||
+        errorMessage.includes("cancelled");
+
+      const finalErrorMessage = isUserCancelled
+        ? "트랜잭션이 취소되었습니다"
+        : errorMessage;
+
       setOperationState(prev => ({
         ...prev,
         isExecuting: false,
-        error: errorMessage,
+        error: finalErrorMessage,
       }));
       throw err;
     }
@@ -135,13 +135,7 @@ export function useDAOCandidate() {
 
     console.log('💰 claimActivityReward 실행:', params);
 
-    setOperationState({
-      isExecuting: true,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: 'claimActivityReward',
-    });
+    setOperationState(createExecutingState('claimActivityReward'));
 
     try {
       await writeContract({
@@ -155,10 +149,26 @@ export function useDAOCandidate() {
     } catch (err: any) {
       console.error('❌ claimActivityReward 실행 실패:', err);
       const errorMessage = err?.message || 'claimActivityReward 실행 중 오류가 발생했습니다';
+
+      // 지갑 승인 취소 등 사용자 취소 에러는 간단한 메시지로 처리
+      const isUserCancelled =
+        err?.code === 4001 ||
+        errorMessage.includes("User denied") ||
+        errorMessage.includes("User rejected") ||
+        errorMessage.includes("User cancelled") ||
+        errorMessage.includes("user rejected") ||
+        errorMessage.includes("denied") ||
+        errorMessage.includes("rejected") ||
+        errorMessage.includes("cancelled");
+
+      const finalErrorMessage = isUserCancelled
+        ? "트랜잭션이 취소되었습니다"
+        : errorMessage;
+
       setOperationState(prev => ({
         ...prev,
         isExecuting: false,
-        error: errorMessage,
+        error: finalErrorMessage,
       }));
       throw err;
     }
@@ -171,13 +181,7 @@ export function useDAOCandidate() {
 
     console.log('👋 retireMember 실행:', params);
 
-    setOperationState({
-      isExecuting: true,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: 'retireMember',
-    });
+    setOperationState(createExecutingState('retireMember'));
 
     try {
       await writeContract({
@@ -207,13 +211,7 @@ export function useDAOCandidate() {
 
     console.log('⚡ updateSeigniorage 실행:', params);
 
-    setOperationState({
-      isExecuting: true,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: 'updateSeigniorage',
-    });
+    setOperationState(createExecutingState('updateSeigniorage'));
 
     try {
       await writeContract({
@@ -272,28 +270,20 @@ export function useDAOCandidate() {
 
   // 트랜잭션 상태 업데이트
   if (hash && !operationState.txHash) {
-    setOperationState(prev => ({
-      ...prev,
-      txHash: hash,
-    }));
+    setOperationState(prev => updateTransactionHash(prev, hash));
   }
 
   if (isSuccess && !operationState.isSuccess) {
-    setOperationState(prev => ({
-      ...prev,
-      isExecuting: false,
-      isSuccess: true,
-    }));
-    console.log(`🎉 ${operationState.lastOperation} 성공!`);
+    setOperationState(prev => createSuccessState(prev));
+    console.log(`🎉 ${operationState.operation} 성공!`);
   }
 
   if ((error || receiptError) && !operationState.error) {
-    const errorMessage = (error || receiptError)?.message || 'An error occurred while processing the transaction';
-    setOperationState(prev => ({
-      ...prev,
-      isExecuting: false,
-      error: errorMessage,
-    }));
+    const rawError = error || receiptError;
+    if (rawError) {
+      logTransactionError(rawError as TransactionError, 'useDAOCandidate');
+      setOperationState(prev => createErrorState(prev, rawError as TransactionError));
+    }
   }
 
   return {
@@ -315,15 +305,9 @@ export function useDAOCandidate() {
     isSuccess: operationState.isSuccess,
     error: operationState.error || error?.message || receiptError?.message,
     txHash: operationState.txHash,
-    lastOperation: operationState.lastOperation || null,
+    lastOperation: operationState.operation || null,
 
     // 유틸리티
-    reset: () => setOperationState({
-      isExecuting: false,
-      error: null,
-      txHash: null,
-      isSuccess: false,
-      lastOperation: null,
-    }),
+    reset: () => setOperationState(resetTransactionState()),
   };
 }
