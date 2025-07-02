@@ -208,14 +208,68 @@ export function createDAOContextFunctions(
     }
   };
 
-  /**
+      /**
    * 위원회 멤버 여부 확인
    */
   const isCommitteeMember = (address?: string): boolean => {
-    if (!address || !committeeMembers) return false;
-    return committeeMembers.some(member =>
-      member.creationAddress.toLowerCase() === address.toLowerCase()
-    );
+    console.log("🔍 isCommitteeMember 호출됨:", { address, committeeMembersLength: committeeMembers?.length });
+    if (!address || !committeeMembers) {
+      console.log("❌ isCommitteeMember: address 또는 committeeMembers가 없음");
+      return false;
+    }
+
+    const lowerCheckAddress = address.toLowerCase();
+
+    for (const member of committeeMembers) {
+      // creationAddress와 비교
+      if (member.creationAddress.toLowerCase() === lowerCheckAddress) {
+        console.log("✅ isCommitteeMember 결과: creation 주소로 멤버 발견", { address, member: member.name });
+        return true;
+      }
+
+      // manager 주소가 Zero 주소가 아니면 manager 주소와도 비교
+      if (member.manager &&
+          member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+          member.manager.toLowerCase() === lowerCheckAddress) {
+        console.log("✅ isCommitteeMember 결과: manager 주소로 멤버 발견", { address, member: member.name });
+        return true;
+      }
+    }
+
+    console.log("❌ isCommitteeMember 결과: 멤버가 아님", { address });
+    return false;
+  };
+
+  /**
+   * 위원회 멤버 정보 가져오기 (멤버 정보 포함)
+   */
+  const getCommitteeMemberInfo = (address?: string): { isMember: boolean; memberInfo?: CommitteeMember; ownershipType?: 'creation' | 'manager' } => {
+    console.log("🔍 getCommitteeMemberInfo 호출됨:", { address, committeeMembersLength: committeeMembers?.length });
+    if (!address || !committeeMembers) {
+      console.log("❌ getCommitteeMemberInfo: address 또는 committeeMembers가 없음");
+      return { isMember: false };
+    }
+
+    const lowerCheckAddress = address.toLowerCase();
+
+    for (const member of committeeMembers) {
+      // creationAddress와 비교
+      if (member.creationAddress.toLowerCase() === lowerCheckAddress) {
+        console.log("✅ getCommitteeMemberInfo 결과: creation 주소로 멤버 발견", { address, member: member.name });
+        return { isMember: true, memberInfo: member, ownershipType: 'creation' };
+      }
+
+      // manager 주소가 Zero 주소가 아니면 manager 주소와도 비교
+      if (member.manager &&
+          member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+          member.manager.toLowerCase() === lowerCheckAddress) {
+        console.log("✅ getCommitteeMemberInfo 결과: manager 주소로 멤버 발견", { address, member: member.name });
+        return { isMember: true, memberInfo: member, ownershipType: 'manager' };
+      }
+    }
+
+    console.log("❌ getCommitteeMemberInfo 결과: 멤버가 아님", { address });
+    return { isMember: false };
   };
 
   return {
@@ -226,6 +280,7 @@ export function createDAOContextFunctions(
     resetLayer2Cache,
     refreshCommitteeMembers,
     isCommitteeMember,
+    getCommitteeMemberInfo,
     // 유틸리티 함수들
     getLoadedStates: () => ({ loadedMaxMembers, loadedCommitteeMembers }),
     resetLoadedStates: () => {

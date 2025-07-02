@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { AgendaWithMetadata } from '@/types/agenda'
+import { CommitteeMember } from '@/types/dao'
 import { formatDateSimple, getStatusMessage, calculateAgendaStatus,
     getAgendaResult, formatAddress, getEtherscanUrl, AgendaStatus } from '@/lib/utils'
 import AgendaInfo from './AgendaInfo'
@@ -12,6 +13,7 @@ import {
   useContractRead,
   useContractWrite,
   useWaitForTransactionReceipt,
+  useChainId
 } from 'wagmi'
 
 import {
@@ -26,6 +28,8 @@ import { Copy, ExternalLink, Vote, Zap, MoreVertical, PlayCircle, RefreshCw} fro
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 import { toast } from "sonner";
+import { getExplorerUrl } from "@/utils/explorer";
+import { TransactionModal as CommonTransactionModal } from '@/components/ui/TransactionModal';
 
 interface AgendaDetailProps {
   agenda: AgendaWithMetadata
@@ -37,9 +41,13 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [showVoteModal, setShowVoteModal] = useState(false)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
   const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata>(agenda)
+  const [selectedMemberForVote, setSelectedMemberForVote] = useState<CommitteeMember | null>(null)
+  const [memberVoteInfos, setMemberVoteInfos] = useState<{ hasVoted: boolean }[]>([])
+  const [isCheckingVotes, setIsCheckingVotes] = useState(false)
 
   const { address } = useAccount()
-  const { isCommitteeMember, refreshAgenda, getAgenda, refreshAgendaWithoutCache } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos } = useCombinedDAOContext()
+  const chainId = useChainId();
 
   // agenda prop이 변경될 때 localAgenda 업데이트
   useEffect(() => {
@@ -295,13 +303,74 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
   // 🔬 TEST: isVoter 중복 정의 에러로 인한 임시 주석처리
   const isVoter = useMemo(() => {
+    console.log("isVoter", address, localAgenda.voters, isCommitteeMember(address as string))
     return address && (
       localAgenda.voters?.includes(address) ||
       isCommitteeMember(address as string)
     )
   }, [address, localAgenda.voters, isCommitteeMember])
 
-    const handleVote = (vote: number) => {
+  // 멤버 정보 가져오기
+  const memberInfo = useMemo(() => {
+    if (!address) return null;
+    return getCommitteeMemberInfo(address);
+  }, [address, getCommitteeMemberInfo])
+
+  // 사용자가 여러 멤버의 소유자인지 확인
+  const userMemberships = useMemo(() => {
+    if (!address || !committeeMembers) return [];
+
+    const memberships: { member: CommitteeMember; ownershipType: 'creation' | 'manager' }[] = [];
+
+    committeeMembers.forEach(member => {
+      const lowerAddress = address.toLowerCase();
+
+      // creationAddress와 비교
+      if (member.creationAddress.toLowerCase() === lowerAddress) {
+        memberships.push({ member, ownershipType: 'creation' });
+      }
+
+      // manager 주소와 비교
+      if (member.manager &&
+          member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
+          member.manager.toLowerCase() === lowerAddress) {
+        memberships.push({ member, ownershipType: 'manager' });
+      }
+    });
+
+    return memberships;
+  }, [address, committeeMembers]);
+
+  // 투표 모달이 열릴 때 각 멤버의 투표 여부를 가져옴
+  useEffect(() => {
+    if (!showVoteModal) return;
+    setIsCheckingVotes(true);
+    // userMemberships의 각 멤버의 creationAddress로 투표 여부 조회
+    const fetchVoted = async () => {
+      if (!userMemberships.length) {
+        setMemberVoteInfos([]);
+        setIsCheckingVotes(false);
+        return;
+      }
+      // 각 멤버의 creationAddress를 address 배열로 만듦
+      const addresses = userMemberships.map(m => m.member.creationAddress);
+      // getVoterInfos 호출 (agendaId, addresses)
+      const infos = await getVoterInfos(localAgenda.id, addresses);
+      setMemberVoteInfos(infos.map(i => ({ hasVoted: i.hasVoted })));
+      // 기본 선택: 아직 투표하지 않은 첫 번째 멤버
+      const firstAvailableIdx = infos.findIndex(i => !i.hasVoted);
+      if (firstAvailableIdx !== -1) {
+        setSelectedMemberForVote(userMemberships[firstAvailableIdx].member);
+      } else {
+        setSelectedMemberForVote(null);
+      }
+      setIsCheckingVotes(false);
+    };
+    fetchVoted();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showVoteModal, localAgenda.id, userMemberships.length]);
+
+  const handleVote = (vote: number) => {
     // Add wallet connection validation
     if (!address) {
       alert("Wallet not connected. Please connect your wallet first.")
@@ -311,7 +380,23 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       alert("Invalid wallet address. Please reconnect your wallet.")
       return
     }
-    if (!writeContract || !candidateContractAddress) {
+
+    // 멤버 선택 확인
+    let targetMember: CommitteeMember | null = null;
+    if (userMemberships.length === 1) {
+      targetMember = userMemberships[0].member;
+    } else if (userMemberships.length > 1) {
+      if (!selectedMemberForVote) {
+        alert("Please select a committee member to vote with.")
+        return
+      }
+      targetMember = selectedMemberForVote;
+    } else {
+      alert("You are not a committee member.")
+      return
+    }
+
+    if (!writeContract || !targetMember.candidateContract) {
       alert("Contract not available. Please try again.")
       return
     }
@@ -334,7 +419,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           outputs: [],
         },
       ],
-      address: candidateContractAddress as `0x${string}`,
+      address: targetMember.candidateContract as `0x${string}`,
       functionName: "castVote",
       args: [BigInt(localAgenda.id), BigInt(vote), voteComment],
     })
@@ -397,6 +482,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const renderActionButton = () => {
     switch (currentStatus) {
       case AgendaStatus.VOTING:
+        console.log("renderActionButton VOTING isVoter " , isVoter, hasVoted, isVoting )
         return (
           <div className="flex items-center gap-2">
             <button
@@ -406,7 +492,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
               disabled={!isVoter || isVoting || hasVoted}
-              onClick={() => setShowVoteModal(true)}
+              onClick={() => {
+                setShowVoteModal(true);
+              }}
             >
               <Vote className="h-4 w-4" />
               <span className="text-sm font-medium">
@@ -418,6 +506,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         );
 
       case AgendaStatus.WAITING_EXEC:
+        console.log("renderActionButton WAITING_EXEC")
         if (
           !agenda.executed &&
           Number(agenda.countingYes) > Number(agenda.countingNo)
@@ -438,6 +527,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         return renderDropdownMenu();
 
       default:
+        console.log("renderActionButton DEFAULT")
         return renderDropdownMenu();
     }
   };
@@ -535,6 +625,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           </div>
         </div>
 
+
+
         {/* Content */}
         <div className={activeTab === 'info' ? 'block' : 'hidden'}>
           <AgendaInfo agenda={localAgenda} />
@@ -552,40 +644,86 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-medium mb-4">Cast Your Vote</h3>
+            {/* 멤버 선택 (라디오 버튼, 이미 투표한 멤버는 disabled) */}
+            <div className="mb-4 flex flex-col gap-2">
+              {isCheckingVotes ? (
+                <div className="text-center text-gray-500 py-4">Checking available members...</div>
+              ) : (
+                userMemberships
+                  .slice()
+                  .map((membership, idx) => {
+                    const voted = memberVoteInfos[idx]?.hasVoted;
+                    return (
+                      <label
+                        key={`${membership.member.creationAddress}-${membership.ownershipType}`}
+                        className={`flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer transition-colors ${selectedMemberForVote?.creationAddress === membership.member.creationAddress && !voted ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'} ${voted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="vote-member"
+                          value={membership.member.creationAddress}
+                          checked={selectedMemberForVote?.creationAddress === membership.member.creationAddress && !voted}
+                          onChange={() => !voted && setSelectedMemberForVote(membership.member)}
+                          disabled={voted || isCheckingVotes}
+                          className="form-radio h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-gray-900 text-sm font-medium">{membership.member.name}</span>
+                        <a
+                          href={getExplorerUrl(membership.member.candidateContract || '', chainId ?? null)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-1 text-blue-500 hover:text-blue-700"
+                          title={membership.member.candidateContract}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <ExternalLink className="inline h-4 w-4 text-blue-500" />
+                        </a>
+                        {voted && (
+                          <span className="ml-2 text-xs text-red-500">Already Voted</span>
+                        )}
+                      </label>
+                    );
+                  })
+              )}
+            </div>
             <textarea
               className="w-full p-2 border rounded-md mb-4"
               placeholder="Add a comment (optional)"
               value={voteComment}
               onChange={(e) => setVoteComment(e.target.value)}
               rows={3}
+              disabled={isCheckingVotes}
             />
             <div className="flex gap-4">
               <button
-                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
                 onClick={() => handleVote(1)}
-                disabled={isVoting}
+                disabled={isVoting || !selectedMemberForVote || isCheckingVotes}
               >
                 For
               </button>
               <button
                 className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 disabled:opacity-50"
                 onClick={() => handleVote(2)}
-                disabled={isVoting}
+                disabled={isVoting || !selectedMemberForVote || isCheckingVotes}
               >
                 Against
               </button>
               <button
                 className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 disabled:opacity-50"
                 onClick={() => handleVote(0)}
-                disabled={isVoting}
+                disabled={isVoting || !selectedMemberForVote || isCheckingVotes}
               >
                 Abstain
               </button>
             </div>
             <button
               className="mt-4 w-full text-gray-600 hover:text-gray-800"
-              onClick={() => setShowVoteModal(false)}
-              disabled={isVoting}
+              onClick={() => {
+                setShowVoteModal(false);
+                setSelectedMemberForVote(null);
+              }}
+              disabled={isVoting || isCheckingVotes}
             >
               Cancel
             </button>
@@ -595,158 +733,21 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
       {/* Transaction Modal */}
       {showTransactionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                        {/* 에러 상태 */}
-            {isWriteError && writeError ? (
-              <>
-                <h3 className="text-lg font-medium mb-4 text-red-600">
-                  Transaction Failed
-                </h3>
-                <div className="flex flex-col items-center justify-center space-y-4">
-                  <div className="rounded-full h-12 w-12 bg-red-100 flex items-center justify-center">
-                    <span className="text-red-600 text-2xl">✕</span>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-gray-800 font-medium">
-                      {writeError?.message?.includes("User rejected") ||
-                       writeError?.message?.includes("denied") ||
-                       writeError?.message?.includes("rejected") ||
-                       writeError?.message?.includes("cancelled")
-                        ? "Transaction was cancelled by user"
-                        : "Transaction failed"}
-                    </p>
-                    <p className="text-gray-600 text-sm">
-                      {writeError?.message?.includes("User rejected") ||
-                       writeError?.message?.includes("denied") ||
-                       writeError?.message?.includes("rejected") ||
-                       writeError?.message?.includes("cancelled")
-                        ? "You cancelled the transaction in your wallet."
-                        : writeError?.message || "An unknown error occurred"}
-                    </p>
-                  </div>
-                  <button
-                    className="w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
-                    onClick={() => setShowTransactionModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            ) : isSuccess && (voteData || executeData) ? (
-              /* 성공 상태 */
-              <>
-                <h3 className="text-lg font-medium mb-4 text-green-600">
-                  Transaction Successful
-                </h3>
-                <div className="flex flex-col items-center justify-center space-y-4">
-                  <div className="rounded-full h-12 w-12 bg-green-100 flex items-center justify-center">
-                    <span className="text-green-600 text-2xl">✓</span>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-gray-800 font-medium">
-                      {voteData ? "Vote cast successfully!" : "Agenda executed successfully!"}
-                    </p>
-                    <p className="text-gray-600 text-sm">
-                      Your transaction has been confirmed on the blockchain.
-                    </p>
-                  </div>
-
-                  {(voteData || executeData) && (
-                    <div className="w-full space-y-3">
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Transaction Hash
-                        </p>
-                        <div className="flex items-center justify-between bg-white rounded-md p-2 border">
-                          <code className="text-sm text-gray-600 break-all">
-                            {voteData || executeData}
-                          </code>
-                          <button
-                            className="ml-2 text-gray-400 hover:text-gray-600 p-1"
-                            onClick={() => {
-                              navigator.clipboard.writeText((voteData || executeData) || "")
-                              alert("Transaction hash copied to clipboard!")
-                            }}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <a
-                        href={getEtherscanUrl((voteData || executeData) || "")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-md transition-colors"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          View on Etherscan
-                        </span>
-                      </a>
-                    </div>
-                  )}
-
-                  <button
-                    className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
-                    onClick={() => setShowTransactionModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* 로딩 상태 */
-              <>
-                <h3 className="text-lg font-medium mb-4">
-                  Transaction in Progress
-                </h3>
-                <div className="flex flex-col items-center justify-center space-y-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                  <p className="text-gray-600 text-center">
-                    Your vote is being processed on the blockchain...
-                  </p>
-                  {voteData && (
-                    <div className="w-full space-y-3">
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Transaction Hash
-                        </p>
-                        <div className="flex items-center justify-between bg-white rounded-md p-2 border">
-                          <code className="text-sm text-gray-600 break-all">
-                            {voteData}
-                          </code>
-                          <button
-                            className="ml-2 text-gray-400 hover:text-gray-600 p-1"
-                            onClick={() => {
-                              navigator.clipboard.writeText(voteData || "")
-                              alert("Transaction hash copied to clipboard!")
-                            }}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <a
-                        href={getEtherscanUrl(voteData || "")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-md transition-colors"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          View on Etherscan
-                        </span>
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <CommonTransactionModal
+          isOpen={showTransactionModal}
+          onClose={() => setShowTransactionModal(false)}
+          state={{
+            isSuccess,
+            error: waitError?.message || writeError?.message,
+            isLoading: isVoting,
+          }}
+          title="Cast Your Vote"
+          txHash={voteData ? voteData : null}
+          stepLabels={["Approve wallet", "Check blockchain", "Done"]}
+          successMessage="Vote cast successfully!"
+          errorMessage="Vote failed"
+          explorerUrl={getEtherscanUrl('' , chainId)}
+        />
       )}
     </div>
   )

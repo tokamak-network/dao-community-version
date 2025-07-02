@@ -1,4 +1,4 @@
-import { DAOContextType } from "./dao";
+import { DAOContextType, CommitteeMember } from "./dao";
 import { AgendaWithMetadata, AgendaCreatedEvent } from "./agenda";
 
 // 아젠다 컨텍스트에서 사용하던 타입들 (AgendaContext.tsx에서 가져옴)
@@ -52,6 +52,7 @@ export interface CombinedDAOContextType extends Omit<DAOContextType, keyof Overl
   // DAOContextType에서만 제공하는 고유 기능들
   isMember: boolean;
   isCommitteeMember: (address: string) => boolean;
+  getCommitteeMemberInfo: (address: string) => { isMember: boolean; memberInfo?: CommitteeMember; ownershipType?: 'creation' | 'manager' };
 
   // Committee Members 관련
   committeeMembers: DAOContextType['committeeMembers'];

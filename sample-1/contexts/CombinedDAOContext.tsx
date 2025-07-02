@@ -321,6 +321,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     // DAO 관련
     isMember,
     isCommitteeMember: daoFunctions.isCommitteeMember,
+    getCommitteeMemberInfo: daoFunctions.getCommitteeMemberInfo,
     committeeMembers,
     isLoadingMembers,
     membersError,

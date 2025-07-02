@@ -457,9 +457,11 @@ const DAOProvider = memo(function DAOProvider({ children }: { children: ReactNod
 
   // 위원회 멤버 체크 함수
   const isCommitteeMember = useCallback((checkAddress: string): boolean => {
+    console.log("isCommitteeMember", committeeMembers, checkAddress)
     if (!committeeMembers || !checkAddress) return false;
 
     return committeeMembers.some(member => {
+      console.log("isCommitteeMember member", member, checkAddress)
       const lowerCheckAddress = checkAddress.toLowerCase();
 
       // creationAddress와 비교

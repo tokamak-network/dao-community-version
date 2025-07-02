@@ -1,5 +1,8 @@
 import React from "react";
 import { formatTransactionError, TransactionState } from "@/utils/transaction-utils";
+import { ExternalLink } from "lucide-react";
+import { useChainId } from 'wagmi';
+import { getTransactionUrl } from '@/utils/explorer';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -27,6 +30,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   explorerUrl,
 }) => {
   if (!isOpen) return null;
+
+  const chainId = useChainId();
 
   // Determine current step
   let step = 0;
@@ -84,17 +89,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     if (!txHash) return null;
     const shortHash = txHash.slice(0, 6) + "..." + txHash.slice(-4);
     return (
-      <div className="flex items-center gap-2 bg-gray-100 rounded px-3 py-2 mt-2 mb-4">
-        <span className="font-mono text-sm text-blue-700 select-all">{shortHash}</span>
-        <button
-          className="text-gray-400 hover:text-gray-600"
-          onClick={() => navigator.clipboard.writeText(txHash)}
-          title="Copy hash"
-        >
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><rect x="3" y="3" width="13" height="13" rx="2"/></svg>
-        </button>
-        {explorerUrl && (
-          <a href={`${explorerUrl}/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-2 text-xs">View</a>
+      <div className="flex items-center justify-between bg-gray-100 rounded px-3 py-2 mt-2 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-blue-700 select-all">{shortHash}</span>
+          <button
+            className="text-gray-400 hover:text-gray-600"
+            onClick={() => navigator.clipboard.writeText(txHash)}
+            title="Copy hash"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><rect x="3" y="3" width="13" height="13" rx="2"/></svg>
+          </button>
+        </div>
+        {txHash && (
+          <a
+            href={getTransactionUrl(txHash, chainId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-700 ml-2"
+            title="View on Explorer"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
         )}
       </div>
     );
