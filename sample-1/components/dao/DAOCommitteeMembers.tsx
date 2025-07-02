@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { useAccount, useChainId } from 'wagmi'
-import { formatTONWithUnit, formatRelativeTime, formatDateTime } from '@/utils/format'
+import { formatTONWithUnit, formatRelativeTime, formatDateTime, formatTokenAmountWithUnit } from '@/utils/format'
 import { CheckChallengeButton } from '@/components/CheckChallengeButton'
 import { CommitteeMember, Candidate } from '@/types/dao'
 import { createRobustPublicClient, readContractWithRetry } from "@/lib/rpc-utils"
@@ -236,6 +236,11 @@ export default function DAOCommitteeMembers() {
       challengeProgressStep: challengeProgress.step
     });
 
+    console.log('🔍 상세 데이터 확인:', {
+      committeeMembers: committeeMembers?.map(m => ({ name: m.name, contract: m.candidateContract, staked: m.totalStaked })),
+      layer2Candidates: layer2Candidates?.map(c => ({ name: c.name, contract: c.candidateContract, staked: c.totalStaked }))
+    });
+
     if (!committeeMembers || committeeMembers.length === 0) {
       console.log('❌ 분석 조건 불충족: 위원회 멤버 없음');
       setChallengeProgress({
@@ -297,10 +302,20 @@ export default function DAOCommitteeMembers() {
         await new Promise(resolve => setTimeout(resolve, 50));
 
         // 이 멤버보다 스테이킹이 높은 Layer2들 찾기
+        console.log(`🔍 멤버 ${member.name} (${member.candidateContract}) 분석 시작:`, {
+          memberStaked: member.totalStaked,
+          memberStakedFormatted: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+        });
+
+        console.log(`📊 전체 Layer2 후보 수: ${layer2Candidates.length}`);
+
         const challengers = layer2Candidates.filter(candidate => {
+          console.log(`🔍 후보 검사 시작: ${candidate.name} (${candidate.candidateContract})`);
+
           // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
           const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
           if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
+            console.log(`⏰ ${candidate.name} 쿨다운 중: ${candidate.cooldown} > ${currentTime}`);
             return false;
           }
 
@@ -308,10 +323,28 @@ export default function DAOCommitteeMembers() {
           const isAlreadyMember = committeeMembers.some(
             m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
           );
-          if (isAlreadyMember) return false;
+          if (isAlreadyMember) {
+            console.log(`🚫 ${candidate.name} 이미 위원회 멤버임`);
+            return false;
+          }
 
           // 스테이킹 비교
-          return BigInt(candidate.totalStaked) > BigInt(member.totalStaked);
+          const candidateStaked = BigInt(candidate.totalStaked);
+          const memberStaked = BigInt(member.totalStaked);
+          const isHigherStaked = candidateStaked > memberStaked;
+
+          console.log(`💰 스테이킹 비교 - ${candidate.name} (${candidate.candidateContract}):`, {
+            candidateStaked: candidate.totalStaked,
+            candidateStakedFormatted: (Number(candidate.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+            memberStaked: member.totalStaked,
+            memberStakedFormatted: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+            difference: Number(candidateStaked - memberStaked) / 1e27,
+            differenceFormatted: (Number(candidateStaked - memberStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+            isHigherStaked,
+            comparison: `${candidateStaked} > ${memberStaked} = ${isHigherStaked}`
+          });
+
+          return isHigherStaked;
         });
 
         if (challengers.length > 0) {
@@ -320,19 +353,44 @@ export default function DAOCommitteeMembers() {
             // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
             const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
             if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
+              console.log(`⏰ 챌린저 ${challenger.name} (${challenger.candidateContract}) 쿨다운 중: ${challenger.cooldown} > ${currentTime}`);
               return false;
             }
 
-            return challenger.creationAddress.toLowerCase() === address.toLowerCase() ||
-              (challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase()) ||
-              (challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase());
+            const isOwner = challenger.creationAddress.toLowerCase() === address.toLowerCase();
+            const isOperator = challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase();
+            const isManager = challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase();
+
+            console.log(`🔍 레이어 오너 확인 - ${challenger.name} (${challenger.candidateContract}):`, {
+              myAddress: address,
+              creationAddress: challenger.creationAddress,
+              operator: challenger.operator,
+              manager: challenger.manager,
+              isOwner,
+              isOperator,
+              isManager,
+              isMyLayer2: isOwner || isOperator || isManager
+            });
+
+            return isOwner || isOperator || isManager;
           }) : false;
+
+          const sortedChallengers = challengers.sort((a, b) =>
+            Number(BigInt(b.totalStaked) - BigInt(a.totalStaked)) // 스테이킹 높은 순
+          );
+
+          console.log(`✅ 멤버 ${member.name} 분석 완료:`, {
+            challengersCount: challengers.length,
+            hasMyLayer2,
+            topChallenger: sortedChallengers[0] ? {
+              name: sortedChallengers[0].name,
+              staked: (Number(sortedChallengers[0].totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+            } : null
+          });
 
           memberChallengeMap.push({
             member,
-            challengers: challengers.sort((a, b) =>
-              Number(BigInt(b.totalStaked) - BigInt(a.totalStaked)) // 스테이킹 높은 순
-            ),
+            challengers: sortedChallengers,
             hasMyLayer2
           });
         }
@@ -344,6 +402,21 @@ export default function DAOCommitteeMembers() {
         if (!a.hasMyLayer2 && b.hasMyLayer2) return 1;
         // 도전자 수가 적은 멤버 (챌린지하기 쉬운) 순으로 정렬
         return a.challengers.length - b.challengers.length;
+      });
+
+      console.log(`🎯 최종 챌린지 분석 결과:`, {
+        totalMembers: committeeMembers.length,
+        challengeableMembers: memberChallengeMap.length,
+        myChallengeableMembers: memberChallengeMap.filter(m => m.hasMyLayer2).length,
+        memberDetails: memberChallengeMap.map(m => ({
+          memberName: m.member.name,
+          challengersCount: m.challengers.length,
+          hasMyLayer2: m.hasMyLayer2,
+          topChallenger: m.challengers[0] ? {
+            name: m.challengers[0].name,
+            staked: (Number(m.challengers[0].totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
+          } : null
+        }))
       });
 
       // 분석 완료 시간 저장
@@ -620,7 +693,7 @@ export default function DAOCommitteeMembers() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-900 text-xs font-normal font-['Inter']">Total Staked </span>
-                    <span className="text-slate-700 text-xs font-normal font-['Inter']">{formatTONWithUnit(member.totalStaked)}</span>
+                    <span className="text-slate-700 text-xs font-normal font-['Inter']">{formatTokenAmountWithUnit(member.totalStaked, 'TON', 27)}</span>
                   </div>
                   <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{member.name}</div>
                   <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">{member.description}</div>

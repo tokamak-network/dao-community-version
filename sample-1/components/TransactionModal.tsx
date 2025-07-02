@@ -76,7 +76,7 @@ export function TransactionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
+      <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         {/* 헤더 */}
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-gray-900">
@@ -126,9 +126,11 @@ export function TransactionModal({
               <div className="text-red-500 text-4xl mb-4">❌</div>
               <div className="space-y-2">
                 <p className="text-gray-800 font-medium">트랜잭션이 실패했습니다</p>
-                <p className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-                  {error}
-                </p>
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md max-h-32 overflow-y-auto">
+                  <p className="break-words leading-relaxed">
+                    {error}
+                  </p>
+                </div>
               </div>
             </div>
           )}
