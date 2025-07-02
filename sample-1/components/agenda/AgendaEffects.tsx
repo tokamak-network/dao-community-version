@@ -5,6 +5,7 @@ import { formatAddress } from '@/lib/utils'
 import { Interface } from 'ethers'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { TON_CONTRACT_ADDRESS, getCurrentChain } from '@/config/contracts'
+import { getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
 
 interface AgendaEffectsProps {
   agenda: AgendaWithMetadata
@@ -454,7 +455,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
           </div>
           <div className="text-center">
             <a
-              href={`https://github.com/tokamak-network/dao-agenda-metadata-repository/tree/main/data/agendas/${getCurrentChain().name.toLowerCase()}`}
+              href={getAgendaMetadataRepoFolderUrl(getCurrentChain().name.toLowerCase())}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm"

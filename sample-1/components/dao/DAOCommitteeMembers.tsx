@@ -838,29 +838,15 @@ export default function DAOCommitteeMembers() {
                     if (canChallenge && myLayer2 && myLayer2s) {
                       return (
                         <div
-                          className="px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
+                          className="min-w-[110px] px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
                           style={{backgroundColor: '#2A72E5'}}
                           onClick={() => {
-                            // 여러 Layer2가 있으면 선택 모달 표시
                             if (myLayer2s.length > 1) {
-                              console.log('🎯 여러 Layer2 감지, 선택 모달 표시:', {
-                                availableLayer2s: myLayer2s.map(l => l.name),
-                                targetMember: member.name
-                              });
                               setSelectedMemberForChallenge(member);
                               setAvailableLayer2s(myLayer2s);
-                              setSelectedLayer2Index(0); // 첫 번째 옵션을 기본 선택
+                              setSelectedLayer2Index(0);
                               setShowLayer2SelectModal(true);
                             } else {
-                              // 1개만 있으면 바로 실행
-                              console.log('🚀 단일 Layer2로 바로 챌린지 실행!', {
-                                challenger: myLayer2.name,
-                                target: member.name,
-                                myStaking: myLayer2.totalStaked,
-                                targetStaking: member.totalStaked,
-                                myAddress: address,
-                                canExecute: true
-                              });
                               handleChallenge(member);
                             }
                           }}
@@ -881,40 +867,15 @@ export default function DAOCommitteeMembers() {
 
                   {/* Creator 또는 Manager인 경우에만 표시되는 버튼들 */}
                   {isOwnMember(member) && (
-                    <>
-                      <div
-                        className="px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
-                        style={{backgroundColor: '#DC2626'}}
-                        onClick={() => handleRetireMember(member)}
-                      >
-                        <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
-                          Retire
-                        </div>
+                    <div
+                      className="min-w-[110px] px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer border border-red-500 bg-white"
+                      style={{}}
+                      onClick={() => handleRetireMember(member)}
+                    >
+                      <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#DC2626'}}>
+                        Retire
                       </div>
-
-                      {/* Claim Reward 버튼: 항상 표시, claimableActivityReward에 따라 활성화/비활성화 */}
-                      <div
-                        className={`px-4 py-1 rounded-md inline-flex justify-center items-center ${
-                          member.claimableActivityReward && Number(member.claimableActivityReward) > 0
-                            ? 'cursor-pointer'
-                            : 'cursor-not-allowed opacity-50'
-                        }`}
-                        style={{
-                          backgroundColor: member.claimableActivityReward && Number(member.claimableActivityReward) > 0
-                            ? '#059669'  // 활성화: 초록색
-                            : '#9CA3AF'  // 비활성화: 회색
-                        }}
-                        onClick={() => {
-                          if (member.claimableActivityReward && Number(member.claimableActivityReward) > 0) {
-                            handleClaimActivityReward(member);
-                          }
-                        }}
-                      >
-                                                <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
-                          Claim Reward
-                        </div>
-                      </div>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -927,7 +888,6 @@ export default function DAOCommitteeMembers() {
                       <label className="text-sm font-medium text-gray-600">Name</label>
                       <p className="text-sm text-gray-900 text-right">{member.name}</p>
                     </div>
-
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Address</label>
                       <a
@@ -940,7 +900,6 @@ export default function DAOCommitteeMembers() {
                         {member.creationAddress}
                       </a>
                     </div>
-
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Contract</label>
                       <a
@@ -953,18 +912,10 @@ export default function DAOCommitteeMembers() {
                         {member.candidateContract}
                       </a>
                     </div>
-
                     <div className="flex justify-between">
                       <label className="text-sm font-medium text-gray-600">Total Staked</label>
                       <p className="text-sm text-gray-900 font-medium text-right">
                         {formatTONWithUnit(member.totalStaked)}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <label className="text-sm font-medium text-gray-600">Claimable Activity Reward</label>
-                      <p className="text-sm text-gray-900 font-medium text-right">
-                        {member.claimableActivityReward ? formatTONWithUnit(member.claimableActivityReward) : "Not available"}
                       </p>
                     </div>
 
@@ -976,6 +927,35 @@ export default function DAOCommitteeMembers() {
                         </p>
                       </div>
                     </div>
+
+                    <div className="flex justify-between">
+                      <label className="text-sm font-medium text-gray-600">Claimable Activity Reward</label>
+                      <div className="text-sm text-gray-900 font-medium text-right flex items-center gap-2">
+                        {member.claimableActivityReward ? formatTONWithUnit(member.claimableActivityReward) : "Not available"}
+
+                          {/* Claim Reward 버튼: 상세 하단에 작고 색상 변경하여 배치 */}
+                          {isOwnMember(member) && (
+                            <div className="flex items-center gap-2">
+                          <button
+                            className={`px-3 py-1 rounded text-md font-semibold transition-colors
+                              ${member.claimableActivityReward && Number(member.claimableActivityReward) > 0
+                                ? 'bg-blue-600 text-white hover:bg-blue-500'
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                            disabled={!(member.claimableActivityReward && Number(member.claimableActivityReward) > 0)}
+                            onClick={() => {
+                              if (member.claimableActivityReward && Number(member.claimableActivityReward) > 0) {
+                                handleClaimActivityReward(member);
+                              }
+                            }}
+                          >
+                          Claim Reward
+                        </button>
+                        </div>
+                        )}
+
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               )}
@@ -1459,7 +1439,7 @@ export default function DAOCommitteeMembers() {
 
                   <div className="mt-6 pt-4 border-t border-gray-100">
                     <p className="text-xs text-gray-500 text-center">
-                      📊 Results based on on-chain data collected at {(analysisCompletedTime || new Date()).toLocaleTimeString('en-US', {
+                      📊 Results based on on-chain data collected at {(analysisCompletedTime ? analysisCompletedTime : new Date()).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true
@@ -1615,11 +1595,11 @@ export default function DAOCommitteeMembers() {
           isExecuting: isDAOCandidateExecuting,
           isSuccess: isDAOCandidateSuccess,
           error: daoCandidateError,
-          txHash: txHash || null,
+          txHash: txHash ? txHash : null,
           operation: lastOperation,
         }}
         title={lastOperation === 'changeMember' ? 'Member Challenge' : lastOperation === 'retireMember' ? 'Member Retire' : 'DAO Transaction'}
-        txHash={txHash || null}
+        txHash={txHash ? txHash : null}
         explorerUrl={chainId === 1 ? 'https://etherscan.io' : chainId === 11155111 ? 'https://sepolia.etherscan.io' : 'https://etherscan.io'}
       />
     </div>

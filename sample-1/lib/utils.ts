@@ -577,3 +577,7 @@ export function normalizeParameterValue(value: string, type: string): string {
   }
   return value;
 }
+
+export function getAgendaMetadataRepoFolderUrl(network: string = "mainnet"): string {
+  return `https://github.com/tokamak-network/dao-agenda-metadata-repository/tree/main/data/agendas/${network}`;
+}

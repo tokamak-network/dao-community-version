@@ -2,15 +2,16 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
-import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus } from '@/lib/utils'
+import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus, getNetworkName, getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
 
 export default function AgendaList() {
   const router = useRouter()
   const { isConnected } = useAccount();
   const { agendas, isLoading, error, refreshAgendas, statusMessage, quorum } = useCombinedDAOContext();
+  const chainId = useChainId();
 
   const handleNewProposalClick = () => {
     router.push('/agendas/new');
@@ -73,12 +74,17 @@ export default function AgendaList() {
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-6">
           <h1 className="text-2xl font-normal text-zinc-900 font-['Inter']">Agenda</h1>
-          <Link
-            href="/agenda"
-            className="text-blue-600 text-sm hover:text-blue-700 underline"
+          <button
+            className="text-gray-600 text-sm hover:text-gray-700 underline border border-gray-200 rounded px-3 py-1 font-semibold bg-white"
+            style={{ boxShadow: '0 0 0 1px #e5e7eb' }}
+            onClick={() => {
+              const network = getNetworkName(chainId);
+              const url = getAgendaMetadataRepoFolderUrl(network);
+              window.open(url, '_blank');
+            }}
           >
             Go to entire agendas
-          </Link>
+          </button>
         </div>
 
         <button
