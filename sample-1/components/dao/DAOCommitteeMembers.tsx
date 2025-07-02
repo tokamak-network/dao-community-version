@@ -568,20 +568,19 @@ export default function DAOCommitteeMembers() {
             </div>
           </div>
 
-          {/* Check the challenge 버튼 */}
-          {!isMember && (
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleGlobalChallengeCheck}
-                // disabled={isCheckingGlobal}
-                className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
-                Check the challenge
-                </div>
-              </button>
-            </div>
-          )}
+          {/* Check the challenge 버튼 - 모든 사용자에게 표시 */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleGlobalChallengeCheck}
+              // disabled={isCheckingGlobal}
+              className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isMember ? "Analyze challenge status as committee member" : "Check challenge opportunities"}
+            >
+              <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
+              {isMember ? "Analyze Challenges" : "Check the challenge"}
+              </div>
+            </button>
+          </div>
         </div>
 
       </div>

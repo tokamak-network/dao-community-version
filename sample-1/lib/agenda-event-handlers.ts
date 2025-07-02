@@ -1,5 +1,3 @@
-
-
 /**
  * Agenda 이벤트 핸들러 함수들
  */
@@ -12,7 +10,7 @@ export type AgendaCreatedHandler = (data: {
     from: string;
     noticePeriod: bigint;
     votingPeriod: bigint;
-  }) => void;
+  }) => Promise<void>;
 
   /**
    * Agenda 투표 이벤트 핸들러 타입
@@ -22,7 +20,7 @@ export type AgendaCreatedHandler = (data: {
     from: string;
     isSupport: number;
     stake: bigint;
-  }) => void;
+  }) => Promise<void>;
 
   /**
    * Agenda 실행 이벤트 핸들러 타입
@@ -30,15 +28,26 @@ export type AgendaCreatedHandler = (data: {
   export type AgendaExecutedHandler = (data: {
     id: bigint;
     from: string;
-  }) => void;
+  }) => Promise<void>;
+
+  /**
+   * 커스텀 이벤트 디스패치 함수
+   */
+  const dispatchCustomEvent = (eventName: string, detail: any) => {
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent(eventName, { detail });
+      window.dispatchEvent(event);
+      console.log(`🎯 Custom event dispatched: ${eventName}`, detail);
+    }
+  };
 
   /**
    * Agenda 생성 이벤트 핸들러 생성 함수
    */
   export const createAgendaCreatedHandler = (
-    updateAgendaData: (agendaId: number, shouldSort: boolean) => void
+    updateAgendaData: (agendaId: number, shouldSort: boolean) => Promise<void>
   ): AgendaCreatedHandler => {
-    return (data) => {
+    return async (data) => {
       const agendaId = Number(data.id);
       console.log('🎉 [AGENDA CREATED] New agenda created:', {
         agendaId,
@@ -49,7 +58,7 @@ export type AgendaCreatedHandler = (data: {
       });
 
       console.log(`📋 Processing new agenda ID: ${agendaId}`);
-      updateAgendaData(agendaId, true); // shouldSort = true for new agendas
+      await updateAgendaData(agendaId, true); // shouldSort = true for new agendas
     };
   };
 
@@ -57,9 +66,9 @@ export type AgendaCreatedHandler = (data: {
    * Agenda 투표 이벤트 핸들러 생성 함수
    */
   export const createAgendaVoteCastedHandler = (
-    updateAgendaData: (agendaId: number, shouldSort: boolean) => void
+    updateAgendaData: (agendaId: number, shouldSort: boolean) => Promise<void>
   ): AgendaVoteCastedHandler => {
-    return (data) => {
+    return async (data) => {
       const agendaId = Number(data.id);
       console.log('🗳️ [VOTE CASTED] New vote casted:', {
         agendaId,
@@ -70,7 +79,10 @@ export type AgendaCreatedHandler = (data: {
       });
 
       console.log(`🗳️ Processing vote for agenda ID: ${agendaId}`);
-      updateAgendaData(agendaId, false); // shouldSort = false for vote updates
+      await updateAgendaData(agendaId, false); // shouldSort = false for vote updates
+
+      // 커스텀 이벤트 디스패치
+      dispatchCustomEvent('agendaVoteUpdated', { agendaId });
     };
   };
 
@@ -78,9 +90,9 @@ export type AgendaCreatedHandler = (data: {
    * Agenda 실행 이벤트 핸들러 생성 함수
    */
   export const createAgendaExecutedHandler = (
-    updateAgendaData: (agendaId: number, shouldSort: boolean) => void
+    updateAgendaData: (agendaId: number, shouldSort: boolean) => Promise<void>
   ): AgendaExecutedHandler => {
-    return (data) => {
+    return async (data) => {
       const agendaId = Number(data.id);
       console.log('⚡ [AGENDA EXECUTED] Agenda executed:', {
         agendaId,
@@ -89,6 +101,9 @@ export type AgendaCreatedHandler = (data: {
       });
 
       console.log(`⚡ Processing executed agenda ID: ${agendaId}`);
-      updateAgendaData(agendaId, false); // shouldSort = false for execution updates
+      await updateAgendaData(agendaId, false); // shouldSort = false for execution updates
+
+      // 커스텀 이벤트 디스패치
+      dispatchCustomEvent('agendaExecuted', { agendaId });
     };
   };

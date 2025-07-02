@@ -157,7 +157,8 @@ export default function AgendaList() {
         </div>
       )}
 
-      {/* Load More */}
+      {/* Load More - 숨김 처리 */}
+      {/*
       {!isLoading && displayAgendas.length > 0 && (
         <div className="flex justify-center mt-8">
           <Link
@@ -168,6 +169,7 @@ export default function AgendaList() {
           </Link>
         </div>
       )}
+      */}
     </div>
   )
 }

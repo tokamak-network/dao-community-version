@@ -283,6 +283,31 @@ export function getNetworkName(chainId: number): string {
   }
 }
 
+export function getEtherscanUrl(hash: string, chainId?: number): string {
+  const currentChainId = chainId || Number(process.env.NEXT_PUBLIC_CHAIN_ID) || 11155111;
+
+  switch (currentChainId) {
+    case 1:
+      return `https://etherscan.io/tx/${hash}`;
+    case 137:
+      return `https://polygonscan.com/tx/${hash}`;
+    case 56:
+      return `https://bscscan.com/tx/${hash}`;
+    case 42161:
+      return `https://arbiscan.io/tx/${hash}`;
+    case 10:
+      return `https://optimistic.etherscan.io/tx/${hash}`;
+    case 100:
+      return `https://gnosisscan.io/tx/${hash}`;
+    case 1101:
+      return `https://zkevm.polygonscan.com/tx/${hash}`;
+    case 11155111:
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+    default:
+      return `https://sepolia.etherscan.io/tx/${hash}`;
+  }
+}
+
 export function getMetadataUrl(
   agendaId: number,
   network: string = "mainnet"

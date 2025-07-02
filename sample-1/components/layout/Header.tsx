@@ -25,12 +25,20 @@ export default function Header() {
     }
   }, [connectError])
 
-  // 계정 변경 감지
+  // 계정 변경 감지 및 상태 디버깅
   useEffect(() => {
+    console.log('🔍 Header wallet state:', {
+      isMounted,
+      isConnected,
+      address,
+      hasAddress: !!address,
+      connectors: connectors.length
+    })
+
     if (address) {
       console.log('Account changed to:', address)
     }
-  }, [address])
+  }, [address, isConnected, isMounted, connectors.length])
 
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
@@ -38,15 +46,14 @@ export default function Header() {
   const handleConnect = async () => {
     console.log('Connect wallet clicked')
     console.log('Current connection status:', { isConnected, address })
-    console.log('Available connectors:', connectors.map(c => ({ type: c.type, name: c.name, id: c.id })))
 
-    // 이미 연결되어 있다면 먼저 연결 해제
-    if (isConnected) {
-      console.log('Already connected, disconnecting first...')
-      disconnect()
-      // 연결 해제 후 잠시 대기
-      await new Promise(resolve => setTimeout(resolve, 500))
+    // 이미 연결되어 있다면 연결 시도하지 않음
+    if (isConnected && address) {
+      console.log('Wallet already connected:', address)
+      return
     }
+
+    console.log('Available connectors:', connectors.map(c => ({ type: c.type, name: c.name, id: c.id })))
 
     // MetaMask connector 찾기 (injected connector)
     const injectedConnector = connectors.find(connector => connector.type === 'injected')
@@ -59,14 +66,16 @@ export default function Header() {
         console.log('Connect function called successfully')
       } catch (error) {
         console.error('Connection failed:', error)
-        // ConnectorAlreadyConnectedError인 경우 무시
+        // ConnectorAlreadyConnectedError인 경우 상태 새로고침
         if (error instanceof Error && error.message.includes('ConnectorAlreadyConnectedError')) {
-          console.log('Connector already connected, ignoring error')
+          console.log('Connector already connected - this should not happen if UI state is correct')
+          // 상태 불일치 감지 - 페이지 새로고침 권장
+          alert('Wallet connection state mismatch detected. Please refresh the page.')
         }
       }
     } else {
-      console.error('No injected connector found')
-      console.log('All available connectors:', connectors)
+      console.error('No injected connector found - please install MetaMask or another Web3 wallet')
+      alert('No Web3 wallet detected. Please install MetaMask or another compatible wallet.')
     }
   }
 
@@ -137,9 +146,11 @@ export default function Header() {
         </nav>
 
         {/* Wallet - Right - Hydration Safe */}
-        {!isMounted ? (
-          // 서버 사이드와 클라이언트 초기 렌더링 시 같은 컨텐츠 표시
-          <div className="w-32 h-10 bg-gray-100 rounded-md animate-pulse"></div>
+        {!isMounted || isPending ? (
+          // 마운트 중이거나 연결 중일 때 로딩 표시
+          <div className="w-32 h-10 bg-gray-100 rounded-md animate-pulse flex items-center justify-center">
+            <span className="text-xs text-gray-500">Loading...</span>
+          </div>
         ) : isConnected && address ? (
           <div className="relative" ref={dropdownRef}>
             <div
