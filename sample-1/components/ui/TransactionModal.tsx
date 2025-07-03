@@ -140,7 +140,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         {/* 헤더 */}
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          {(state.isSuccess || state.error) && (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          )}
         </div>
         {/* 상태별 내용 */}
         {renderStatus()}
