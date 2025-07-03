@@ -47,7 +47,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [txType, setTxType] = useState<"vote" | "execute" | null>(null)
 
   const { address } = useAccount()
-  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda } = useCombinedDAOContext()
   const chainId = useChainId();
 
   // agenda prop이 변경될 때 localAgenda 업데이트
@@ -403,7 +403,10 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const handleRefresh = async () => {
     const updatedAgenda = await refreshAgendaWithoutCache(localAgenda.id);
     if (updatedAgenda) {
-      setLocalAgenda(updatedAgenda)
+      setLocalAgenda(updatedAgenda);
+      if (upsertAgenda) {
+        upsertAgenda(updatedAgenda);
+      }
     }
   }
 

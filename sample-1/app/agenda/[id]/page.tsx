@@ -23,7 +23,7 @@ export default function AgendaDetailPage() {
     try {
       const agenda = await getAgenda(agendaId)
       if (agenda) {
-        console.log('Agenda from context:', agenda)
+        // console.log('Agenda from context:', agenda)
 
         // If agenda has transaction but no creation calldata, fetch it
         if (agenda.transaction && !agenda.creationCalldata) {

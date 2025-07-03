@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAccount, useChainId } from 'wagmi'
@@ -7,55 +7,44 @@ import PageHeader from '@/components/ui/PageHeader'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus, getNetworkName, getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
 import { chain } from '@/config/chain'
-import { AgendaPagination, PaginationCallbacks } from '@/lib/agenda-pagination'
 
 export default function AgendaList() {
   const router = useRouter()
   const { isConnected } = useAccount();
-  const {
-    error,
-    refreshAgendas,
-    statusMessage,
-    quorum,
-    paginationState,
-    paginationStatus,
-    loadToPage,
-    loadNextPage,
-    hasMore,
-    getRemainingCount
-  } = useCombinedDAOContext();
+  const { agendas, isLoading, error, refreshAgendas, statusMessage, quorum } = useCombinedDAOContext();
   const chainId = useChainId();
 
-  // 현재 페이지에 보여줄 아젠다 목록
-  const displayAgendas = paginationState?.agendas || [];
-  const isLoading = paginationState?.isLoading;
-  const hasMoreAgendas = hasMore ? hasMore() : false;
-  const remainingAgendas = getRemainingCount ? getRemainingCount() : 0;
-
-  // "View more" 버튼 클릭 시 다음 페이지 로드
-  const handleLoadMore = () => {
-    if (loadNextPage) loadNextPage();
-  };
-
-  // // 디버깅: 실제 렌더링되는 아젠다 개수 및 상태 확인
-  // console.log('displayAgendas.length', displayAgendas.length, displayAgendas.map((a: any) => a.id));
-  // console.log('paginationState', paginationState);
-  // console.log('paginationStatus', paginationStatus);
-  // console.log('error', error, 'statusMessage', statusMessage, 'quorum', quorum);
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10); // 한 페이지당 10개
 
   const handleNewProposalClick = () => {
     router.push('/agendas/new');
   };
 
+  // 페이지네이션 계산
+  const totalAgendas = agendas.length;
+  const totalPages = Math.ceil(totalAgendas / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPageAgendas = agendas.slice(startIndex, endIndex);
+  const remainingAgendas = totalAgendas - (currentPage * pageSize);
+  const hasMoreAgendas = remainingAgendas > 0;
+
+  // Load More 핸들러
+  const handleLoadMore = () => {
+    setCurrentPage(prev => prev + 1);
+  };
+
   // Memoized agenda formatting for performance
-  const displayAgendasMemo = useMemo(() => {
-    return displayAgendas.map((agenda: any) => {
+  const displayAgendas = useMemo(() => {
+    return currentPageAgendas.map((agenda: any) => {
       const currentStatus = calculateAgendaStatus(agenda, quorum ?? BigInt(2));
       const statusMessage = getStatusMessage(agenda, currentStatus, quorum ?? BigInt(2));
 
       return {
-        id: agenda.id,
-        title: agenda.title && agenda.title.trim() !== '' ? agenda.title : `Agenda #${agenda.id}`,
+        id: `#${agenda.id}`,
+        title: agenda.title || `Agenda #${agenda.id}`,
         author: agenda.creator?.address ? formatAddress(agenda.creator.address) : 'Unknown',
         date: agenda.createdTimestamp ? new Date(Number(agenda.createdTimestamp) * 1000).toLocaleDateString() : 'Unknown',
         status: getStatusText(currentStatus),
@@ -67,7 +56,7 @@ export default function AgendaList() {
         isApproved: Number(agenda.countingYes) > Number(agenda.countingNo)
       };
     });
-  }, [displayAgendas, quorum]);
+  }, [currentPageAgendas, quorum]);
 
   // Show error state
   if (error) {
@@ -132,7 +121,7 @@ export default function AgendaList() {
             <p className="text-gray-400 text-sm mt-2">Check back later for new proposals</p>
           </div>
         ) : (
-          displayAgendasMemo.map((agenda: any) => (
+          displayAgendas.map((agenda: any) => (
           <div key={agenda.id} className="bg-white border border-gray-200 rounded-lg p-6">
 
             {/* Member Header */}
@@ -161,7 +150,7 @@ export default function AgendaList() {
             {/* Buttons at bottom */}
             <div className="flex justify-between items-center">
               <Link
-                href={`/agenda/${agenda.id}`}
+                href={`/agenda/${agenda.id.replace('#', '')}`}
                 data-size="Small"
                 data-state="Default"
                 data-type="Primary"

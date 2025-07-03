@@ -4,7 +4,9 @@
 import { createPublicClient, http } from 'viem';
 import { chain } from '@/config/chain';
 import { CONTRACTS } from '@/config/contracts';
+import { DAO_ABI } from '@/abis/dao';
 import { daoAgendaManagerAbi } from '@/abis/dao-agenda-manager';
+import { daoCommitteeAbi } from '@/abis/dao-committee-versions';
 import type {
   AgendaCreatedHandler,
   AgendaVoteCastedHandler,
@@ -44,8 +46,6 @@ export const setupAgendaEventMonitoring = (
     ),
   });
 
-  // console.log("[setupAgendaEventMonitoring] Public client created");
-
   // AgendaCreated 이벤트 모니터링 설정
   const unwatchAgendaCreated = setupAgendaCreatedWatcher(publicClient, handleAgendaCreated);
 
@@ -55,22 +55,16 @@ export const setupAgendaEventMonitoring = (
   // AgendaExecuted 이벤트 모니터링 설정
   const unwatchAgendaExecuted = setupAgendaExecutedWatcher(publicClient, handleAgendaExecuted);
 
-  // console.log('🎯 모든 아젠다 이벤트 워처 설정 완료', {
-  //   timestamp: new Date().toISOString(),
-  //   watchers: ['AgendaCreated', 'AgendaVoteCasted', 'AgendaExecuted']
-  // });
-
   // 정리 함수 반환
   return () => {
-    // console.log('🔌 아젠다 이벤트 워처들 정리 중...', {
-    //   timestamp: new Date().toISOString()
-    // });
+    console.log('🔌 아젠다 이벤트 워처들 정리 중...', {
+      timestamp: new Date().toISOString()
+    });
 
     unwatchAgendaCreated();
     unwatchAgendaVoteCasted();
     unwatchAgendaExecuted();
 
-    // console.log('✅ 모든 아젠다 이벤트 워처 정리 완료');
   };
 };
 
@@ -78,35 +72,26 @@ export const setupAgendaEventMonitoring = (
  * AgendaCreated 이벤트 워처 설정
  */
 const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: AgendaCreatedHandler) => {
-  // console.log("[setupAgendaCreatedWatcher] Setting up AgendaCreated event watcher");
 
-  const unwatchAgendaCreated = publicClient.watchEvent({
-    address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
-    event: {
-      type: 'event',
-      name: 'AgendaCreated',
-      inputs: [
-        { name: 'id', type: 'uint256', indexed: true },
-        { name: 'from', type: 'address', indexed: true },
-        { name: 'noticePeriod', type: 'uint256', indexed: false },
-        { name: 'votingPeriod', type: 'uint256', indexed: false },
-      ],
-    },
+  const unwatchAgendaCreated = publicClient.watchContractEvent({
+    address: CONTRACTS.daoCommittee.address,
+    abi: DAO_ABI,
+    eventName: 'AgendaCreated',
     onLogs: (logs: any[]) => {
-      // console.log("🎉 AgendaCreated 이벤트 감지:", logs);
+
       logs.forEach((log) => {
-        const { id, from, noticePeriod, votingPeriod } = log.args;
+        const {  from, id, targets, noticePeriodSeconds, votingPeriodSeconds, atomicExecute } = log.args;
         handleAgendaCreated({
           id,
           from,
-          noticePeriod,
-          votingPeriod
+          noticePeriodSeconds,
+          votingPeriodSeconds,
+          atomicExecute
         });
       });
     },
   });
 
-  // console.log('✅ AgendaCreated 이벤트 워처 설정 완료');
   return unwatchAgendaCreated;
 };
 
@@ -114,35 +99,22 @@ const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: Agend
  * AgendaVoteCasted 이벤트 워처 설정
  */
 const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted: AgendaVoteCastedHandler) => {
-  // console.log("[setupAgendaVoteCastedWatcher] Setting up AgendaVoteCasted event watcher");
 
-  const unwatchAgendaVoteCasted = publicClient.watchEvent({
+  const unwatchAgendaVoteCasted = publicClient.watchContractEvent({
     address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
-    event: {
-      type: 'event',
-      name: 'AgendaVoteCasted',
-      inputs: [
-        { name: 'id', type: 'uint256', indexed: true },
-        { name: 'from', type: 'address', indexed: true },
-        { name: 'isSupport', type: 'uint8', indexed: false },
-        { name: 'stake', type: 'uint256', indexed: false },
-      ],
-    },
+    abi: daoCommitteeAbi,
+    eventName: 'AgendaVoteCasted',
     onLogs: (logs: any[]) => {
-      // console.log("🗳️ AgendaVoteCasted 이벤트 감지:", logs);
+
       logs.forEach((log) => {
-        const { id, from, isSupport, stake } = log.args;
+        const { from, id, voting, comment } = log.args;
         handleAgendaVoteCasted({
-          id,
-          from,
-          isSupport,
-          stake
+          from, id, voting, comment
         });
       });
     },
   });
 
-  // console.log('✅ AgendaVoteCasted 이벤트 워처 설정 완료');
   return unwatchAgendaVoteCasted;
 };
 
@@ -150,30 +122,22 @@ const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted:
  * AgendaExecuted 이벤트 워처 설정
  */
 const setupAgendaExecutedWatcher = (publicClient: any, handleAgendaExecuted: AgendaExecutedHandler) => {
-  // console.log("[setupAgendaExecutedWatcher] Setting up AgendaExecuted event watcher");
 
-  const unwatchAgendaExecuted = publicClient.watchEvent({
+  const unwatchAgendaExecuted = publicClient.watchContractEvent({
     address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
-    event: {
-      type: 'event',
-      name: 'AgendaExecuted',
-      inputs: [
-        { name: 'id', type: 'uint256', indexed: true },
-        { name: 'from', type: 'address', indexed: true },
-      ],
-    },
+    abi: daoCommitteeAbi,
+    eventName: 'AgendaExecuted',
     onLogs: (logs: any[]) => {
-      // console.log("⚡ AgendaExecuted 이벤트 감지:", logs);
+
       logs.forEach((log) => {
-        const { id, from } = log.args;
+        const { id, target } = log.args;
         handleAgendaExecuted({
           id,
-          from
+          target
         });
       });
     },
   });
 
-  // console.log('✅ AgendaExecuted 이벤트 워처 설정 완료');
   return unwatchAgendaExecuted;
 };

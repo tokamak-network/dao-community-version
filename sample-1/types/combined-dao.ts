@@ -93,6 +93,14 @@ export interface CombinedDAOContextType extends Omit<DAOContextType, keyof Overl
   // NEW: status messages for committee and agenda
   committeeStatusMessage: string;
   agendaStatusMessage: string;
+
+  paginationState?: any;
+  paginationStatus?: string;
+  loadToPage?: (page: number) => void;
+  loadNextPage?: () => void;
+  hasMore?: () => boolean;
+  getRemainingCount?: () => number;
+  upsertAgenda?: (agenda: AgendaWithMetadata) => void;
 }
 
 // 중복되는 필드들 정의 (AgendaContextType 것을 우선시하기 위해)

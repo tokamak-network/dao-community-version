@@ -7,6 +7,7 @@ import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { TON_CONTRACT_ADDRESS } from '@/config/contracts'
 import { chain } from '@/config/chain'
 import { getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
+import React from 'react'
 
 interface AgendaEffectsProps {
   agenda: AgendaWithMetadata
@@ -184,8 +185,8 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                 {displayActions.length > 0 ? displayActions.map((action, index) => {
                   const decodedParams = decodeCalldata(action)
                   return (
-                    <>
-                      <tr key={index} className="border-b border-gray-100">
+                    <React.Fragment key={action.id || index}>
+                      <tr className="border-b border-gray-100">
                         <td className="py-3 text-sm text-gray-900">#{index + 1}</td>
                         <td className="py-3 text-sm">
                           <a
@@ -264,7 +265,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   )
                 }) : (
                   <tr>

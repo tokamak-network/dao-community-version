@@ -336,13 +336,8 @@ export function createAgendaContextFunctions(
 
   // 실시간 아젠다 데이터 업데이트 함수
   const updateAgendaData = async (agendaId: number, shouldSort: boolean = false) => {
-    /**
-     * updateAgendaData - Starting update for agenda ID:
-     */
-
     try {
       const publicClient = await getSharedPublicClient();
-
       const agendaData = await getAgendaData(agendaId, "LOW");
 
       // 메타데이터 가져오기
@@ -350,7 +345,6 @@ export function createAgendaContextFunctions(
       try {
         const networkName = getNetworkName(chain.id);
         const metadataUrl = getMetadataUrl(agendaId, networkName);
-
         const response = await fetch(metadataUrl, { cache: "no-store" });
         if (response.ok) {
           metadata = await response.json();
@@ -359,11 +353,11 @@ export function createAgendaContextFunctions(
         console.warn(`Failed to load metadata for agenda ${agendaId}:`, error);
       }
 
-      // 상태 업데이트
+      // 상태 업데이트 및 반환값 준비
+      let updatedAgenda: AgendaWithMetadata;
       stateSetters.setAgendas((prevAgendas) => {
         const existingAgenda = prevAgendas.find((a) => a.id === agendaId);
-
-        const updatedAgenda: AgendaWithMetadata = {
+        updatedAgenda = {
           ...agendaData,
           id: agendaId,
           voters: Array.from(agendaData.voters),
@@ -379,18 +373,15 @@ export function createAgendaContextFunctions(
           transaction: metadata?.transaction || existingAgenda?.transaction,
           actions: metadata?.actions || existingAgenda?.actions,
         };
-
         const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
         existingAgendas.set(agendaId, updatedAgenda);
         const newAgendas = Array.from(existingAgendas.values());
         return shouldSort ? newAgendas.sort((a, b) => b.id - a.id) : newAgendas;
       });
-
-      /**
-       * updateAgendaData completed for ID:
-       */
+      return updatedAgenda!;
     } catch (error) {
       console.error("❌ updateAgendaData error:", error);
+      return null;
     }
   };
 

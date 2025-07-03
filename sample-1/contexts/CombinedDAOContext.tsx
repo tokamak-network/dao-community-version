@@ -63,6 +63,8 @@ import { createAgendaContextFunctions } from "@/lib/agenda-context-functions";
 import { setupAgendaEventMonitoring } from "@/lib/agenda-event-monitor";
 import { setupEventMonitoring } from "@/lib/dao-event-monitor";
 
+import { AgendaPagination, PaginationCallbacks } from '@/lib/agenda-pagination';
+
 // 🎯 전역 변수로 중복 로딩 방지 (페이지 이동 시에도 유지)
 let loadedMaxMembers: boolean = false;
 let loadedCommitteeMembers: boolean = false;
@@ -140,6 +142,10 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   const [minimumNoticePeriodSeconds, setMinimumNoticePeriodSeconds] = useState<bigint | null>(null);
   const [minimumVotingPeriodSeconds, setMinimumVotingPeriodSeconds] = useState<bigint | null>(null);
   const [agendaQuorum, setAgendaQuorum] = useState<bigint | null>(null);
+
+  // 페이지네이션 상태 및 인스턴스 관리
+  const [paginationState, setPaginationState] = useState<any>(null);
+  const [paginationStatus, setPaginationStatus] = useState('');
 
   // Runtime checks for contract addresses
   if (!CONTRACTS.daoAgendaManager.address) {
@@ -240,36 +246,60 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   // Events
   //----------------------------------------
 
-  // 아젠다 이벤트 모니터링 설정
-  useEffect(() => {
-    if (!agendaFunctions.updateAgendaData) {
-      return; // updateAgendaData 함수가 준비되면 즉시 이벤트 모니터링 시작
+  // 콜백 함수 (useCallback으로 고정)
+  const paginationCallbacks = useMemo(() => ({
+    onStateChange: (state: any) => {
+      setPaginationState(state);
+    },
+    onStatusMessage: (msg: any) => {
+      setPaginationStatus(msg);
+    },
+    onBatchLoaded: (batch: any[]) => {
+      setPaginationState((prev: any) => ({
+        ...prev,
+        agendas: [...(prev?.agendas || []), ...batch]
+      }));
     }
+  }), []);
 
-    // console.log('🎯 Setting up agenda event monitoring...', {
-    //   timestamp: new Date().toISOString(),
-    //   hasUpdateAgendaData: !!agendaFunctions.updateAgendaData
-    // });
+  // pagination 인스턴스 useMemo로 고정
+  const pagination = useMemo(() => {
+    const instance = new AgendaPagination(10, paginationCallbacks);
+    instance.initialize().then(() => {
+      instance.loadToPage(1);
+    });
+    return instance;
+  }, [paginationCallbacks]);
 
-    // 아젠다 이벤트 핸들러들 생성
-    const handleAgendaCreated = createAgendaCreatedHandler(agendaFunctions.updateAgendaData);
-    const handleAgendaVoteCasted = createAgendaVoteCastedHandler(agendaFunctions.updateAgendaData);
-    const handleAgendaExecuted = createAgendaExecutedHandler(agendaFunctions.updateAgendaData);
+  // 이벤트 모니터링 useEffect: deps 최소화
+  useEffect(() => {
 
-    // 아젠다 이벤트 모니터링 설정
+    const updateAgendaData = agendaFunctions.updateAgendaData || (async () => {});
+    const getAgenda = agendaFunctions.getAgenda || (async () => null);
+    const handleAgendaCreated = createAgendaCreatedHandler(
+      updateAgendaData,
+      pagination?.upsertAgenda?.bind(pagination)
+    );
+    const handleAgendaVoteCasted = createAgendaVoteCastedHandler(
+      updateAgendaData,
+      pagination?.upsertAgenda?.bind(pagination)
+    );
+    const handleAgendaExecuted = createAgendaExecutedHandler(
+      updateAgendaData,
+      pagination?.upsertAgenda?.bind(pagination)
+    );
+
+
     const cleanupAgenda = setupAgendaEventMonitoring(
       handleAgendaCreated,
       handleAgendaVoteCasted,
       handleAgendaExecuted
     );
-
-    // 컴포넌트 언마운트 시 이벤트 워처 정리
     return cleanupAgenda;
-  }, [agendaFunctions.updateAgendaData]);
+  }, [chain.id, CONTRACTS.daoAgendaManager.address]);
 
   // DAO 이벤트 모니터링 설정
   useEffect(() => {
-
     // DAO 이벤트 핸들러들 생성
     const handleMemberChanged = createMemberChangedHandler(daoFunctions.refreshSpecificMember);
     const handleActivityRewardClaimed = createActivityRewardClaimedHandler(
@@ -289,7 +319,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
 
     // 컴포넌트 언마운트 시 이벤트 워처 정리
     return cleanupDAO;
-  }, [maxMember, committeeMembers, daoFunctions.refreshSpecificMember, daoFunctions.resetLayer2Cache]);
+  }, [chain.id, CONTRACTS.daoCommittee.address]);
 
   // 모듈화된 함수들을 사용한 contextValue
   const contextValue = useMemo(() => ({
@@ -335,6 +365,15 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     getTransactionData: agendaFunctions.getTransactionData || (async () => null),
     updateAgendaCalldata: agendaFunctions.updateAgendaCalldata || (async () => {}),
 
+    // 페이지네이션 관련 추가
+    paginationState,
+    paginationStatus,
+    loadToPage: pagination?.loadToPage?.bind(pagination),
+    loadNextPage: pagination?.loadNextPage?.bind(pagination),
+    hasMore: pagination?.hasMore?.bind(pagination),
+    getRemainingCount: pagination?.getRemainingCount?.bind(pagination),
+    upsertAgenda: pagination?.upsertAgenda?.bind(pagination),
+
     // 공통
     statusMessage,
     contract: DEFAULT_CONTRACT_INFO,
@@ -349,7 +388,9 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     createAgendaFees, minimumNoticePeriodSeconds, minimumVotingPeriodSeconds, agendaQuorum,
     statusMessage, isPolling, progress,
     daoFunctions, agendaFunctions,
-    committeeStatusMessage, agendaStatusMessage
+    committeeStatusMessage, agendaStatusMessage,
+    // 페이지네이션 관련 deps
+    paginationState, paginationStatus, pagination
   ]);
 
   return (
