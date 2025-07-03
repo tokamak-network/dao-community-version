@@ -36,6 +36,7 @@ export default function DAOCommitteeMembers() {
     setAnalysisCompletedTime,
     challengeProgress,
     setChallengeProgress,
+    committeeStatusMessage,
   } = useCombinedDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
@@ -530,11 +531,24 @@ export default function DAOCommitteeMembers() {
     return isCreator || isManager;
   }
 
-  // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
-
-
   // 트랜잭션 타입 상태
   const [txType, setTxType] = useState<"vote" | "execute" | "claimActivityReward" | null>(null);
+
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0 });
+
+  // Patch refreshCommitteeMembers to support progress
+  const refreshWithProgress = () => {
+    setLoadingProgress({ current: 0, total: 0 });
+    refreshCommitteeMembers({
+      onStatusUpdate: (message: string) => {
+        // Parse messages like "Checking slot 3/10..."
+        const match = message.match(/Checking slot (\d+)\/(\d+)/);
+        if (match) {
+          setLoadingProgress({ current: Number(match[1]), total: Number(match[2]) });
+        }
+      }
+    });
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -571,7 +585,20 @@ export default function DAOCommitteeMembers() {
       {isLoadingMembers && (
         <div className="flex flex-col items-center gap-4 py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="text-gray-600">Loading committee members...</p>
+          <p className="text-gray-600 font-medium">
+            {committeeStatusMessage}
+            {loadingProgress.total > 0 && (
+              <> ({loadingProgress.current}/{loadingProgress.total})</>
+            )}
+          </p>
+          {loadingProgress.total > 0 && (
+            <div className="w-48 h-2 bg-gray-200 rounded">
+              <div
+                className="h-2 bg-blue-500 rounded"
+                style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -581,7 +608,7 @@ export default function DAOCommitteeMembers() {
           <p className="text-red-500 text-lg">{membersError}</p>
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            onClick={() => refreshCommitteeMembers()}
+            onClick={() => refreshWithProgress()}
           >
             Retry
           </button>
@@ -780,7 +807,7 @@ export default function DAOCommitteeMembers() {
           <p className="text-gray-500 text-lg">No committee members found</p>
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            onClick={() => refreshCommitteeMembers()}
+            onClick={() => refreshWithProgress()}
           >
             Load Data
           </button>

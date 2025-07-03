@@ -89,6 +89,10 @@ export interface CombinedDAOContextType extends Omit<DAOContextType, keyof Overl
     message: string;
     error: string;
   }) => void;
+
+  // NEW: status messages for committee and agenda
+  committeeStatusMessage: string;
+  agendaStatusMessage: string;
 }
 
 // 중복되는 필드들 정의 (AgendaContextType 것을 우선시하기 위해)

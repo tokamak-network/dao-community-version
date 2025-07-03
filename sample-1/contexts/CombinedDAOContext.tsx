@@ -87,6 +87,8 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     prevProps.current.isConnected !== isConnected;
 
   // 🎯 상태 관리 - Context에서 직접 관리 (sample-2 방식)
+  const [committeeStatusMessage, setCommitteeStatusMessage] = useState("");
+  const [agendaStatusMessage, setAgendaStatusMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number>(0);
   const [previousConnectionState, setPreviousConnectionState] = useState<boolean | null>(null);
@@ -159,7 +161,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     setCommitteeMembers,
     setIsLoadingMembers,
     setMembersError,
-    setStatusMessage,
+    setCommitteeStatusMessage,
     setLayer2Candidates,
     setLayer2Total,
     setIsLoadingLayer2,
@@ -182,7 +184,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
       setAgendas,
       setIsLoadingAgendas,
       setAgendasError,
-      setStatusMessage,
+      setAgendaStatusMessage,
       setHasLoadedOnce,
       setEvents,
       setIsPolling,
@@ -211,7 +213,6 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
 
     // 아젠다 목록 초기 로드 (한 번만)
     if (!hasLoadedOnce && agendaFunctions.refreshAgendas) {
-
       agendaFunctions.refreshAgendas();
     }
   }, [hasLoadedOnce, createAgendaFees, minimumNoticePeriodSeconds]);
@@ -314,6 +315,8 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     setAnalysisCompletedTime,
     challengeProgress,
     setChallengeProgress,
+    committeeStatusMessage,
+    agendaStatusMessage,
 
     // Agenda 관련
     agendas,
@@ -345,7 +348,8 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     agendas, isLoadingAgendas, agendasError, events,
     createAgendaFees, minimumNoticePeriodSeconds, minimumVotingPeriodSeconds, agendaQuorum,
     statusMessage, isPolling, progress,
-    daoFunctions, agendaFunctions // 함수들도 의존성에 포함하여 최신 함수들이 사용되도록 함
+    daoFunctions, agendaFunctions,
+    committeeStatusMessage, agendaStatusMessage
   ]);
 
   return (

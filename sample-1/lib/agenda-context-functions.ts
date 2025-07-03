@@ -22,7 +22,8 @@ interface AgendaStateSetters {
   setAgendas: React.Dispatch<React.SetStateAction<AgendaWithMetadata[]>>;
   setIsLoadingAgendas: React.Dispatch<React.SetStateAction<boolean>>;
   setAgendasError: React.Dispatch<React.SetStateAction<string | null>>;
-  setStatusMessage: React.Dispatch<React.SetStateAction<string>>;
+  setStatusMessage?: React.Dispatch<React.SetStateAction<string>>;
+  setAgendaStatusMessage: React.Dispatch<React.SetStateAction<string>>;
   setHasLoadedOnce: React.Dispatch<React.SetStateAction<boolean>>;
   setEvents: React.Dispatch<React.SetStateAction<AgendaCreatedEvent[]>>;
   setIsPolling: React.Dispatch<React.SetStateAction<boolean>>;
@@ -177,7 +178,7 @@ export function createAgendaContextFunctions(
   const loadAgendas = async () => {
     stateSetters.setIsLoadingAgendas(true);
     stateSetters.setAgendasError(null);
-    stateSetters.setStatusMessage(MESSAGES.LOADING.AGENDAS);
+    stateSetters.setAgendaStatusMessage(MESSAGES.LOADING.AGENDAS);
 
     try {
       const publicClient = await getSharedPublicClient();
@@ -189,7 +190,7 @@ export function createAgendaContextFunctions(
       if (totalAgendas === 0) {
         stateSetters.setAgendas([]);
         stateSetters.setHasLoadedOnce(true);
-        stateSetters.setStatusMessage("No agendas found");
+        stateSetters.setAgendaStatusMessage("No agendas found");
         return;
       }
 
@@ -202,7 +203,7 @@ export function createAgendaContextFunctions(
         const processedCount = totalAgendas - i;
         const progress = Math.round((processedCount / totalAgendas) * 100);
 
-        stateSetters.setStatusMessage(`Loading agendas... (${processedCount}/${totalAgendas}) [${progress}%]`);
+        stateSetters.setAgendaStatusMessage(`Loading agendas... (${processedCount}/${totalAgendas}) [${progress}%]`);
 
         const batchPromises = Array.from({ length: currentBatch }, (_, j) => {
           const agendaId = i - j; // 최신순으로 가져오기
@@ -322,12 +323,11 @@ export function createAgendaContextFunctions(
         }
       }
       stateSetters.setHasLoadedOnce(true);
-      stateSetters.setStatusMessage(`Loaded ${totalAgendas} agendas from AgendaManager contract`);
+      stateSetters.setAgendaStatusMessage(`Loaded ${totalAgendas} agendas from AgendaManager contract`);
 
     } catch (err) {
       console.error("Failed to load agendas from AgendaManager:", err);
-      stateSetters.setAgendasError("Failed to load agendas from blockchain");
-      stateSetters.setStatusMessage("Error loading agendas from AgendaManager contract");
+      stateSetters.setAgendaStatusMessage("Failed to load agendas from blockchain");
       stateSetters.setAgendas([]);
     } finally {
       stateSetters.setIsLoadingAgendas(false);
