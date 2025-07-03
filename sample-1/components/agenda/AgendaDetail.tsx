@@ -116,34 +116,14 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     hash: voteData || executeData,
   })
 
-  // 🔍 디버깅: 트랜잭션 해시 추적
-  useEffect(() => {
-    if (voteData) {
-      console.log("📄 Vote transaction hash received:", voteData);
-    }
-    if (executeData) {
-      console.log("📄 Execute transaction hash received:", executeData);
-    }
-  }, [voteData, executeData])
 
   // Handle transaction success/error
   useEffect(() => {
-    // 🔍 디버깅: 트랜잭션 상태 로그
-    console.log("🔍 Transaction States:", {
-      isSuccess,
-      isError,
-      isExecuteError,
-      isVoting,
-      isWriteError,
-      voteData,
-      executeData,
-      waitError: waitError?.message,
-      writeError: writeError?.message,
-    });
+
 
     if (isSuccess) {
       if (voteData) {
-        console.log("✅ Vote transaction successful:", voteData);
+
         toast.success("Vote cast successfully!");
         // 모달을 자동으로 닫지 않고 성공 상태를 보여줌
         // setShowTransactionModal(false);
@@ -154,7 +134,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         refetch(); // hasVoted 상태 갱신
         handleRefresh(); // 아젠다 데이터 전체 갱신
       } else if (executeData) {
-        console.log("✅ Execute transaction successful:", executeData);
+
         toast.success("Agenda executed successfully!");
         // 모달을 자동으로 닫지 않고 성공 상태를 보여줌
         // setShowTransactionModal(false);
@@ -165,7 +145,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     }
 
     if (isError || isExecuteError) {
-      console.log("❌ Transaction receipt error:", waitError?.message);
+
       toast.error(
         `Transaction failed: ${
           waitError?.message || "Transaction was cancelled"
@@ -193,11 +173,11 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         writeError?.message?.includes("rejected") ||
         writeError?.message?.includes("cancelled")
       ) {
-        console.log("🚫 User rejected transaction")
+
         // 트랜잭션 모달에서 에러 상태를 보여주기 위해 모달을 닫지 않음
         // 트랜잭션 모달은 계속 열려있고, 에러 상태로 표시됨
       } else {
-        console.log("❌ Transaction failed with error:", writeError?.message)
+
         // 트랜잭션 모달에서 에러 상태를 보여주기 위해 모달을 닫지 않음
       }
     }
@@ -209,17 +189,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       const modalState = isWriteError && writeError ? "ERROR" :
                         isSuccess && (voteData || executeData) ? "SUCCESS" : "LOADING";
 
-      console.log("🔍 Transaction Modal State:", {
-        modalState,
-        isWriteError,
-        writeError: writeError?.message,
-        isSuccess,
-        voteData,
-        executeData,
-        isVoting,
-        isError,
-        waitError: waitError?.message
-      });
+
     }
   }, [showTransactionModal, isWriteError, writeError, isSuccess, voteData, executeData, isVoting, isError, waitError])
 
@@ -228,34 +198,21 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     const handleAgendaExecuted = async (event: Event) => {
       const customEvent = event as CustomEvent<{ agendaId: number }>;
       if (customEvent.detail.agendaId === localAgenda.id) {
-        console.log(
-          "[AgendaDetail] agendaExecuted event received:",
-          customEvent.detail
-        );
 
         // 컨트랙트에서 최신 아젠다 데이터 가져오기
         const latestAgenda = await getAgenda(localAgenda.id);
         if (latestAgenda) {
-          console.log(
-            "[AgendaDetail] Latest agenda data received:",
-            latestAgenda
-          );
+
           setLocalAgenda(latestAgenda);
         }
       }
     };
 
-    console.log(
-      "[AgendaDetail] Setting up agendaExecuted event listener for agenda ID:",
-      localAgenda.id
-    );
+
     window.addEventListener("agendaExecuted", handleAgendaExecuted);
 
     return () => {
-      console.log(
-        "[AgendaDetail] Removing agendaExecuted event listener for agenda ID:",
-        localAgenda.id
-      );
+
       window.removeEventListener("agendaExecuted", handleAgendaExecuted);
     };
   }, [localAgenda.id, getAgenda]);
@@ -264,22 +221,13 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
    useEffect(() => {
     const handleVoteUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent<{ agendaId: number }>;
-      console.log(
-        "[AgendaDetail] agendaVoteUpdated event received:",
-        customEvent.detail
-      );
+
       if (customEvent.detail.agendaId === localAgenda.id) {
-        console.log(
-          "[AgendaDetail] Fetching latest agenda data for ID:",
-          localAgenda.id
-        );
+
         // 컨트랙트에서 최신 아젠다 데이터 가져오기
         const latestAgenda = await getAgenda(localAgenda.id);
         if (latestAgenda) {
-          console.log(
-            "[AgendaDetail] Latest agenda data received:",
-            latestAgenda
-          );
+
           setLocalAgenda(latestAgenda);
           // 투표 상태도 갱신
           await refetch();
@@ -287,16 +235,10 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       }
     };
 
-    console.log(
-      "[AgendaDetail] Setting up agendaVoteUpdated event listener for agenda ID:",
-      localAgenda.id
-    );
+
     window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
     return () => {
-      console.log(
-        "[AgendaDetail] Removing agendaVoteUpdated event listener for agenda ID:",
-        localAgenda.id
-      );
+
       window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
     };
   }, [localAgenda.id, getAgenda, refetch]);
@@ -304,7 +246,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
   // 🔬 TEST: isVoter 중복 정의 에러로 인한 임시 주석처리
   const isVoter = useMemo(() => {
-    console.log("isVoter", address, localAgenda.voters, isCommitteeMember(address as string))
+
     return address && (
       localAgenda.voters?.includes(address) ||
       isCommitteeMember(address as string)
@@ -485,7 +427,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const renderActionButton = () => {
     switch (currentStatus) {
       case AgendaStatus.VOTING:
-        console.log("renderActionButton VOTING isVoter " , isVoter, hasVoted, isVoting )
+
         return (
           <div className="flex items-center gap-1">
             <button
@@ -509,7 +451,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         );
 
       case AgendaStatus.WAITING_EXEC:
-        console.log("renderActionButton WAITING_EXEC")
+
         if (
           !agenda.executed &&
           Number(agenda.countingYes) > Number(agenda.countingNo)
@@ -530,7 +472,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         return renderDropdownMenu();
 
       default:
-        console.log("renderActionButton DEFAULT")
+
         return renderDropdownMenu();
     }
   };

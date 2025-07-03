@@ -6,6 +6,7 @@ import { useAccount, useChainId } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus, getNetworkName, getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
+import { chain } from '@/config/chain'
 
 export default function AgendaList() {
   const router = useRouter()
@@ -78,8 +79,7 @@ export default function AgendaList() {
             className="text-gray-600 text-sm hover:text-gray-700 underline border border-gray-200 rounded px-3 py-1 font-semibold bg-white"
             style={{ boxShadow: '0 0 0 1px #e5e7eb' }}
             onClick={() => {
-              const network = getNetworkName(chainId);
-              const url = getAgendaMetadataRepoFolderUrl(network);
+              const url = getAgendaMetadataRepoFolderUrl(chain.network);
               window.open(url, '_blank');
             }}
           >

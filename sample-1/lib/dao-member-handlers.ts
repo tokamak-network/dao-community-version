@@ -172,7 +172,7 @@ export const fetchMemberDetails = async (
  */
 export const loadMaxMembers = async (): Promise<number> => {
   try {
-    console.log("--- read maxMember");
+
     const publicClient = await getSharedPublicClient();
     let _maxMember: bigint = BigInt(0);
     _maxMember = await queueRPCRequest(
@@ -184,7 +184,7 @@ export const loadMaxMembers = async (): Promise<number> => {
       "DAO: maxMember 조회 (최우선)",
       "HIGH"
     );
-    console.log("-- ", _maxMember);
+
     return Number(_maxMember);
   } catch (err) {
     console.error("Failed to load maxMember:", err);
@@ -201,11 +201,7 @@ export const loadCommitteeMembers = async (
   lastFetchTimestamp?: number,
   onStatusUpdate?: (message: string) => void
 ): Promise<CommitteeMember[]> => {
-  console.log("🔄 loadCommitteeMembers started", {
-    timestamp: new Date().toLocaleTimeString(),
-    maxMember,
-    currentCommitteeCount: existingMembers?.length || 0,
-  });
+
 
   const { BATCH_SIZE, BATCH_DELAY_MS, CACHE_DURATION_MS } = CONTRACT_READ_SETTINGS;
 
@@ -213,14 +209,11 @@ export const loadCommitteeMembers = async (
     // 이벤트 기반 업데이트: 기존 데이터가 있으면 그대로 사용
     // 업데이트는 오직 이벤트를 통해서만 발생 (캐시 시간 체크 없음)
     if (existingMembers && existingMembers.length > 0) {
-      console.log("⏭️ Existing data found, using event-based updates only", {
-        committeeCount: existingMembers.length,
-        updateMethod: "event-driven only"
-      });
+
       return existingMembers;
     }
 
-    console.log("✅ Starting new data load");
+
     if (maxMember > 0) {
       const publicClient = await getSharedPublicClient();
 
@@ -231,7 +224,6 @@ export const loadCommitteeMembers = async (
         try {
           // 진행 상황 메시지 업데이트
                       onStatusUpdate?.(`Checking slot ${slotIndex + 1}/${maxMember}...`);
-          console.log(`Processing slot ${slotIndex + 1}/${maxMember}...`);
 
           const memberAddress = await queueRPCRequest(
             () => publicClient.readContract({
@@ -245,7 +237,7 @@ export const loadCommitteeMembers = async (
           );
 
           if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {
-            console.log(`Slot ${slotIndex}: Empty slot`);
+
             onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - empty slot`);
 
             // 빈 슬롯 객체 생성하여 추가
@@ -269,19 +261,19 @@ export const loadCommitteeMembers = async (
             continue;
           }
 
-          console.log(`Slot ${slotIndex}: Member found - ${memberAddress}`);
+
           onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - Loading member information...`);
 
           // 공통 함수를 사용하여 멤버 상세 정보 조회
           const memberDetail = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
           memberDetails.push(memberDetail);
 
-          console.log(`✅ 슬롯 ${slotIndex} 로드 완료: ${memberDetail.name}`);
+
           onStatusUpdate?.(`Slot ${slotIndex + 1}/${maxMember} - ${memberDetail.name} Load complete`);
 
           // Batch 처리: 일정 간격으로 딜레이 추가 (RPC rate limit 고려)
           if ((slotIndex + 1) % BATCH_SIZE === 0 && slotIndex < maxMember - 1) {
-            console.log(`⏸️ Batch ${Math.floor(slotIndex / BATCH_SIZE) + 1} 완료, ${BATCH_DELAY_MS}ms 대기...`);
+
             onStatusUpdate?.(`Batch ${Math.floor(slotIndex / BATCH_SIZE) + 1} completed, waiting for a moment...`);
             await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
           }
@@ -293,7 +285,7 @@ export const loadCommitteeMembers = async (
         }
       }
 
-      console.log("🎯 Committee Members 로드 완료:", memberDetails.length, "명");
+
       return memberDetails;
     }
 
@@ -310,9 +302,6 @@ export const loadCommitteeMembers = async (
 export const refreshSpecificMember = async (
   slotIndex: number
 ): Promise<CommitteeMember | null> => {
-  console.log(`🔄 특정 멤버 업데이트 시작 - 슬롯 ${slotIndex}`, {
-    timestamp: new Date().toLocaleTimeString(),
-  });
 
   try {
     const publicClient = await getSharedPublicClient();
@@ -331,22 +320,13 @@ export const refreshSpecificMember = async (
 
     if (!memberAddress || memberAddress === '0x0000000000000000000000000000000000000000') {
       // 멤버가 제거된 경우
-      console.log(`✅ 슬롯 ${slotIndex} 멤버 제거됨 - 빈 슬롯으로 설정`);
       return null;
     }
 
     // 공통 함수를 사용하여 멤버 상세 정보 조회
     const updatedMember = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
 
-    console.log(`✅ 슬롯 ${slotIndex} 멤버 정보 업데이트 완료: ${updatedMember.name}`, {
-      name: updatedMember.name,
-      slotIndex: updatedMember.indexMembers,
-      claimableActivityReward: updatedMember.claimableActivityReward,
-      claimableActivityRewardTON: updatedMember.claimableActivityReward ?
-        `${(Number(updatedMember.claimableActivityReward) / 1e18).toFixed(4)} TON` : '0 TON',
-      memberAddress,
-      candidateContract: updatedMember.candidateContract
-    });
+
     return updatedMember;
 
   } catch (error) {

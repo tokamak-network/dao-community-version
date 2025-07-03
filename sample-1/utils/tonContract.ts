@@ -98,8 +98,6 @@ export interface GetAgendaNumberParams {
 export async function getNextAgendaNumber(params: GetAgendaNumberParams): Promise<string> {
   const { daoAgendaManagerAddress } = params;
 
-  console.log("Getting agenda number before transaction...");
-
   const provider = new BrowserProvider(window.ethereum as any);
   const daoAgendaManager = new ethers.Contract(
     daoAgendaManagerAddress,
@@ -109,8 +107,6 @@ export async function getNextAgendaNumber(params: GetAgendaNumberParams): Promis
 
   const numAgendas = await daoAgendaManager.numAgendas();
   const agendaNumber = numAgendas.toString();
-
-  console.log("Current agenda number:", agendaNumber);
 
   return agendaNumber;
 }

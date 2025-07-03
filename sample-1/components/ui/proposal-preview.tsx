@@ -90,12 +90,12 @@ export function ProposalPreview({
         const targetAddresses = actions.map((a) => a.contractAddress);
         const calldataArray = actions.map((a) => a.calldata || "0x");
 
-        console.log("\n=== Parameters for Encoding ===");
-        console.log("Target Addresses:", targetAddresses);
-        console.log("Notice Period:", minimumNoticePeriodSeconds.toString());
-        console.log("Voting Period:", minimumVotingPeriodSeconds.toString());
-        console.log("Is Emergency:", true);
-        console.log("Calldata Array:", calldataArray);
+        // console.log("\n=== Parameters for Encoding ===");
+        // console.log("Target Addresses:", targetAddresses);
+        // console.log("Notice Period:", minimumNoticePeriodSeconds.toString());
+        // console.log("Voting Period:", minimumVotingPeriodSeconds.toString());
+        // console.log("Is Emergency:", true);
+        // console.log("Calldata Array:", calldataArray);
 
         // Check contract version to determine encoding format
         let supportsMemoField = false;
@@ -111,21 +111,15 @@ export function ProposalPreview({
 
           const version = await daoContract.version();
           contractVersion = version;
-          console.log(
-            "✅ Contract version() function found, version:",
-            version
-          );
+          // console.log(
+          //   "✅ Contract version() function found, version:",
+          //   version
+          // );
 
           // Version 2.0.0 and above support memo field
           if (version === "2.0.0") {
             supportsMemoField = true;
-            console.log("✅ Version 2.0.0 detected - memo field supported");
-          } else {
-            console.log(
-              "⚠️ Version",
-              version,
-              "detected - memo field not supported"
-            );
+
           }
         } catch (error) {
           contractVersion = "legacy (pre-2.0.0)";
@@ -151,7 +145,7 @@ export function ProposalPreview({
 
         if (supportsMemoField) {
           // New version with memo field support
-          console.log("Using new interface with memo field for preview");
+
           const types = [
             "address[]",
             "uint128",
@@ -168,14 +162,11 @@ export function ProposalPreview({
             calldataArray,
             memoField,
           ];
-          console.log("\n=== Encoding Details (v2.0.0 with memo) ===");
-          console.log("Types:", types);
-          console.log("Values:", values);
-          console.log("Memo field:", memoField);
+
           encoded = abiCoder.encode(types, values);
         } else {
           // Legacy version without memo field
-          console.log("Using legacy interface without memo field for preview");
+
           const types = ["address[]", "uint128", "uint128", "bool", "bytes[]"];
           const values = [
             targetAddresses,
@@ -184,16 +175,10 @@ export function ProposalPreview({
             true,
             calldataArray,
           ];
-          console.log("\n=== Encoding Details (Legacy) ===");
-          console.log("Types:", types);
-          console.log("Values:", values);
+
           encoded = abiCoder.encode(types, values);
         }
 
-        console.log("\n=== Encoded Result ===");
-        console.log("Contract Version:", contractVersion);
-        console.log("Memo Support:", supportsMemoField ? "YES" : "NO");
-        console.log("Encoded Data:", encoded);
 
         setEncodedData(encoded);
       } catch (error: any) {

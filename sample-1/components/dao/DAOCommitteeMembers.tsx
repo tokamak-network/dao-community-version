@@ -75,7 +75,6 @@ export default function DAOCommitteeMembers() {
     if (showGlobalChallenge) {
       // 캐시된 분석 결과가 있으면 즉시 완료 상태로 표시
       if (globalChallengeCandidates.length > 0 && analysisCompletedTime && hasLoadedLayer2Once && layer2Candidates.length > 0) {
-        console.log('✅ 모달 열림 - 캐시된 분석 결과 즉시 반영');
         setChallengeProgress({
           step: 'completed',
           currentMemberIndex: globalChallengeCandidates.length,
@@ -92,7 +91,6 @@ export default function DAOCommitteeMembers() {
     if (showGlobalChallenge && !isLoadingLayer2 && hasLoadedLayer2Once && layer2Candidates.length > 0) {
       // Layer2 로딩이 완료되고 캐시된 분석 결과가 있으면 즉시 완료 상태로 표시
       if (globalChallengeCandidates.length > 0 && analysisCompletedTime) {
-        console.log('✅ Layer2 로딩 완료 - 캐시된 분석 결과 반영');
         setChallengeProgress({
           step: 'completed',
           currentMemberIndex: globalChallengeCandidates.length,
@@ -112,39 +110,15 @@ export default function DAOCommitteeMembers() {
 
   // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
   const canChallengeWith = (member: CommitteeMember) => {
-    console.log('🔍 canChallengeWith 호출:', {
-      memberName: member.name,
-      memberContract: member.candidateContract,
-      memberStaked: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-      myAddress: address,
-      hasLayer2Candidates: !!layer2Candidates,
-      layer2CandidatesLength: layer2Candidates?.length || 0,
-      hasCommitteeMembers: !!committeeMembers
-    });
-
     if (!address || !layer2Candidates || layer2Candidates.length === 0 || !committeeMembers) {
-      console.log('❌ canChallengeWith 조건 불충족:', {
-        hasAddress: !!address,
-        hasLayer2Candidates: !!layer2Candidates,
-        layer2CandidatesLength: layer2Candidates?.length || 0,
-        hasCommitteeMembers: !!committeeMembers
-      });
       return { canChallenge: false, myLayer2: null, myLayer2s: [] };
     }
 
-    console.log('🔍 내 Layer2 필터링 시작:', {
-      totalLayer2Candidates: layer2Candidates.length,
-      myAddress: address
-    });
-
     // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
     const myLayer2s = layer2Candidates.filter(candidate => {
-      console.log(`🔍 Layer2 검사 중: ${candidate.name} (${candidate.candidateContract})`);
-
       // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
       const currentTime = Math.floor(Date.now() / 1000);
       if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
-        console.log(`⏰ ${candidate.name} 쿨다운 중: ${candidate.cooldown} > ${currentTime}`);
         return false;
       }
 
@@ -153,7 +127,6 @@ export default function DAOCommitteeMembers() {
         m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
       );
       if (isAlreadyMember) {
-        console.log(`🚫 ${candidate.name} 이미 위원회 멤버임`);
         return false;
       }
 
@@ -163,74 +136,13 @@ export default function DAOCommitteeMembers() {
       const isManager = candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase();
       const isMyLayer2 = isOwner || isOperator || isManager;
 
-      console.log(`🔍 소유권 확인 - ${candidate.name}:`, {
-        creationAddress: candidate.creationAddress,
-        operator: candidate.operator,
-        manager: candidate.manager,
-        isOwner,
-        isOperator,
-        isManager,
-        isMyLayer2
-      });
-
       return isMyLayer2;
     });
 
-    console.log('✅ 내 Layer2 필터링 결과:', {
-      totalLayer2Candidates: layer2Candidates.length,
-      myLayer2sCount: myLayer2s.length,
-      myLayer2s: myLayer2s.map(l => ({
-        name: l.name,
-        contract: l.candidateContract,
-        staked: (Number(l.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-      }))
-    });
-
-    // member.creationAddress 이 빈슬롯이면, 챌린지 가능
-    if (member.creationAddress === "0x0000000000000000000000000000000000000000") {
-      return {
-        canChallenge: myLayer2s.length > 0,
-        myLayer2: myLayer2s[0] || null,
-        myLayer2s: myLayer2s
-      };
-    }
-
-    console.log('💰 스테이킹 비교 시작:', {
-      memberName: member.name,
-      memberStaked: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-      myLayer2sCount: myLayer2s.length
-    });
-
-    // 해당 멤버보다 스테이킹이 높은 내 Layer2들 찾기
-    const challengeableLayer2s = myLayer2s.filter(layer2 => {
-      const layer2Staked = BigInt(layer2.totalStaked);
-      const memberStaked = BigInt(member.totalStaked);
-      const isHigher = layer2Staked > memberStaked;
-
-      console.log(`💰 스테이킹 비교 - ${layer2.name}:`, {
-        layer2Staked: (Number(layer2Staked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-        memberStaked: (Number(memberStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-        difference: Number(layer2Staked - memberStaked) / 1e27,
-        isHigher
-      });
-
-      return isHigher;
-    });
-
-    console.log('✅ 스테이킹 비교 결과:', {
-      myLayer2sCount: myLayer2s.length,
-      challengeableLayer2sCount: challengeableLayer2s.length,
-      challengeableLayer2s: challengeableLayer2s.map(l => ({
-        name: l.name,
-        contract: l.candidateContract,
-        staked: (Number(l.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-      }))
-    });
-
     return {
-      canChallenge: challengeableLayer2s.length > 0,
-      myLayer2: challengeableLayer2s[0] || null,
-      myLayer2s: challengeableLayer2s
+      canChallenge: myLayer2s.length > 0,
+      myLayer2: myLayer2s[0] || null,
+      myLayer2s: myLayer2s
     };
   }
 
@@ -246,7 +158,6 @@ export default function DAOCommitteeMembers() {
     if (selectedLayer2ForChallenge) {
       // 모달에서 선택된 Layer2 사용
       challengeLayer2 = selectedLayer2ForChallenge;
-      console.log('🎯 모달에서 선택된 Layer2 사용:', challengeLayer2.name);
 
       // 선택된 Layer2 초기화
       setSelectedLayer2ForChallenge(null);
@@ -276,17 +187,6 @@ export default function DAOCommitteeMembers() {
     }
 
     try {
-      console.log('🚀 실제 챌린지 실행!', {
-        challenger: challengeLayer2.name,
-        challengerContract: challengeLayer2.candidateContract,
-        target: member.name,
-        targetContract: member.candidateContract,
-        memberIndex,
-        myStaking: challengeLayer2.totalStaked,
-        targetStaking: member.totalStaked,
-        executor: address
-      });
-
       // 트랜잭션 모달 열기
       setShowTransactionModal(true);
 
@@ -302,21 +202,21 @@ export default function DAOCommitteeMembers() {
 
   // 챌린지 분석 실행 함수 (분리)
   const performChallengeAnalysis = async () => {
-    console.log('📋 performChallengeAnalysis 호출됨, 조건 체크:', {
-      hasCommitteeMembers: !!committeeMembers,
-      committeeMembersLength: committeeMembers?.length || 0,
-      hasLayer2Candidates: !!layer2Candidates,
-      layer2CandidatesLength: layer2Candidates?.length || 0,
-      challengeProgressStep: challengeProgress.step
-    });
+    // console.log('📋 performChallengeAnalysis 호출됨, 조건 체크:', {
+    //   hasCommitteeMembers: !!committeeMembers,
+    //   committeeMembersLength: committeeMembers?.length || 0,
+    //   hasLayer2Candidates: !!layer2Candidates,
+    //   layer2CandidatesLength: layer2Candidates?.length || 0,
+    //   challengeProgressStep: challengeProgress.step
+    // });
 
-    console.log('🔍 상세 데이터 확인:', {
-      committeeMembers: committeeMembers?.map(m => ({ name: m.name, contract: m.candidateContract, staked: m.totalStaked })),
-      layer2Candidates: layer2Candidates?.map(c => ({ name: c.name, contract: c.candidateContract, staked: c.totalStaked }))
-    });
+    // console.log('🔍 상세 데이터 확인:', {
+    //   committeeMembers: committeeMembers?.map(m => ({ name: m.name, contract: m.candidateContract, staked: m.totalStaked })),
+    //   layer2Candidates: layer2Candidates?.map(c => ({ name: c.name, contract: c.candidateContract, staked: c.totalStaked }))
+    // });
 
     if (!committeeMembers || committeeMembers.length === 0) {
-      console.log('❌ 분석 조건 불충족: 위원회 멤버 없음');
+
       setChallengeProgress({
         step: 'error',
         currentMemberIndex: 0,
@@ -328,7 +228,7 @@ export default function DAOCommitteeMembers() {
     }
 
     if (!layer2Candidates || layer2Candidates.length === 0) {
-      console.log('❌ 분석 조건 불충족: Layer2 데이터 없음');
+
       setChallengeProgress({
         step: 'error',
         currentMemberIndex: 0,
@@ -339,7 +239,7 @@ export default function DAOCommitteeMembers() {
       return;
     }
 
-    console.log('🔍 챌린지 분석 시작');
+
     setIsCheckingGlobal(true);
 
     setChallengeProgress({
@@ -375,21 +275,11 @@ export default function DAOCommitteeMembers() {
         // 짧은 대기 시간으로 UI 업데이트 보장
         await new Promise(resolve => setTimeout(resolve, 50));
 
-        // 이 멤버보다 스테이킹이 높은 Layer2들 찾기
-        console.log(`🔍 멤버 ${member.name} (${member.candidateContract}) 분석 시작:`, {
-          memberStaked: member.totalStaked,
-          memberStakedFormatted: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-        });
-
-        console.log(`📊 전체 Layer2 후보 수: ${layer2Candidates.length}`);
 
         const challengers = layer2Candidates.filter(candidate => {
-          console.log(`🔍 후보 검사 시작: ${candidate.name} (${candidate.candidateContract})`);
-
           // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
           const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
           if (candidate.cooldown > 0 && currentTime < candidate.cooldown) {
-            console.log(`⏰ ${candidate.name} 쿨다운 중: ${candidate.cooldown} > ${currentTime}`);
             return false;
           }
 
@@ -398,7 +288,6 @@ export default function DAOCommitteeMembers() {
             m => m.candidateContract.toLowerCase() === candidate.candidateContract.toLowerCase()
           );
           if (isAlreadyMember) {
-            console.log(`🚫 ${candidate.name} 이미 위원회 멤버임`);
             return false;
           }
 
@@ -407,34 +296,27 @@ export default function DAOCommitteeMembers() {
           const memberStaked = BigInt(member.totalStaked);
           const isHigherStaked = candidateStaked > memberStaked;
 
-          console.log(`💰 스테이킹 비교 - ${candidate.name} (${candidate.candidateContract}):`, {
-            candidateStaked: candidate.totalStaked,
-            candidateStakedFormatted: (Number(candidate.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-            memberStaked: member.totalStaked,
-            memberStakedFormatted: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-            difference: Number(candidateStaked - memberStaked) / 1e27,
-            differenceFormatted: (Number(candidateStaked - memberStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
-            isHigherStaked,
-            comparison: `${candidateStaked} > ${memberStaked} = ${isHigherStaked}`
-          });
+          // console.log(`💰 스테이킹 비교 - ${candidate.name} (${candidate.candidateContract}):`, {
+          //   candidateStaked: candidate.totalStaked,
+          //   candidateStakedFormatted: (Number(candidate.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+          //   memberStaked: member.totalStaked,
+          //   memberStakedFormatted: (Number(member.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+          //   difference: Number(candidateStaked - memberStaked) / 1e27,
+          //   differenceFormatted: (Number(candidateStaked - memberStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON',
+          //   isHigherStaked,
+          //   comparison: `${candidateStaked} > ${memberStaked} = ${isHigherStaked}`
+          // });
 
           return isHigherStaked;
         });
 
         if (challengers.length > 0) {
-          console.log(`🎯 멤버 ${member.name}에 대한 챌린저 분석 시작:`, {
-            totalChallengers: challengers.length,
-            myAddress: address
-          });
 
           // 내 Layer2가 이 멤버를 챌린지할 수 있는지 확인 (쿨다운 체크 포함)
           const myChallengers = address ? challengers.filter(challenger => {
-            console.log(`🔍 내 Layer2 확인 중: ${challenger.name} (${challenger.candidateContract})`);
-
             // 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
             const currentTime = Math.floor(Date.now() / 1000); // 현재 시간 (초 단위)
             if (challenger.cooldown > 0 && currentTime < challenger.cooldown) {
-              console.log(`⏰ 챌린저 ${challenger.name} (${challenger.candidateContract}) 쿨다운 중: ${challenger.cooldown} > ${currentTime}`);
               return false;
             }
 
@@ -442,50 +324,14 @@ export default function DAOCommitteeMembers() {
             const isOperator = challenger.operator && challenger.operator.toLowerCase() === address.toLowerCase();
             const isManager = challenger.manager && challenger.manager.toLowerCase() === address.toLowerCase();
 
-            console.log(`🔍 레이어 오너 확인 - ${challenger.name} (${challenger.candidateContract}):`, {
-              myAddress: address,
-              creationAddress: challenger.creationAddress,
-              operator: challenger.operator,
-              manager: challenger.manager,
-              isOwner,
-              isOperator,
-              isManager,
-              isMyLayer2: isOwner || isOperator || isManager,
-              addressMatch: {
-                creationAddress: challenger.creationAddress.toLowerCase() === address.toLowerCase(),
-                operator: challenger.operator ? challenger.operator.toLowerCase() === address.toLowerCase() : false,
-                manager: challenger.manager ? challenger.manager.toLowerCase() === address.toLowerCase() : false
-              }
-            });
-
             return isOwner || isOperator || isManager;
           }) : [];
 
           const hasMyLayer2 = myChallengers.length > 0;
 
-          console.log(`✅ 멤버 ${member.name}에 대한 내 Layer2 분석 결과:`, {
-            totalChallengers: challengers.length,
-            myChallengersCount: myChallengers.length,
-            hasMyLayer2,
-            myChallengers: myChallengers.map(c => ({
-              name: c.name,
-              contract: c.candidateContract,
-              staked: (Number(c.totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-            }))
-          });
-
           const sortedChallengers = challengers.sort((a, b) =>
             Number(BigInt(b.totalStaked) - BigInt(a.totalStaked)) // 스테이킹 높은 순
           );
-
-          console.log(`✅ 멤버 ${member.name} 분석 완료:`, {
-            challengersCount: challengers.length,
-            hasMyLayer2,
-            topChallenger: sortedChallengers[0] ? {
-              name: sortedChallengers[0].name,
-              staked: (Number(sortedChallengers[0].totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-            } : null
-          });
 
           memberChallengeMap.push({
             member,
@@ -503,20 +349,6 @@ export default function DAOCommitteeMembers() {
         return a.challengers.length - b.challengers.length;
       });
 
-      console.log(`🎯 최종 챌린지 분석 결과:`, {
-        totalMembers: committeeMembers.length,
-        challengeableMembers: memberChallengeMap.length,
-        myChallengeableMembers: memberChallengeMap.filter(m => m.hasMyLayer2).length,
-        memberDetails: memberChallengeMap.map(m => ({
-          memberName: m.member.name,
-          challengersCount: m.challengers.length,
-          hasMyLayer2: m.hasMyLayer2,
-          topChallenger: m.challengers[0] ? {
-            name: m.challengers[0].name,
-            staked: (Number(m.challengers[0].totalStaked) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' WTON'
-          } : null
-        }))
-      });
 
       // 분석 완료 시간 저장
       const completionTime = new Date();
@@ -533,7 +365,6 @@ export default function DAOCommitteeMembers() {
       // 결과 데이터를 state에 저장
       setGlobalChallengeCandidates(memberChallengeMap as any);
 
-      console.log(`✅ 챌린지 분석 완료: ${memberChallengeMap.length}명 멤버 분석`);
 
     } catch (error) {
       console.error('❌ 챌린지 분석 실패:', error);
@@ -551,25 +382,18 @@ export default function DAOCommitteeMembers() {
 
     // Layer2 로딩 완료 시 자동 분석 시작
   useEffect(() => {
-    console.log('🔍 useEffect 조건 체크:', {
-      showGlobalChallenge,
-      isLoadingLayer2,
-      hasLoadedLayer2Once,
-      layer2CandidatesLength: layer2Candidates.length,
-      shouldStartAnalysis: shouldStartAnalysisRef.current,
-      challengeProgressStep: challengeProgress.step
-    });
+
 
     // 모달이 열려있고, Layer2 로딩이 완료되었고, 실제 데이터가 있고, 자동 분석이 요청된 상태이면 분석 시작
     if (showGlobalChallenge && !isLoadingLayer2 && hasLoadedLayer2Once && layer2Candidates.length > 0 && shouldStartAnalysisRef.current) {
       shouldStartAnalysisRef.current = false; // 플래그 리셋
-      console.log('🎯 Layer2 데이터 업데이트 감지, 자동 분석 시작');
+
       performChallengeAnalysis();
     }
 
     // 추가: Layer2 로딩이 완료되었지만 분석이 시작되지 않은 경우를 위한 fallback
     if (showGlobalChallenge && !isLoadingLayer2 && hasLoadedLayer2Once && layer2Candidates.length > 0 && challengeProgress.step === 'loading-layer2') {
-      console.log('🔄 Layer2 로딩 완료 감지, fallback 분석 시작');
+
       performChallengeAnalysis();
     }
   }, [isLoadingLayer2, hasLoadedLayer2Once, showGlobalChallenge, layer2Candidates.length, challengeProgress.step]);
@@ -588,9 +412,6 @@ export default function DAOCommitteeMembers() {
 
     // 전역 "Check the challenge" 버튼 클릭 핸들러
   const handleGlobalChallengeCheck = async () => {
-    console.log('🎯 Check the challenge 클릭');
-    console.log('isLoadingLayer2', isLoadingLayer2);
-    console.log('hasLoadedLayer2Once', hasLoadedLayer2Once);
 
     if (!committeeMembers || committeeMembers.length === 0) {
       return;
@@ -601,7 +422,6 @@ export default function DAOCommitteeMembers() {
 
     // 1. 먼저 캐시된 분석 결과가 있는지 확인 (가장 우선)
     if (globalChallengeCandidates.length > 0 && analysisCompletedTime && hasLoadedLayer2Once && layer2Candidates.length > 0) {
-      console.log('✅ 기존 분석 결과 존재, 바로 완료 상태로 표시');
 
       // 캐시된 데이터가 있으면 바로 완료 상태로 표시
       setChallengeProgress({
@@ -629,7 +449,7 @@ export default function DAOCommitteeMembers() {
 
     // 3. 아직 로드하지 않은 경우 또는 데이터가 없는 경우
     if (!hasLoadedLayer2Once || layer2Candidates.length === 0) {
-      console.log('🚀 Layer2 데이터 로딩 시작');
+
       setChallengeProgress({
         step: 'loading-layer2',
         currentMemberIndex: 0,
@@ -653,7 +473,7 @@ export default function DAOCommitteeMembers() {
     }
 
     // 4. Layer2 데이터는 있지만 분석 결과가 없는 경우 - 새로운 분석 시작
-    console.log('✅ Layer2 데이터 존재, 새로운 분석 시작');
+
     performChallengeAnalysis();
 
   }
@@ -665,7 +485,6 @@ export default function DAOCommitteeMembers() {
     }
 
     try {
-      console.log('👋 멤버 은퇴 실행:', member.name);
 
       // 트랜잭션 모달 열기
       setShowTransactionModal(true);
@@ -686,7 +505,6 @@ export default function DAOCommitteeMembers() {
     }
 
     try {
-      console.log('💰 활동 보상 청구 실행:', member.name, 'Amount:', member.claimableActivityReward);
 
       // 트랜잭션 타입 지정 후 모달 열기
       setTxType("claimActivityReward");
@@ -709,23 +527,11 @@ export default function DAOCommitteeMembers() {
     const isCreator = member.creationAddress.toLowerCase() === lowerAddress;
     const isManager = member.manager && member.manager.toLowerCase() === lowerAddress;
 
-    // console.log('🔍 Checking ownership:', {
-    //   memberName: member.name,
-    //   connectedAddress: address,
-    //   creationAddress: member.creationAddress,
-    //   managerAddress: member.manager,
-    //   isCreator,
-    //   isManager,
-    //   canManage: isCreator || isManager
-    // });
-
     return isCreator || isManager;
   }
 
   // 현재 연결된 지갑으로 해당 멤버에게 챌린지할 수 있는지 확인
 
-
-  // console.log("🚀 committeeMembers ", committeeMembers);
 
   // 트랜잭션 타입 상태
   const [txType, setTxType] = useState<"vote" | "execute" | "claimActivityReward" | null>(null);
@@ -1113,7 +919,6 @@ export default function DAOCommitteeMembers() {
                     <button
                       onClick={async () => {
                         // Refresh 버튼은 Layer2 데이터만 새로 가져오기
-                        console.log('🔄 Refresh 버튼 클릭 - Layer2 데이터 새로고침');
 
                         // 1. 기존 분석 결과 지우기
                         setGlobalChallengeCandidates([]);
@@ -1598,10 +1403,11 @@ export default function DAOCommitteeMembers() {
         state={{
           isExecuting: isDAOCandidateExecuting,
           isSuccess: isDAOCandidateSuccess,
-          error: daoCandidateError,
+          error: daoCandidateError ?? null,
           txHash: txHash ? txHash : null,
           operation: lastOperation,
         }}
+        txHash={txHash ? txHash : null}
         title={txType === "claimActivityReward" ? "Claim Reward" : txType === "execute" ? "Execute Agenda" : txType === "vote" ? "Cast Your Vote" : "DAO Transaction"}
         successMessage={txType === "claimActivityReward" ? "Reward claimed successfully!" : txType === "execute" ? "Agenda executed successfully!" : txType === "vote" ? "Vote cast successfully!" : "Transaction successful!"}
         errorMessage={txType === "claimActivityReward" ? "Reward claim failed" : txType === "execute" ? "Agenda execution failed" : txType === "vote" ? "Vote failed" : "Transaction failed"}

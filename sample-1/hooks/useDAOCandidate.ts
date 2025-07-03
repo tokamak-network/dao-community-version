@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { daoCandidateAbi } from '@/abis/dao-candidate';
 import { CommitteeMember } from '@/types/dao';
@@ -15,7 +15,7 @@ import {
   logTransactionError
 } from '@/utils/transaction-utils';
 
-// Write 함수들을 위한 파라미터 인터페이스들
+// Parameter interfaces for write functions
 export interface ChangeMemberParams {
   candidateContract: string;
   targetMemberIndex: number;
@@ -40,7 +40,7 @@ export interface UpdateSeigniorageParams {
   candidateContract: string;
 }
 
-// Read 함수들을 위한 파라미터 인터페이스들
+// Parameter interfaces for read functions
 export interface StakedOfParams {
   candidateContract: string;
   account: string;
@@ -55,13 +55,11 @@ export function useDAOCandidate() {
 
   const [operationState, setOperationState] = useState<TransactionState>(createInitialTransactionState());
 
-  // Write 함수들
+  // Write functions
   const changeMember = async (params: ChangeMemberParams) => {
     if (!address) {
-      throw new Error('지갑을 먼저 연결해주세요');
+      throw new Error('Please connect your wallet first');
     }
-
-    console.log('🔄 changeMember 실행:', params);
 
     setOperationState(createExecutingState('changeMember'));
 
@@ -73,9 +71,9 @@ export function useDAOCandidate() {
         args: [BigInt(params.targetMemberIndex)],
       });
 
-      console.log('✅ changeMember 트랜잭션 전송 완료');
-        } catch (err: any) {
-      console.error('❌ changeMember 실행 실패:', err);
+
+    } catch (err: any) {
+      console.error('❌ Failed to execute changeMember:', err);
       logTransactionError(err, 'changeMember');
       setOperationState(prev => createErrorState(prev, err));
       throw err;
@@ -84,10 +82,8 @@ export function useDAOCandidate() {
 
   const castVote = async (params: CastVoteParams) => {
     if (!address) {
-      throw new Error('지갑을 먼저 연결해주세요');
+      throw new Error('Please connect your wallet first');
     }
-
-    console.log('🗳️ castVote 실행:', params);
 
     setOperationState(createExecutingState('castVote'));
 
@@ -99,12 +95,11 @@ export function useDAOCandidate() {
         args: [BigInt(params.agendaId), BigInt(params.vote), params.comment],
       });
 
-      console.log('✅ castVote 트랜잭션 전송 완료');
     } catch (err: any) {
-      console.error('❌ castVote 실행 실패:', err);
-      const errorMessage = err?.message || 'castVote 실행 중 오류가 발생했습니다';
+      console.error('❌ Failed to execute castVote:', err);
+      const errorMessage = err?.message || 'An error occurred while executing castVote';
 
-      // 지갑 승인 취소 등 사용자 취소 에러는 간단한 메시지로 처리
+      // Handle user cancellation errors with a simple message
       const isUserCancelled =
         err?.code === 4001 ||
         errorMessage.includes("User denied") ||
@@ -116,7 +111,7 @@ export function useDAOCandidate() {
         errorMessage.includes("cancelled");
 
       const finalErrorMessage = isUserCancelled
-        ? "트랜잭션이 취소되었습니다"
+        ? "Transaction was cancelled"
         : errorMessage;
 
       setOperationState(prev => ({
@@ -130,27 +125,23 @@ export function useDAOCandidate() {
 
   const claimActivityReward = async (params: ClaimActivityRewardParams) => {
     if (!address) {
-      throw new Error('지갑을 먼저 연결해주세요');
+      throw new Error('Please connect your wallet first');
     }
-
-    console.log('💰 claimActivityReward 실행:', params);
 
     setOperationState(createExecutingState('claimActivityReward'));
 
     try {
-      await writeContract({
+      const result = await writeContract({
         address: params.candidateContract as `0x${string}`,
         abi: daoCandidateAbi,
         functionName: 'claimActivityReward',
         args: [],
       });
-
-      console.log('✅ claimActivityReward 트랜잭션 전송 완료');
     } catch (err: any) {
-      console.error('❌ claimActivityReward 실행 실패:', err);
-      const errorMessage = err?.message || 'claimActivityReward 실행 중 오류가 발생했습니다';
+      console.error('❌ Failed to execute claimActivityReward:', err);
+      const errorMessage = err?.message || 'An error occurred while executing claimActivityReward';
 
-      // 지갑 승인 취소 등 사용자 취소 에러는 간단한 메시지로 처리
+      // Handle user cancellation errors with a simple message
       const isUserCancelled =
         err?.code === 4001 ||
         errorMessage.includes("User denied") ||
@@ -162,7 +153,7 @@ export function useDAOCandidate() {
         errorMessage.includes("cancelled");
 
       const finalErrorMessage = isUserCancelled
-        ? "트랜잭션이 취소되었습니다"
+        ? "Transaction was cancelled"
         : errorMessage;
 
       setOperationState(prev => ({
@@ -176,10 +167,8 @@ export function useDAOCandidate() {
 
   const retireMember = async (params: RetireMemberParams) => {
     if (!address) {
-      throw new Error('지갑을 먼저 연결해주세요');
+      throw new Error('Please connect your wallet first');
     }
-
-    console.log('👋 retireMember 실행:', params);
 
     setOperationState(createExecutingState('retireMember'));
 
@@ -190,11 +179,9 @@ export function useDAOCandidate() {
         functionName: 'retireMember',
         args: [],
       });
-
-      console.log('✅ retireMember 트랜잭션 전송 완료');
     } catch (err: any) {
-      console.error('❌ retireMember 실행 실패:', err);
-      const errorMessage = err?.message || 'retireMember 실행 중 오류가 발생했습니다';
+      console.error('❌ Failed to execute retireMember:', err);
+      const errorMessage = err?.message || 'An error occurred while executing retireMember';
       setOperationState(prev => ({
         ...prev,
         isExecuting: false,
@@ -206,10 +193,8 @@ export function useDAOCandidate() {
 
   const updateSeigniorage = async (params: UpdateSeigniorageParams) => {
     if (!address) {
-      throw new Error('지갑을 먼저 연결해주세요');
+      throw new Error('Please connect your wallet first');
     }
-
-    console.log('⚡ updateSeigniorage 실행:', params);
 
     setOperationState(createExecutingState('updateSeigniorage'));
 
@@ -220,11 +205,9 @@ export function useDAOCandidate() {
         functionName: 'updateSeigniorage',
         args: [],
       });
-
-      console.log('✅ updateSeigniorage 트랜잭션 전송 완료');
     } catch (err: any) {
-      console.error('❌ updateSeigniorage 실행 실패:', err);
-      const errorMessage = err?.message || 'updateSeigniorage 실행 중 오류가 발생했습니다';
+      console.error('❌ Failed to execute updateSeigniorage:', err);
+      const errorMessage = err?.message || 'An error occurred while executing updateSeigniorage';
       setOperationState(prev => ({
         ...prev,
         isExecuting: false,
@@ -234,7 +217,7 @@ export function useDAOCandidate() {
     }
   };
 
-  // Read 함수들 (직접 useReadContract 사용 - 필요시 개별적으로 사용)
+  // Read functions (use useReadContract directly - use individually as needed)
   const useMemo = (candidateContract: string) => {
     return useReadContract({
       address: candidateContract as `0x${string}`,
@@ -268,14 +251,13 @@ export function useDAOCandidate() {
     });
   };
 
-  // 트랜잭션 상태 업데이트
+  // Transaction state update
   if (hash && !operationState.txHash) {
     setOperationState(prev => updateTransactionHash(prev, hash));
   }
 
   if (isSuccess && !operationState.isSuccess) {
     setOperationState(prev => createSuccessState(prev));
-    console.log(`🎉 ${operationState.operation} 성공!`);
   }
 
   if ((error || receiptError) && !operationState.error) {
@@ -287,27 +269,27 @@ export function useDAOCandidate() {
   }
 
   return {
-    // Write 함수들
+    // Write functions
     changeMember,
     castVote,
     claimActivityReward,
     retireMember,
     updateSeigniorage,
 
-    // Read 함수들
+    // Read functions
     useMemo,
     useTotalStaked,
     useOperator,
     useStakedOf,
 
-    // 상태
+    // State
     isExecuting: isPending || isConfirming || operationState.isExecuting,
     isSuccess: operationState.isSuccess,
     error: operationState.error || error?.message || receiptError?.message,
     txHash: operationState.txHash,
     lastOperation: operationState.operation || null,
 
-    // 유틸리티
+    // Utility
     reset: () => setOperationState(resetTransactionState()),
   };
 }

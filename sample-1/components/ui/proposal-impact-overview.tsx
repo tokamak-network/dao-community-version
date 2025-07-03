@@ -51,7 +51,6 @@ export function ProposalImpactOverview({
     return () => {
       if (eventSourceInstance) {
         eventSourceInstance.close();
-        console.log("SSE connection closed on component unmount.");
       }
     };
   }, [eventSourceInstance]);
@@ -153,17 +152,16 @@ export function ProposalImpactOverview({
               if (line.trim() === "") {
                 // Empty line indicates end of SSE message
                 if (currentEventType && currentData) {
-                  console.log("[FRONTEND SSE] Processing complete event:", currentEventType, currentData);
 
                   if (currentData === "[DONE]") {
-                    console.log("Simulation stream completed");
+
                     return;
                   }
 
                   try {
                     const eventData = JSON.parse(currentData);
                     const completeEvent = { ...eventData, type: currentEventType };
-                    console.log("[FRONTEND SSE] Complete event with type:", completeEvent);
+
                     handleSSEEvent(completeEvent);
                   } catch (parseError) {
                     console.error("Failed to parse SSE data:", parseError, "Raw data:", currentData);
@@ -174,30 +172,27 @@ export function ProposalImpactOverview({
                 continue;
               }
 
-              console.log("[FRONTEND SSE] Received line:", line);
-
               if (line.startsWith("event: ")) {
                 currentEventType = line.slice(7).trim();
-                console.log("[FRONTEND SSE] Event type:", currentEventType);
+
               } else if (line.startsWith("data: ")) {
                 currentData = line.slice(6);
-                console.log("[FRONTEND SSE] Data part:", currentData);
+
               }
             }
 
             // Handle any remaining event at the end
             if (currentEventType && currentData) {
-              console.log("[FRONTEND SSE] Processing final event:", currentEventType, currentData);
 
               if (currentData === "[DONE]") {
-                console.log("Simulation stream completed");
+
                 return;
               }
 
               try {
                 const eventData = JSON.parse(currentData);
                 const completeEvent = { ...eventData, type: currentEventType };
-                console.log("[FRONTEND SSE] Final complete event:", completeEvent);
+
                 handleSSEEvent(completeEvent);
               } catch (parseError) {
                 console.error("Failed to parse final SSE data:", parseError, "Raw data:", currentData);
@@ -236,7 +231,7 @@ export function ProposalImpactOverview({
         break;
 
       case "actionUpdate":
-        console.log("[FRONTEND SSE] Processing actionUpdate:", event);
+
         setSimulatedActions(prevActions =>
           prevActions.map((action) =>
             action.id === event.action?.id

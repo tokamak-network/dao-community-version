@@ -49,9 +49,6 @@ export function createDAOContextFunctions(
    * 최대 멤버 수 로드
    */
   const loadMaxMembers = async () => {
-    console.log("🚀 loadMaxMembers maxMember ", maxMember);
-    console.log("🚀 loadMaxMembers loadedMaxMembers ", loadedMaxMembers);
-
     try {
       if (maxMember === 0) {
         const _maxMember = await loadMaxMembersFromHandler();
@@ -71,7 +68,6 @@ export function createDAOContextFunctions(
    * 위원회 멤버들 로드 (DAOContext.tsx와 동일하게)
    */
   const loadCommitteeMembers = async (maxMemberCount?: number) => {
-    console.log("🔄 loadCommitteeMembers 시작 (분리된 핸들러 사용)");
     loadedCommitteeMembers = true;
 
     try {
@@ -94,7 +90,6 @@ export function createDAOContextFunctions(
 
       setCommitteeMembers(memberDetails);
       setStatusMessage(`✅ Loaded ${memberDetails.length} committee members`);
-      console.log(`✅ Committee members loaded: ${memberDetails.length}`);
 
     } catch (error) {
       console.error("❌ 위원회 멤버 로드 실패:", error);
@@ -109,8 +104,6 @@ export function createDAOContextFunctions(
    * 특정 멤버 새로고침 (slotIndex 기반)
    */
   const refreshSpecificMember = async (slotIndex: number) => {
-    console.log("🔄 refreshSpecificMember 시작:", slotIndex);
-
     try {
       // 분리된 핸들러 함수 사용 (slotIndex 전달)
       const updatedMember = await refreshSpecificMemberFromHandler(slotIndex);
@@ -121,7 +114,6 @@ export function createDAOContextFunctions(
           index === slotIndex ? updatedMember : member
         );
         setCommitteeMembers(updatedMembers);
-        console.log(`✅ Slot ${slotIndex} member updated successfully`);
       } else if (!updatedMember && committeeMembers) {
         // 멤버가 제거된 경우 빈 슬롯으로 설정
         const emptySlot = {
@@ -144,7 +136,6 @@ export function createDAOContextFunctions(
           index === slotIndex ? emptySlot : member
         );
         setCommitteeMembers(updatedMembers);
-        console.log(`✅ Slot ${slotIndex} set to empty`);
       }
     } catch (err) {
       console.error("Failed to refresh specific member:", err);
@@ -155,8 +146,6 @@ export function createDAOContextFunctions(
    * Layer2 후보자들 로드 (DAOContext.tsx와 동일하게)
    */
   const loadLayer2Candidates = async (force = false, onProgress?: (current: number, total: number, message: string) => void) => {
-    console.log('🔍 dao-context-functions.loadLayer2Candidates 호출됨', { force, hasLoadedLayer2Once, layer2CandidatesLength: layer2Candidates.length });
-
     setIsLoadingLayer2(true);
     setLayer2Error(null);
 
@@ -174,9 +163,6 @@ export function createDAOContextFunctions(
       setLayer2Total(result.total);
       setHasLoadedLayer2Once(true); // 항상 true로 설정
 
-      console.log('✅ dao-context-functions.loadLayer2Candidates 완료 - setHasLoadedLayer2Once(true) 실행됨');
-
-      console.log(`✅ Layer2 후보 로드 완료: ${result.candidates.length}개`);
     } catch (error) {
       console.error("❌ Layer2 후보 로드 실패:", error);
       setLayer2Error("Failed to load Layer2 candidates");
@@ -189,7 +175,6 @@ export function createDAOContextFunctions(
    * Layer2 캐시 초기화
    */
   const resetLayer2Cache = () => {
-    console.log("🔄 Layer2 캐시 초기화");
     resetLayer2CacheFromHandler();
     setLayer2Candidates([]);
     setLayer2Total(0);
@@ -200,7 +185,6 @@ export function createDAOContextFunctions(
    * 위원회 멤버들 새로고침
    */
   const refreshCommitteeMembers = async () => {
-    console.log("🔄 Committee members 새로고침");
     if (maxMember > 0) {
       await loadCommitteeMembers(maxMember);
     } else {
@@ -212,9 +196,7 @@ export function createDAOContextFunctions(
    * 위원회 멤버 여부 확인
    */
   const isCommitteeMember = (address?: string): boolean => {
-    console.log("🔍 isCommitteeMember 호출됨:", { address, committeeMembersLength: committeeMembers?.length });
     if (!address || !committeeMembers) {
-      console.log("❌ isCommitteeMember: address 또는 committeeMembers가 없음");
       return false;
     }
 
@@ -223,7 +205,6 @@ export function createDAOContextFunctions(
     for (const member of committeeMembers) {
       // creationAddress와 비교
       if (member.creationAddress.toLowerCase() === lowerCheckAddress) {
-        console.log("✅ isCommitteeMember 결과: creation 주소로 멤버 발견", { address, member: member.name });
         return true;
       }
 
@@ -231,12 +212,10 @@ export function createDAOContextFunctions(
       if (member.manager &&
           member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
           member.manager.toLowerCase() === lowerCheckAddress) {
-        console.log("✅ isCommitteeMember 결과: manager 주소로 멤버 발견", { address, member: member.name });
         return true;
       }
     }
 
-    console.log("❌ isCommitteeMember 결과: 멤버가 아님", { address });
     return false;
   };
 
@@ -244,9 +223,7 @@ export function createDAOContextFunctions(
    * 위원회 멤버 정보 가져오기 (멤버 정보 포함)
    */
   const getCommitteeMemberInfo = (address?: string): { isMember: boolean; memberInfo?: CommitteeMember; ownershipType?: 'creation' | 'manager' } => {
-    console.log("🔍 getCommitteeMemberInfo 호출됨:", { address, committeeMembersLength: committeeMembers?.length });
     if (!address || !committeeMembers) {
-      console.log("❌ getCommitteeMemberInfo: address 또는 committeeMembers가 없음");
       return { isMember: false };
     }
 
@@ -255,7 +232,6 @@ export function createDAOContextFunctions(
     for (const member of committeeMembers) {
       // creationAddress와 비교
       if (member.creationAddress.toLowerCase() === lowerCheckAddress) {
-        console.log("✅ getCommitteeMemberInfo 결과: creation 주소로 멤버 발견", { address, member: member.name });
         return { isMember: true, memberInfo: member, ownershipType: 'creation' };
       }
 
@@ -263,12 +239,10 @@ export function createDAOContextFunctions(
       if (member.manager &&
           member.manager.toLowerCase() !== '0x0000000000000000000000000000000000000000' &&
           member.manager.toLowerCase() === lowerCheckAddress) {
-        console.log("✅ getCommitteeMemberInfo 결과: manager 주소로 멤버 발견", { address, member: member.name });
         return { isMember: true, memberInfo: member, ownershipType: 'manager' };
       }
     }
 
-    console.log("❌ getCommitteeMemberInfo 결과: 멤버가 아님", { address });
     return { isMember: false };
   };
 

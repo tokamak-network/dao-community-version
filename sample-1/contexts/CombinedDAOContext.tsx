@@ -147,17 +147,6 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     throw new Error('DAO_COMMITTEE_PROXY_ADDRESS is not configured');
   }
 
-  if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-    console.log(`🔄 CombinedDAOProvider 렌더링 #${renderCount.current}`, {
-      timestamp: new Date().toLocaleTimeString(),
-      isConnected,
-      address,
-      renderNumber: renderCount.current,
-      propsChanged,
-      reason: propsChanged ? 'Props 변경' : '내부 상태 변경'
-    });
-  }
-
 
   //----------------------------------------
   // DAO 모듈 - 핵심 DAO 기능들 (모듈화)
@@ -222,9 +211,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
 
     // 아젠다 목록 초기 로드 (한 번만)
     if (!hasLoadedOnce && agendaFunctions.refreshAgendas) {
-      if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-        console.log('🔄 첫 번째 아젠다 목록 로드 시작');
-      }
+
       agendaFunctions.refreshAgendas();
     }
   }, [hasLoadedOnce, createAgendaFees, minimumNoticePeriodSeconds]);
@@ -232,17 +219,13 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   // 연결 상태 변경 시 처리
   useEffect(() => {
     if (previousConnectionState !== null && previousConnectionState !== isConnected) {
-      if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-        console.log(`🔄 지갑 연결 상태 변경: ${previousConnectionState} → ${isConnected}`);
-      }
+
 
       if (isConnected && address) {
         // 연결되었을 때 멤버 여부 확인
         const memberStatus = daoFunctions.isCommitteeMember(address);
         setIsMember(memberStatus);
-        if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-          console.log(`👤 멤버 상태 업데이트: ${address} → ${memberStatus ? '멤버' : '비멤버'}`);
-        }
+
       } else {
         // 연결 해제되었을 때
         setIsMember(false);
@@ -262,10 +245,10 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
       return; // updateAgendaData 함수가 준비되면 즉시 이벤트 모니터링 시작
     }
 
-    console.log('🎯 Setting up agenda event monitoring...', {
-      timestamp: new Date().toISOString(),
-      hasUpdateAgendaData: !!agendaFunctions.updateAgendaData
-    });
+    // console.log('🎯 Setting up agenda event monitoring...', {
+    //   timestamp: new Date().toISOString(),
+    //   hasUpdateAgendaData: !!agendaFunctions.updateAgendaData
+    // });
 
     // 아젠다 이벤트 핸들러들 생성
     const handleAgendaCreated = createAgendaCreatedHandler(agendaFunctions.updateAgendaData);
@@ -279,19 +262,12 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
       handleAgendaExecuted
     );
 
-    console.log('✅ Agenda event monitoring setup completed');
-
     // 컴포넌트 언마운트 시 이벤트 워처 정리
     return cleanupAgenda;
   }, [agendaFunctions.updateAgendaData]);
 
   // DAO 이벤트 모니터링 설정
   useEffect(() => {
-    console.log('🎯 Setting up DAO event monitoring...', {
-      timestamp: new Date().toISOString(),
-      hasRefreshSpecificMember: !!daoFunctions.refreshSpecificMember,
-      hasResetLayer2Cache: !!daoFunctions.resetLayer2Cache
-    });
 
     // DAO 이벤트 핸들러들 생성
     const handleMemberChanged = createMemberChangedHandler(daoFunctions.refreshSpecificMember);
@@ -309,8 +285,6 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
       handleActivityRewardClaimed,
       handleLayer2Registered
     );
-
-    console.log('✅ DAO event monitoring setup completed');
 
     // 컴포넌트 언마운트 시 이벤트 워처 정리
     return cleanupDAO;

@@ -4,7 +4,8 @@ import { AgendaWithMetadata } from '@/types/agenda'
 import { formatAddress } from '@/lib/utils'
 import { Interface } from 'ethers'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
-import { TON_CONTRACT_ADDRESS, getCurrentChain } from '@/config/contracts'
+import { TON_CONTRACT_ADDRESS } from '@/config/contracts'
+import { chain } from '@/config/chain'
 import { getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
 
 interface AgendaEffectsProps {
@@ -455,7 +456,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
           </div>
           <div className="text-center">
             <a
-              href={getAgendaMetadataRepoFolderUrl(getCurrentChain().name.toLowerCase())}
+              href={getAgendaMetadataRepoFolderUrl(chain.network)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm"

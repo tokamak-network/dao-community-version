@@ -194,7 +194,7 @@ export function getAgendaTimeInfo(agenda: {
   };
 }
 
-export function formatAddress(address: string | { address: string }): string {
+export function formatAddress(address?: string | { address: string }): string {
   if (!address) return "";
 
   const addressStr = typeof address === "string" ? address : address.address;
@@ -349,6 +349,9 @@ export async function getAgendaMetadata(
 
     if (!response.ok) {
       // 404 에러 로그를 숨김 - 메타데이터가 없는 것은 정상적인 상황
+      if (response.status !== 404) {
+        console.error(`Error fetching metadata for agenda ${agendaId}:`, response.status, response.statusText);
+      }
       return null;
     }
 
@@ -359,6 +362,9 @@ export async function getAgendaMetadata(
     if (error instanceof TypeError && error.message.includes('fetch')) {
       // 네트워크 에러만 로그 출력
       console.error(`Network error fetching metadata for agenda ${agendaId}:`, error);
+    } else if (error instanceof Error && !error.message.includes('404')) {
+      // 404가 아닌 다른 에러만 로그 출력
+      console.error(`Error fetching metadata for agenda ${agendaId}:`, error);
     }
     return null;
   }
@@ -580,4 +586,9 @@ export function normalizeParameterValue(value: string, type: string): string {
 
 export function getAgendaMetadataRepoFolderUrl(network: string = "mainnet"): string {
   return `https://github.com/tokamak-network/dao-agenda-metadata-repository/tree/main/data/agendas/${network}`;
+}
+
+export function formatTxHash(txHash: string | undefined): string {
+  if (!txHash || typeof txHash !== 'string' || txHash.length < 10) return '';
+  return `${txHash.slice(0, 6)}...${txHash.slice(-4)}`;
 }

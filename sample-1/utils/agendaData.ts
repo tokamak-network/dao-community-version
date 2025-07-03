@@ -33,13 +33,8 @@ export async function prepareAgenda(params: PrepareAgendaParams): Promise<Prepar
     daoCommitteeProxyAddress
   } = params;
 
-  console.log("prepareAgenda", actions);
-
   const targets = actions.map((action) => action.contractAddress);
   const calldata = actions.map((action) => action.calldata);
-
-  console.log("targets", targets);
-  console.log("calldata", calldata);
 
   // Validate all contract addresses
   for (const addr of targets) {
@@ -62,36 +57,16 @@ export async function prepareAgenda(params: PrepareAgendaParams): Promise<Prepar
 
     const version = await daoContract.version();
     contractVersion = version;
-    console.log("✅ Contract version() function found, version:", version);
 
     // Version 2.0.0 and above support memo field
     if (version === "2.0.0") {
       supportsMemoField = true;
-      console.log("✅ Version 2.0.0 detected - memo field supported");
     } else {
-      console.log(
-        "⚠️ Version",
-        version,
-        "detected - memo field not supported"
-      );
     }
   } catch (error) {
     contractVersion = "legacy (pre-2.0.0)";
-    console.log(
-      "❌ version() function not found or error occurred - assuming legacy version"
-    );
-    console.log("Error details:", error);
     supportsMemoField = false;
   }
-
-  console.log("📋 Contract Version Summary:");
-  console.log("  - Contract Address:", daoCommitteeProxyAddress);
-  console.log("  - Detected Version:", contractVersion);
-  console.log("  - Memo Field Support:", supportsMemoField ? "YES" : "NO");
-  console.log(
-    "  - Interface Type:",
-    supportsMemoField ? "New (with memo)" : "Legacy (without memo)"
-  );
 
   // Determine memo field - prioritize snapshot URL, then discourse URL
   const memoField = snapshotUrl?.trim() || discourseUrl?.trim() || "";
@@ -100,7 +75,6 @@ export async function prepareAgenda(params: PrepareAgendaParams): Promise<Prepar
 
   if (supportsMemoField) {
     // New version with memo field support
-    console.log("Using new interface with memo field");
     param = AbiCoder.defaultAbiCoder().encode(
       ["address[]", "uint128", "uint128", "bool", "bytes[]", "string"],
       [
@@ -114,7 +88,6 @@ export async function prepareAgenda(params: PrepareAgendaParams): Promise<Prepar
     ) as `0x${string}`;
   } else {
     // Legacy version without memo field
-    console.log("Using legacy interface without memo field");
     param = AbiCoder.defaultAbiCoder().encode(
       ["address[]", "uint128", "uint128", "bool", "bytes[]"],
       [

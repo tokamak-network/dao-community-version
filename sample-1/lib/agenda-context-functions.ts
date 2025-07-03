@@ -82,15 +82,13 @@ export function createAgendaContextFunctions(
   stateSetters: AgendaStateSetters,
   currentAgendas: AgendaWithMetadata[]
 ) {
-  if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-    console.log("🏭 Creating agenda context functions");
-  }
-
   /**
    * 컨트랙트 설정값들 로드 (LOW 우선순위 - 환경설정값) - 순차 처리
    */
   const loadContractSettings = async () => {
-    console.log("🔄 컨트랙트 설정값 로드 시작...");
+    /**
+     * 컨트랙트 설정값 로드 시작...
+     */
 
     try {
       // 순차적으로 처리하여 RPC 부하 방지
@@ -135,7 +133,9 @@ export function createAgendaContextFunctions(
       stateSetters.setMinimumVotingPeriodSeconds(votingPeriod as bigint);
       stateSetters.setAgendaQuorum(quorum as bigint);
 
-      console.log("✅ 컨트랙트 설정값 로드 완료");
+      /**
+       * 컨트랙트 설정값 로드 완료
+       */
     } catch (error) {
       console.error("❌ 컨트랙트 설정값 로드 실패:", error);
     }
@@ -185,7 +185,6 @@ export function createAgendaContextFunctions(
       // 총 아젠다 개수 가져오기
       const numAgendas = await getTotalAgendaCount();
       const totalAgendas = Number(numAgendas);
-      console.log('📊 Total agendas:', totalAgendas);
 
       if (totalAgendas === 0) {
         stateSetters.setAgendas([]);
@@ -337,7 +336,9 @@ export function createAgendaContextFunctions(
 
   // 실시간 아젠다 데이터 업데이트 함수
   const updateAgendaData = async (agendaId: number, shouldSort: boolean = false) => {
-    console.log("🔄 updateAgendaData - Starting update for agenda ID:", agendaId);
+    /**
+     * updateAgendaData - Starting update for agenda ID:
+     */
 
     try {
       const publicClient = await getSharedPublicClient();
@@ -385,7 +386,9 @@ export function createAgendaContextFunctions(
         return shouldSort ? newAgendas.sort((a, b) => b.id - a.id) : newAgendas;
       });
 
-      console.log("✅ updateAgendaData completed for ID:", agendaId);
+      /**
+       * updateAgendaData completed for ID:
+       */
     } catch (error) {
       console.error("❌ updateAgendaData error:", error);
     }
@@ -473,7 +476,9 @@ export function createAgendaContextFunctions(
           : agenda
       ));
 
-      console.log(`✅ Refreshed agenda ${agendaId}`);
+      /**
+       * Refreshed agenda
+       */
     } catch (error) {
       console.error(`Failed to refresh agenda ${agendaId}:`, error);
     }

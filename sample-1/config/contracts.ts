@@ -62,12 +62,12 @@ export function getCurrentChain() {
 // Get current chain contracts
 const currentChainId = getCurrentChain().id;
 
-// 🔍 환경변수 디버깅
-console.log('🔍 [DEBUG] Environment Variables:');
-console.log('NEXT_PUBLIC_CHAIN_ID:', process.env.NEXT_PUBLIC_CHAIN_ID);
-console.log('NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS:', process.env.NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS);
-console.log('NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS:', process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS);
-console.log('NEXT_PUBLIC_TON_CONTRACT_ADDRESS:', process.env.NEXT_PUBLIC_TON_CONTRACT_ADDRESS);
+// // 🔍 환경변수 디버깅
+// console.log('🔍 [DEBUG] Environment Variables:');
+// console.log('NEXT_PUBLIC_CHAIN_ID:', process.env.NEXT_PUBLIC_CHAIN_ID);
+// console.log('NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS:', process.env.NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS);
+// console.log('NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS:', process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS);
+// console.log('NEXT_PUBLIC_TON_CONTRACT_ADDRESS:', process.env.NEXT_PUBLIC_TON_CONTRACT_ADDRESS);
 
 // Export individual addresses for backward compatibility
 export const DAO_AGENDA_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS;
@@ -86,8 +86,8 @@ const CONTRACT_ADDRESSES = {
   LAYER2_REGISTRY: LAYER2_REGISTRY_ADDRESS
 };
 
-console.log('🔍 [DEBUG] Contract Addresses:');
-console.log('CONTRACT_ADDRESSES:', CONTRACT_ADDRESSES);
+// console.log('🔍 [DEBUG] Contract Addresses:');
+// console.log('CONTRACT_ADDRESSES:', CONTRACT_ADDRESSES);
 
 // Export contracts in the format expected by AgendaContext
 export const CONTRACTS = {
@@ -123,5 +123,3 @@ export const CONTRACTS = {
   },
 };
 
-console.log('🔍 [DEBUG] Final CONTRACTS object:');
-console.log('CONTRACTS:', CONTRACTS);

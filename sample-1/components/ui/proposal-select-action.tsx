@@ -115,7 +115,6 @@ function RequiredContractAddress({
 
         // Get proxy ABI
         const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
-        console.log("Fetching ABI from:", proxyUrl);
 
         const proxyResponse = await fetch(proxyUrl);
         if (!proxyResponse.ok) {
@@ -123,7 +122,7 @@ function RequiredContractAddress({
         }
 
         const proxyData = await proxyResponse.json();
-        console.log("Proxy ABI response:", proxyData);
+
 
         if (proxyData.status === "1") {
           setIsContractFound(true);
@@ -169,7 +168,7 @@ function RequiredContractAddress({
 
           try {
             if (implementationFunction) {
-              console.log("Trying implementation() function...");
+
               implementationAddress = await contract.implementation();
             } else if (getImplementationFunction) {
               console.log("Trying getImplementation() function...");
@@ -188,11 +187,9 @@ function RequiredContractAddress({
             }
 
             if (implementationAddress && implementationAddress !== "0x0000000000000000000000000000000000000000") {
-              console.log("Implementation address:", implementationAddress);
 
               // Get implementation ABI
               const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
-              console.log("Fetching implementation ABI from:", logicUrl);
 
               const logicResponse = await fetch(logicUrl);
               if (!logicResponse.ok) {
@@ -200,7 +197,6 @@ function RequiredContractAddress({
               }
 
               const logicData = await logicResponse.json();
-              console.log("Logic ABI response:", logicData);
 
               if (logicData.status === "1") {
                 const logicAbi = JSON.parse(logicData.result);
@@ -211,11 +207,11 @@ function RequiredContractAddress({
                 );
                 setAbiLogic(filteredLogicAbi);
               } else {
-                console.log("No logic ABI found");
+
                 setAbiLogic([]);
               }
             } else {
-              console.log("No implementation address found");
+
               setAbiLogic([]);
             }
           } catch (error) {
@@ -223,7 +219,7 @@ function RequiredContractAddress({
             setAbiLogic([]);
           }
         } else {
-          console.log("No proxy ABI found");
+
           const errorMessage =
             proxyData.message || "Failed to fetch contract ABI";
           const errorResult = proxyData.result ? ` - ${proxyData.result}` : "";
@@ -315,11 +311,7 @@ function CalldataComponent({
   const [internalCalldata, setInternalCalldata] = useState<string>("");
 
   useEffect(() => {
-    console.log("CalldataComponent mounted/updated:", {
-      selectedFunction,
-      initialParams,
-      isEditMode,
-    });
+
 
     const func = abi.find((item: any) => {
       if (!item || !item.inputs) return false;
@@ -328,7 +320,7 @@ function CalldataComponent({
     });
 
     if (func) {
-      console.log("Found function:", func);
+
       const initialP: { [key: string]: string } = {};
       if (initialParams) {
         func.inputs.forEach((input: any) => {
@@ -337,7 +329,7 @@ function CalldataComponent({
           }
         });
       }
-      console.log("Initial parameters:", initialP);
+
       setParamValues(initialP);
       setParamErrors({});
 
@@ -355,7 +347,7 @@ function CalldataComponent({
         onCalldataChange("");
       }
     } else {
-      console.log("Function not found");
+
       setParamValues({});
       setParamErrors({});
       setInternalCalldata("");
@@ -374,30 +366,23 @@ function CalldataComponent({
     func: any
   ) => {
     try {
-      console.log("Generating calldata with values:", currentParamValues);
+
       const paramValuesArray = func.inputs.map((input: any) => {
         const val = currentParamValues[input.name];
-        console.log(`Processing parameter ${input.name}:`, {
-          type: input.type,
-          value: val,
-        });
+
 
         if (input.type === "address") return val ? normalizeParameterValue(val, input.type) : val;
         if (input.type.startsWith("uint")) return parseUnits(val || "0", 0);
         if (input.type === "bool") {
-          console.log(`Boolean parameter ${input.name}:`, {
-            value: val,
-            converted: val === "true",
-          });
+
           return val === "true";
         }
         return val;
       });
-      console.log("Final parameter array:", paramValuesArray);
 
       const iface = new Interface([func]);
       const newCalldata = iface.encodeFunctionData(func.name, paramValuesArray);
-      console.log("Generated calldata:", newCalldata);
+
 
       setInternalCalldata(newCalldata);
       onCalldataChange(newCalldata);
@@ -413,7 +398,7 @@ function CalldataComponent({
     value: string,
     type: string
   ) => {
-    console.log("handleParamChange called with:", { paramName, value, type });
+
     const newValues = { ...paramValues, [paramName]: value };
     setParamValues(newValues);
 
@@ -436,15 +421,11 @@ function CalldataComponent({
       const allParamsFilledAndValid = func.inputs.every((input: any) => {
         const val = newValues[input.name];
         const isValid = validateParameterType(val, input.type);
-        console.log(`Validating parameter ${input.name}:`, {
-          value: val,
-          type: input.type,
-          isValid,
-        });
+
         return val !== undefined && isValid;
       });
 
-      console.log("All parameters filled and valid:", allParamsFilledAndValid);
+
       if (allParamsFilledAndValid) {
         generateCalldata(newValues, func);
       } else {
@@ -511,12 +492,9 @@ function CalldataComponent({
                       <Switch
                         checked={paramValues[input.name] === "true"}
                         onCheckedChange={(checked) => {
-                          console.log("Switch changed:", {
-                            name: input.name,
-                            checked,
-                          });
+
                           const newValue = checked ? "true" : "false";
-                          console.log("Setting new value:", newValue);
+
                           handleParamChange(input.name, newValue, input.type);
                         }}
                       />
@@ -531,10 +509,7 @@ function CalldataComponent({
                         placeholder={`Enter ${input.type}`}
                         value={paramValues[input.name] || ""}
                         onChange={(e) => {
-                          console.log("Input changed:", {
-                            name: input.name,
-                            value: e.target.value,
-                          });
+
                           handleParamChange(input.name, e.target.value, input.type);
                         }}
                         className={`w-full border-gray-300 ${

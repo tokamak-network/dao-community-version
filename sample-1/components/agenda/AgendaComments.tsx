@@ -23,27 +23,11 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
   const [isLoadingVotes, setIsLoadingVotes] = useState(true)
 
   const { address } = useAccount()
-  const { getVoterInfos, refreshAgenda } = useCombinedDAOContext()
-
-  // 🔍 디버깅: 현재 사용자와 투표자 목록 확인
-  useEffect(() => {
-    console.log("🔍 AgendaComments Debug:", {
-      currentUser: address,
-      agendaVoters: agenda.voters,
-      isUserInVoters: agenda.voters?.includes(address || ""),
-      agendaId: agenda.id,
-      voteCounts: {
-        yes: agenda.countingYes,
-        no: agenda.countingNo,
-        abstain: agenda.countingAbstain
-      }
-    });
-  }, [address, agenda.voters, agenda.id, agenda.countingYes, agenda.countingNo, agenda.countingAbstain])
+  const { getVoterInfos } = useCombinedDAOContext()
 
     useEffect(() => {
       const fetchVoterInfos = async () => {
         setIsLoadingVotes(true);
-        console.log("🔄 AgendaComments: Fetching voter infos for agenda", agenda.id);
 
         if (!agenda.voters) {
           // 초기에 voter가 없을 때 3명의 투표자에 대한 기본 UI 생성
@@ -72,7 +56,6 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
 
         try {
           const results = await getVoterInfos(agenda.id, agenda.voters);
-          console.log("✅ AgendaComments: Voter infos received:", results);
 
           // 🚀 바로 votes 업데이트
           const votesInfo = agenda.voters.map((voter, index) => {
@@ -102,42 +85,6 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
       fetchVoterInfos();
   }, [agenda.id, agenda.voters, agenda.countingYes, agenda.countingNo, agenda.countingAbstain, getVoterInfos])
 
-  // 🔬 TEST: 이벤트 리스너 전체 주석처리 (부모에서 props로 받음)
-  // useEffect(() => {
-  //   const handleVoteUpdate = async (event: Event) => {
-  //     const customEvent = event as CustomEvent<{ agendaId: number }>;
-  //     console.log("handleVoteUpdate", customEvent.detail);
-  //     if (customEvent.detail.agendaId === agenda.id) {
-  //       // 투표 데이터 새로고침
-  //       try {
-  //         if (agenda.voters && agenda.voters.length > 0) {
-  //           const results = await getVoterInfos(agenda.id, agenda.voters);
-  //           setVoterInfos(results);
-  //         }
-  //       } catch (error) {
-  //         console.error('Failed to refresh vote data:', error);
-  //       }
-  //     }
-  //   };
-
-  //   const handleExecutedUpdate = async (event: Event) => {
-  //     const customEvent = event as CustomEvent<{ agendaId: number }>;
-  //     console.log("handleExecutedUpdate", customEvent.detail);
-  //     if (customEvent.detail.agendaId === agenda.id) {
-  //       // 아젠다 실행 상태 갱신
-  //       await refreshAgenda(agenda.id);
-  //     }
-  //   };
-
-  //   // 이벤트 리스닝 (테스트 목적으로 주석처리)
-  //   // window.addEventListener("agendaVoteUpdated", handleVoteUpdate);
-  //   // window.addEventListener("agendaExecuted", handleExecutedUpdate);
-
-  //   return () => {
-  //     // window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
-  //     // window.removeEventListener("agendaExecuted", handleExecutedUpdate);
-  //   };
-  // }, [agenda.id, agenda.voters, refreshAgenda, getVoterInfos]);
 
   const totalVotes =
     Number(agenda.countingYes) +

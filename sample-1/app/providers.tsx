@@ -17,11 +17,6 @@ const queryClient = new QueryClient({
 })
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  if (process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true') {
-    console.log("🏗️ Providers 렌더링", {
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">

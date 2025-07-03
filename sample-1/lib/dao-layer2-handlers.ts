@@ -26,8 +26,6 @@ export const loadLayer2Candidates = async (
   lastLoadIndex: number;
 }> => {
   if (!force && hasLoadedOnce && existingCandidates && existingCandidates.length > 0) {
-    console.log('📦 Layer2 cache data exists, skipping load');
-
     // 캐시된 데이터 사용 시에도 진행률 표시를 위해 콜백 호출
     if (onProgress) {
       const total = existingCandidates.length;
@@ -47,8 +45,6 @@ export const loadLayer2Candidates = async (
     };
   }
 
-  console.log('🔄 Starting Layer2 Candidates loading');
-
   try {
     const publicClient = await getSharedPublicClient();
     const allLayer2Candidates: Candidate[] = [];
@@ -65,7 +61,6 @@ export const loadLayer2Candidates = async (
     ) as bigint;
 
     const totalLayer2s = Number(numLayer2s);
-    console.log('📊 Number of Layer2s to cache:', totalLayer2s);
 
     // 진행 상황 초기 업데이트
     onProgress?.(0, totalLayer2s, `Found ${totalLayer2s} Layer2s in registry`);
@@ -187,10 +182,8 @@ export const loadLayer2Candidates = async (
         };
 
         allLayer2Candidates.push(candidate);
-        console.log(`✅ Layer2 caching completed: ${memo} (${(Number(totalStaked) / 1e18).toFixed(2)} TON)`);
 
       } catch (error) {
-        console.warn(`Failed to cache Layer2 ${i}:`, error);
         continue;
       }
     }
@@ -199,8 +192,6 @@ export const loadLayer2Candidates = async (
     allLayer2Candidates.sort((a, b) =>
       Number(BigInt(b.totalStaked) - BigInt(a.totalStaked))
     );
-
-    console.log('🎯 Layer2 caching completed:', allLayer2Candidates.length, 'candidates');
 
     // 최종 진행 상황 업데이트
     onProgress?.(totalLayer2s, totalLayer2s, `✅ Completed! ${allLayer2Candidates.length} Layer2 candidates loaded`);
@@ -212,7 +203,6 @@ export const loadLayer2Candidates = async (
     };
 
   } catch (error) {
-    console.error('❌ Layer2 caching failed:', error);
     throw error;
   }
 };
@@ -221,6 +211,5 @@ export const loadLayer2Candidates = async (
  * Layer2 캐시를 리셋하는 함수
  */
 export const resetLayer2Cache = () => {
-  console.log('🗑️ Layer2 cache reset completed');
   // 이 함수는 상태 리셋이므로 별도 로직 없이 호출한 곳에서 상태를 초기화
 };

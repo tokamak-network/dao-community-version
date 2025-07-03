@@ -37,10 +37,8 @@ export const createRobustPublicClient = async (chainId?: number) => {
 
       // 간단한 연결 테스트
       await client.getChainId();
-      console.log(`✅ RPC Connected: ${rpcUrls[i]}`);
       return client;
     } catch (error) {
-      console.warn(`❌ RPC Failed: ${rpcUrls[i]}`, error);
       if (i === rpcUrls.length - 1) {
         throw new Error(`All RPC endpoints failed. Last error: ${error}`);
       }
@@ -61,10 +59,6 @@ export const callWithRetry = async <T>(
     try {
       const result = await contractCall();
 
-      if (attempt > 1) {
-        console.log(`✅ ${context} succeeded on attempt ${attempt}`);
-      }
-
       return result;
     } catch (error: any) {
       const isLastAttempt = attempt === maxRetries;
@@ -72,14 +66,11 @@ export const callWithRetry = async <T>(
 
       // Rate limit 에러 감지
       if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-        console.warn(`⚠️ Rate limit detected for ${context}, waiting longer...`);
         await delay(retryDelay * 2 * attempt); // Rate limit 시 더 오래 대기
       } else if (!isLastAttempt) {
         const delayTime = retryDelay * Math.pow(backoffMultiplier, attempt - 1);
-        console.warn(`⚠️ ${context} failed on attempt ${attempt}/${maxRetries}. Retrying in ${delayTime}ms...`);
         await delay(delayTime);
       } else {
-        console.error(`❌ ${context} failed after ${maxRetries} attempts:`, error);
         throw error;
       }
     }
@@ -101,7 +92,6 @@ let requestCount = 0;
 export const trackRequest = (): void => {
   requestCount++;
   if (requestCount % 100 === 0) {
-    console.log(`📊 RPC Requests made: ${requestCount}`);
   }
 };
 

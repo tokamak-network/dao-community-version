@@ -19,18 +19,18 @@ export const setupAgendaEventMonitoring = (
   handleAgendaVoteCasted: AgendaVoteCastedHandler,
   handleAgendaExecuted: AgendaExecutedHandler
 ) => {
-  console.log("[setupAgendaEventMonitoring] Setting up agenda event monitoring", {
-    timestamp: new Date().toISOString(),
-    agendaManagerAddress: CONTRACTS.daoAgendaManager.address,
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT,
-    fallbackRpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
-    actualRpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT || process.env.NEXT_PUBLIC_RPC_URL || 'undefined',
-    handlersReady: {
-      handleAgendaCreated: !!handleAgendaCreated,
-      handleAgendaVoteCasted: !!handleAgendaVoteCasted,
-      handleAgendaExecuted: !!handleAgendaExecuted
-    }
-  });
+  // console.log("[setupAgendaEventMonitoring] Setting up agenda event monitoring", {
+  //   timestamp: new Date().toISOString(),
+  //   agendaManagerAddress: CONTRACTS.daoAgendaManager.address,
+  //   rpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT,
+  //   fallbackRpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+  //   actualRpcUrl: process.env.NEXT_PUBLIC_RPC_URL_FOR_EVENT || process.env.NEXT_PUBLIC_RPC_URL || 'undefined',
+  //   handlersReady: {
+  //     handleAgendaCreated: !!handleAgendaCreated,
+  //     handleAgendaVoteCasted: !!handleAgendaVoteCasted,
+  //     handleAgendaExecuted: !!handleAgendaExecuted
+  //   }
+  // });
 
   const publicClient = createPublicClient({
     chain: {
@@ -44,7 +44,7 @@ export const setupAgendaEventMonitoring = (
     ),
   });
 
-  console.log("[setupAgendaEventMonitoring] Public client created");
+  // console.log("[setupAgendaEventMonitoring] Public client created");
 
   // AgendaCreated 이벤트 모니터링 설정
   const unwatchAgendaCreated = setupAgendaCreatedWatcher(publicClient, handleAgendaCreated);
@@ -55,22 +55,22 @@ export const setupAgendaEventMonitoring = (
   // AgendaExecuted 이벤트 모니터링 설정
   const unwatchAgendaExecuted = setupAgendaExecutedWatcher(publicClient, handleAgendaExecuted);
 
-  console.log('🎯 모든 아젠다 이벤트 워처 설정 완료', {
-    timestamp: new Date().toISOString(),
-    watchers: ['AgendaCreated', 'AgendaVoteCasted', 'AgendaExecuted']
-  });
+  // console.log('🎯 모든 아젠다 이벤트 워처 설정 완료', {
+  //   timestamp: new Date().toISOString(),
+  //   watchers: ['AgendaCreated', 'AgendaVoteCasted', 'AgendaExecuted']
+  // });
 
   // 정리 함수 반환
   return () => {
-    console.log('🔌 아젠다 이벤트 워처들 정리 중...', {
-      timestamp: new Date().toISOString()
-    });
+    // console.log('🔌 아젠다 이벤트 워처들 정리 중...', {
+    //   timestamp: new Date().toISOString()
+    // });
 
     unwatchAgendaCreated();
     unwatchAgendaVoteCasted();
     unwatchAgendaExecuted();
 
-    console.log('✅ 모든 아젠다 이벤트 워처 정리 완료');
+    // console.log('✅ 모든 아젠다 이벤트 워처 정리 완료');
   };
 };
 
@@ -78,7 +78,7 @@ export const setupAgendaEventMonitoring = (
  * AgendaCreated 이벤트 워처 설정
  */
 const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: AgendaCreatedHandler) => {
-  console.log("[setupAgendaCreatedWatcher] Setting up AgendaCreated event watcher");
+  // console.log("[setupAgendaCreatedWatcher] Setting up AgendaCreated event watcher");
 
   const unwatchAgendaCreated = publicClient.watchEvent({
     address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
@@ -93,7 +93,7 @@ const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: Agend
       ],
     },
     onLogs: (logs: any[]) => {
-      console.log("🎉 AgendaCreated 이벤트 감지:", logs);
+      // console.log("🎉 AgendaCreated 이벤트 감지:", logs);
       logs.forEach((log) => {
         const { id, from, noticePeriod, votingPeriod } = log.args;
         handleAgendaCreated({
@@ -106,7 +106,7 @@ const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: Agend
     },
   });
 
-  console.log('✅ AgendaCreated 이벤트 워처 설정 완료');
+  // console.log('✅ AgendaCreated 이벤트 워처 설정 완료');
   return unwatchAgendaCreated;
 };
 
@@ -114,7 +114,7 @@ const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: Agend
  * AgendaVoteCasted 이벤트 워처 설정
  */
 const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted: AgendaVoteCastedHandler) => {
-  console.log("[setupAgendaVoteCastedWatcher] Setting up AgendaVoteCasted event watcher");
+  // console.log("[setupAgendaVoteCastedWatcher] Setting up AgendaVoteCasted event watcher");
 
   const unwatchAgendaVoteCasted = publicClient.watchEvent({
     address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
@@ -129,7 +129,7 @@ const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted:
       ],
     },
     onLogs: (logs: any[]) => {
-      console.log("🗳️ AgendaVoteCasted 이벤트 감지:", logs);
+      // console.log("🗳️ AgendaVoteCasted 이벤트 감지:", logs);
       logs.forEach((log) => {
         const { id, from, isSupport, stake } = log.args;
         handleAgendaVoteCasted({
@@ -142,7 +142,7 @@ const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted:
     },
   });
 
-  console.log('✅ AgendaVoteCasted 이벤트 워처 설정 완료');
+  // console.log('✅ AgendaVoteCasted 이벤트 워처 설정 완료');
   return unwatchAgendaVoteCasted;
 };
 
@@ -150,7 +150,7 @@ const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted:
  * AgendaExecuted 이벤트 워처 설정
  */
 const setupAgendaExecutedWatcher = (publicClient: any, handleAgendaExecuted: AgendaExecutedHandler) => {
-  console.log("[setupAgendaExecutedWatcher] Setting up AgendaExecuted event watcher");
+  // console.log("[setupAgendaExecutedWatcher] Setting up AgendaExecuted event watcher");
 
   const unwatchAgendaExecuted = publicClient.watchEvent({
     address: CONTRACTS.daoAgendaManager.address as `0x${string}`,
@@ -163,7 +163,7 @@ const setupAgendaExecutedWatcher = (publicClient: any, handleAgendaExecuted: Age
       ],
     },
     onLogs: (logs: any[]) => {
-      console.log("⚡ AgendaExecuted 이벤트 감지:", logs);
+      // console.log("⚡ AgendaExecuted 이벤트 감지:", logs);
       logs.forEach((log) => {
         const { id, from } = log.args;
         handleAgendaExecuted({
@@ -174,6 +174,6 @@ const setupAgendaExecutedWatcher = (publicClient: any, handleAgendaExecuted: Age
     },
   });
 
-  console.log('✅ AgendaExecuted 이벤트 워처 설정 완료');
+  // console.log('✅ AgendaExecuted 이벤트 워처 설정 완료');
   return unwatchAgendaExecuted;
 };

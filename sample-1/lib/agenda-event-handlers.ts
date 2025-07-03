@@ -37,7 +37,7 @@ export type AgendaCreatedHandler = (data: {
     if (typeof window !== 'undefined') {
       const event = new CustomEvent(eventName, { detail });
       window.dispatchEvent(event);
-      console.log(`🎯 Custom event dispatched: ${eventName}`, detail);
+
     }
   };
 
@@ -49,15 +49,7 @@ export type AgendaCreatedHandler = (data: {
   ): AgendaCreatedHandler => {
     return async (data) => {
       const agendaId = Number(data.id);
-      console.log('🎉 [AGENDA CREATED] New agenda created:', {
-        agendaId,
-        from: data.from,
-        noticePeriod: data.noticePeriod.toString(),
-        votingPeriod: data.votingPeriod.toString(),
-        timestamp: new Date().toISOString()
-      });
 
-      console.log(`📋 Processing new agenda ID: ${agendaId}`);
       await updateAgendaData(agendaId, true); // shouldSort = true for new agendas
     };
   };
@@ -70,15 +62,7 @@ export type AgendaCreatedHandler = (data: {
   ): AgendaVoteCastedHandler => {
     return async (data) => {
       const agendaId = Number(data.id);
-      console.log('🗳️ [VOTE CASTED] New vote casted:', {
-        agendaId,
-        voter: data.from,
-        isSupport: data.isSupport,
-        stake: data.stake.toString(),
-        timestamp: new Date().toISOString()
-      });
 
-      console.log(`🗳️ Processing vote for agenda ID: ${agendaId}`);
       await updateAgendaData(agendaId, false); // shouldSort = false for vote updates
 
       // 커스텀 이벤트 디스패치
@@ -94,13 +78,7 @@ export type AgendaCreatedHandler = (data: {
   ): AgendaExecutedHandler => {
     return async (data) => {
       const agendaId = Number(data.id);
-      console.log('⚡ [AGENDA EXECUTED] Agenda executed:', {
-        agendaId,
-        executor: data.from,
-        timestamp: new Date().toISOString()
-      });
 
-      console.log(`⚡ Processing executed agenda ID: ${agendaId}`);
       await updateAgendaData(agendaId, false); // shouldSort = false for execution updates
 
       // 커스텀 이벤트 디스패치

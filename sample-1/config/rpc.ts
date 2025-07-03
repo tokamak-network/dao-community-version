@@ -69,7 +69,7 @@ export const MULTI_WORKER_CONFIG = {
   }
 };
 
-console.log(`🌐 Using Chain: ${CURRENT_CHAIN.name} (${CURRENT_CHAIN_ID})`);
-console.log(`🔗 Primary RPC: ${CURRENT_RPC_URL}`);
-console.log(`🔄 Fallback RPCs: ${getAllRPCUrls().slice(1).join(', ')}`);
-console.log(`🚀 Multi-Worker: ${MULTI_WORKER_CONFIG.workerCount} threads`);
+// console.log(`🌐 Using Chain: ${CURRENT_CHAIN.name} (${CURRENT_CHAIN_ID})`);
+// console.log(`🔗 Primary RPC: ${CURRENT_RPC_URL}`);
+// console.log(`🔄 Fallback RPCs: ${getAllRPCUrls().slice(1).join(', ')}`);
+// console.log(`🚀 Multi-Worker: ${MULTI_WORKER_CONFIG.workerCount} threads`);

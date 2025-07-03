@@ -25,50 +25,32 @@ export default function Header() {
     }
   }, [connectError])
 
-  // 계정 변경 감지 및 상태 디버깅
-  useEffect(() => {
-    console.log('🔍 Header wallet state:', {
-      isMounted,
-      isConnected,
-      address,
-      hasAddress: !!address,
-      connectors: connectors.length
-    })
-
-    if (address) {
-      console.log('Account changed to:', address)
-    }
-  }, [address, isConnected, isMounted, connectors.length])
 
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
 
   const handleConnect = async () => {
-    console.log('Connect wallet clicked')
-    console.log('Current connection status:', { isConnected, address })
 
     // 이미 연결되어 있다면 연결 시도하지 않음
     if (isConnected && address) {
-      console.log('Wallet already connected:', address)
+
       return
     }
 
-    console.log('Available connectors:', connectors.map(c => ({ type: c.type, name: c.name, id: c.id })))
 
     // MetaMask connector 찾기 (injected connector)
     const injectedConnector = connectors.find(connector => connector.type === 'injected')
-    console.log('Found injected connector:', injectedConnector)
 
     if (injectedConnector) {
       try {
-        console.log('Attempting to connect with connector:', injectedConnector.name)
+
         await connect({ connector: injectedConnector })
-        console.log('Connect function called successfully')
+
       } catch (error) {
         console.error('Connection failed:', error)
         // ConnectorAlreadyConnectedError인 경우 상태 새로고침
         if (error instanceof Error && error.message.includes('ConnectorAlreadyConnectedError')) {
-          console.log('Connector already connected - this should not happen if UI state is correct')
+
           // 상태 불일치 감지 - 페이지 새로고침 권장
           alert('Wallet connection state mismatch detected. Please refresh the page.')
         }
@@ -80,7 +62,7 @@ export default function Header() {
   }
 
   const handleDisconnect = () => {
-    console.log('Disconnect wallet clicked')
+
     disconnect()
     setShowDropdown(false)
   }

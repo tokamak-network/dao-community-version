@@ -6,14 +6,6 @@ import { createRobustPublicClient } from "./rpc-utils";
 import type { PublicClient } from "viem";
 import { MULTI_WORKER_CONFIG } from "@/config/rpc";
 
-// 로그 출력 제어 함수
-const isWorkerLogEnabled = () => process.env.NEXT_PUBLIC_RPC_WORKER_LOG === 'true';
-const workerLog = (...args: any[]) => {
-  if (isWorkerLogEnabled()) {
-    console.log(...args);
-  }
-};
-
 // 우선순위 큐를 위한 요청 타입
 interface PriorityQueuedRequest<T> {
   id: string;
@@ -92,10 +84,6 @@ class MultiWorkerRPCClient {
         queue: [] // 개별 워커 큐 초기화
       });
     }
-    workerLog(`🚀 Workers initialization completed:`);
-    workerLog(`  📍 HIGH priority (DAO queries + DAO challenges): Worker 0-1 (2 workers)`);
-    workerLog(`  📍 MEDIUM priority (Agenda list): Worker 2 (1 worker)`);
-    workerLog(`  📍 LOW priority (Agenda details + Config values): Worker 3-4 (2 workers)`);
   }
 
   /**
@@ -162,7 +150,6 @@ class MultiWorkerRPCClient {
 
     try {
       this.publicClient = await this.initPromise;
-      workerLog("🔗 Shared PublicClient initialization completed");
       return this.publicClient;
     } finally {
       this.isInitializing = false;
@@ -171,7 +158,6 @@ class MultiWorkerRPCClient {
   }
 
   private async initializeClient(): Promise<PublicClient> {
-    workerLog("🔗 Initializing Shared PublicClient...");
     return await createRobustPublicClient();
   }
 
@@ -260,8 +246,6 @@ class MultiWorkerRPCClient {
     if (this.isProcessingQueue) return;
     this.isProcessingQueue = true;
 
-    workerLog(`🚀 Starting multi-worker queue processor (${MULTI_WORKER_CONFIG.workerCount} workers)`);
-
     // 모든 워커를 동시에 실행
     const workerPromises = this.workers.map(worker => this.runWorker(worker));
 
@@ -269,7 +253,6 @@ class MultiWorkerRPCClient {
       await Promise.allSettled(workerPromises);
     } finally {
       this.isProcessingQueue = false;
-      workerLog("✅ All workers processing completed");
     }
   }
 
@@ -304,9 +287,7 @@ class MultiWorkerRPCClient {
         worker.lastRequestTime = Date.now();
 
       } catch (error) {
-        if (isWorkerLogEnabled()) {
-          console.error(`❌ Worker-${worker.id} request failed: ${request.context}`, error);
-        }
+        console.error(`❌ Worker-${worker.id} request failed: ${request.context}`, error);
         request.reject(error);
         this.progressState.failedRequests++;
       } finally {
@@ -328,7 +309,6 @@ class MultiWorkerRPCClient {
    * 클라이언트 재초기화
    */
   public async resetClient(): Promise<PublicClient> {
-    workerLog("🔄 PublicClient 재초기화");
     this.publicClient = null;
     this.isInitializing = false;
     this.initPromise = null;
@@ -367,17 +347,7 @@ class MultiWorkerRPCClient {
    * 큐 상태 로깅
    */
   public logQueueStatus() {
-    if (!isWorkerLogEnabled()) return;
-
     const status = this.getStatus();
-    console.log("🔍 Multi-Worker RPC Queue Status:", {
-      queueLength: status.queueLength,
-      processing: status.isProcessingQueue,
-      activeWorkers: `${status.activeWorkers}/${status.workerCount}`,
-      totalProcessed: status.totalProcessed,
-      progress: `${status.progress.percentage}% (${status.progress.completedRequests}/${status.progress.totalRequests})`,
-      currentTasks: status.progress.currentTasks
-    });
   }
 
   /**

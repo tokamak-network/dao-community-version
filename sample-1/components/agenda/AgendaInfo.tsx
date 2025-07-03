@@ -1,6 +1,6 @@
 'use client'
 import { AgendaWithMetadata } from '@/types/agenda'
-import { formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, getAgendaResult, formatAddress } from '@/lib/utils'
+import { formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, getAgendaResult, formatAddress, formatTxHash } from '@/lib/utils'
 import { useEffect, useState } from 'react'
 import { ethers } from 'ethers'
 import { DAO_COMMITTEE_PROXY_ADDRESS } from '@/config/contracts'
@@ -86,14 +86,14 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
   }
 
   // Use a more user-friendly fallback for description
-  const description = agenda.description || "No description provided for this agenda.";
+  const description = agenda.description || "-";
 
   return (
     <div className="space-y-2">
       <div className="flex justify-between py-2">
         <span className="text-gray-600 text-sm">Agenda Creator</span>
         <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all">
-          {agenda.creator.address}
+          {formatAddress((agenda.creator?.address ?? "0x0000000000000000000000000000000000000000") as string)}
         </a>
       </div>
 
@@ -178,7 +178,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
               openTransaction(agenda.transaction!)
             }}
           >
-            {formatAddress(agenda.transaction)} ↗
+            {agenda.transaction ? formatTxHash(agenda.transaction) : "-"} ↗
           </a>
         </div>
       )}

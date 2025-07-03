@@ -48,7 +48,7 @@ export function AgendaSubmissionModal({
     try {
       if (shouldSubmitPR && onSubmitPR) {
         // PR 제출 (서명 → 메타데이터 생성 → 다운로드 → GitHub PR 제출을 한 번에)
-        console.log("🚀 Starting complete PR submission process...");
+
         setPrStatus(PrSubmissionStatus.SUBMITTING);
         setPrError(null);
 
@@ -57,17 +57,17 @@ export function AgendaSubmissionModal({
         if (result.success) {
           setPrStatus(PrSubmissionStatus.SUCCESS);
           setPrUrl(result.url || null);
-          console.log("✅ PR submission completed: Signature → Download → PR submitted to repository");
+
         } else {
           setPrStatus(PrSubmissionStatus.ERROR);
           setPrError(result.error || "Unknown error occurred");
-          console.log("❌ PR submission failed:", result.error);
+           console.log("❌ PR submission failed:", result.error);
         }
       } else if (shouldSaveLocally && onSaveLocally) {
         // 로컬 저장만 (서명 → 메타데이터 생성 → 다운로드)
-        console.log("💾 Starting local save only process...");
+
         await onSaveLocally();
-        console.log("✅ Local save completed: Signature → Download");
+
       }
     } catch (error) {
       setPrStatus(PrSubmissionStatus.ERROR);

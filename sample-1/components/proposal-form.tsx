@@ -131,8 +131,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
   componentDidUpdate(prevProps: ProposalFormProps) {
     // wagmi writeError 감지
     if (this.props.writeError && this.props.writeError !== prevProps.writeError) {
-      console.log("=== Wagmi Write Error Detected ===");
-      console.log("Error:", this.props.writeError);
+
 
       // 사용자 취소 에러 확인
       const errorMessage = this.props.writeError.message || "";
@@ -146,7 +145,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
         errorMessage.includes("user rejected transaction") ||
         errorMessage.includes("User denied")
       ) {
-        console.log("User cancelled transaction via wagmi");
+
         // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
         this.setState({
           txState: "cancelled",
@@ -174,7 +173,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
 
             // 트랜잭션 성공 감지
     if (this.props.writeData && this.props.writeData !== prevProps.writeData) {
-      console.log("Transaction successful:", this.props.writeData);
+
       this.setState({
         txState: "confirmed",
         showSuccessModal: true,
@@ -407,7 +406,6 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
 
   handleSubmitPR = async (): Promise<{ success: boolean; url?: string; error?: string }> => {
     try {
-      console.log("🚀 Submitting PR to repository...");
 
       // Generate complete agenda metadata for PR submission
       const { address } = this.props;
@@ -449,7 +447,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       };
 
       // 먼저 로컬에 다운로드
-      console.log("💾 Downloading metadata locally before PR submission...");
+
       const downloadTimestamp = new Date().toISOString().replace(/:/g, '-');
       const blob = new Blob([JSON.stringify(agendaData, null, 2)], {
         type: 'application/json'
@@ -462,13 +460,11 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      console.log("✅ Metadata downloaded locally");
 
       // 잠시 대기 (다운로드 완료 보장)
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // 그 다음 PR 제출
-      console.log("🚀 Now submitting PR to GitHub...");
 
       // Submit PR to API
       const response = await fetch('/api/submit-pr', {
@@ -488,7 +484,6 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       }
 
       const result = await response.json();
-      console.log("✅ PR submission successful:", result.prUrl);
 
       return {
         success: true,
@@ -532,24 +527,19 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
 
     try {
       // Step 1: Network validation first (before showing modal)
-      console.log("🌐 Step 1: Checking network connection...");
-      console.log("🔍 TON_CONTRACT_ADDRESS:", TON_CONTRACT_ADDRESS);
-      console.log("🔍 User Address:", address);
-      console.log("🔍 Network Chain ID:", process.env.NEXT_PUBLIC_CHAIN_ID);
 
       const provider = new BrowserProvider(window.ethereum as any);
       const network = await provider.getNetwork();
-      console.log("🔍 Connected Network:", network.chainId, network.name);
 
       // Check network mismatch and switch if needed
       const expectedChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID);
       if (Number(network.chainId) !== expectedChainId) {
-        console.log("🔄 Network mismatch detected. Switching network...");
+
         try {
           await this.switchNetwork(expectedChainId);
           // After switching, get the updated network info
           const updatedNetwork = await provider.getNetwork();
-          console.log("✅ Network switched to:", updatedNetwork.chainId, updatedNetwork.name);
+
         } catch (switchError) {
           console.error("❌ Failed to switch network:", switchError);
           const networkName = expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet";
@@ -559,7 +549,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       }
 
       // Step 2: Show modal after network is confirmed
-      console.log("✅ Network validation complete. Showing modal...");
+
       this.setState({
         txState: "preparing",
         showSuccessModal: true,
@@ -577,12 +567,10 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       });
 
       // Step 4: Check TON balance
-      console.log("💰 Step 4: Checking TON balance...");
 
       // Verify TON contract exists
-      console.log("🔍 Checking if TON contract exists...");
+
       const code = await provider.getCode(TON_CONTRACT_ADDRESS);
-      console.log("🔍 Contract code length:", code.length, "Code:", code.slice(0, 20) + "...");
 
       if (code === "0x") {
         const errorMsg = `TON contract not found at address: ${TON_CONTRACT_ADDRESS} on network ${network.chainId}`;
@@ -618,7 +606,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       }
 
       // Get agenda number before transaction
-      console.log("Getting agenda number before transaction...");
+
       const daoAgendaManager = new ethers.Contract(
         DAO_AGENDA_MANAGER_ADDRESS,
         ["function numAgendas() view returns (uint256)"],
@@ -626,7 +614,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       );
       const numAgendas = await daoAgendaManager.numAgendas();
       const agendaNumber = numAgendas.toString();
-      console.log("Current agenda number:", agendaNumber);
+
       this.setState({ agendaNumber });
 
       if (!writeContract) {
@@ -677,7 +665,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
           errorMessage.includes("user rejected transaction") ||
           errorMessage.includes("User denied")
         ) {
-          console.log("User cancelled transaction");
+
           // 사용자가 취소했다는 것을 잠깐 보여주고 모달 닫기
           this.setState({
             txState: "cancelled",
@@ -988,7 +976,6 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
           agendaNumber={this.state.agendaNumber}
           onSaveLocally={async () => {
             try {
-              console.log("🔄 Generating signed metadata for local save...");
 
               // Generate complete metadata with signature
               const { address } = this.props;
@@ -1046,7 +1033,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
 
-              console.log("✅ Signed agenda metadata saved locally");
+
             } catch (error) {
               console.error("❌ Failed to generate signed metadata:", error);
               alert("Failed to generate signed metadata. Please try again.");
