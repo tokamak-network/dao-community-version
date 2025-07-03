@@ -391,16 +391,16 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
             for (const agenda of validResults) {
               const metadata = metadataMap[agenda.id];
               if (metadata?.transaction && !agenda.creationCalldata) {
-                try {
-                  const calldata = await getTransactionData(metadata.transaction);
-                  if (calldata) {
-                    agenda.creationCalldata = calldata;
+                (async () => {
+                  try {
+                    const calldata = await getTransactionData(metadata.transaction);
+                    if (calldata) {
+                      agenda.creationCalldata = calldata;
+                    }
+                  } catch (error) {
+                    console.warn(`Failed to fetch calldata for agenda ${agenda.id}:`, error);
                   }
-                  // Rate limiting을 위한 짧은 대기
-                  await new Promise(resolve => setTimeout(resolve, 100));
-                } catch (error) {
-                  console.warn(`Failed to fetch calldata for agenda ${agenda.id}:`, error);
-                }
+                })();
               }
             }
           } catch (error) {
@@ -677,7 +677,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
           id: agendaId,
           voters: Array.from(agendaData.voters),
           title: metadata?.title || existingAgenda?.title || `Agenda #${agendaId}`,
-          description: metadata?.description || existingAgenda?.description || `Agenda ${agendaId} from blockchain`,
+          description: metadata?.description || existingAgenda?.description || '-',
           creator: {
             address: metadata ? getCreatorAddress(metadata.creator) : (existingAgenda?.creator?.address || "0x0000000000000000000000000000000000000000" as `0x${string}`),
             signature: metadata ? getCreatorSignature(metadata.creator) : existingAgenda?.creator?.signature,
@@ -692,14 +692,16 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
         // creationCalldata 가져오기 (transaction이 있는 경우)
         if (metadata?.transaction) {
-          try {
-            const calldata = await getTransactionData(metadata.transaction);
-            if (calldata) {
-              updatedAgenda.creationCalldata = calldata;
+          (async () => {
+            try {
+              const calldata = await getTransactionData(metadata.transaction);
+              if (calldata) {
+                updatedAgenda.creationCalldata = calldata;
+              }
+            } catch (error) {
+              console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
             }
-          } catch (error) {
-            console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
-          }
+          })();
         }
 
         const existingAgendas = new Map(prevAgendas.map((a) => [a.id, a]));
@@ -1003,7 +1005,7 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
            signature: metadata ? getCreatorSignature(metadata.creator) : undefined,
          },
          title: metadata?.title || `Agenda #${agendaId}`,
-         description: metadata?.description || `Agenda ${agendaId} from blockchain`,
+         description: metadata?.description || '-',
          snapshotUrl: metadata?.snapshotUrl,
          discourseUrl: metadata?.discourseUrl,
          network: metadata?.network,
@@ -1013,6 +1015,15 @@ export function AgendaProvider({ children }: { children: ReactNode }) {
 
       // creationCalldata 가져오기 (transaction이 있는 경우)
       if (metadata?.transaction) {
+        (async () => {
+          try {
+            const calldata = await getTransactionData(metadata.transaction);
+            if (calldata) {
+              updatedAgenda.creationCalldata = calldata;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch calldata for agenda ${agendaId}:`, error);
+          }
         try {
           const calldata = await getTransactionData(metadata.transaction);
           if (calldata) {

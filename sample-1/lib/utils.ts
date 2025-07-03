@@ -502,7 +502,7 @@ export function getStatusMessage(
       if (timeInfo.executionPeriod.remaining === "Ended") {
         return "EXECUTION DEADLINE PASSED";
       } else {
-        return `WAITING EXECUTION - deadline in: ${timeInfo.executionPeriod.remaining}`;
+        return `${timeInfo.executionPeriod.remaining} until execution`;
       }
 
     case AgendaStatus.EXECUTED:

@@ -44,6 +44,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [selectedMemberForVote, setSelectedMemberForVote] = useState<CommitteeMember | null>(null)
   const [memberVoteInfos, setMemberVoteInfos] = useState<{ hasVoted: boolean }[]>([])
   const [isCheckingVotes, setIsCheckingVotes] = useState(false)
+  const [txType, setTxType] = useState<"vote" | "execute" | null>(null)
 
   const { address } = useAccount()
   const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum } = useCombinedDAOContext()
@@ -402,6 +403,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     }
 
     // 투표 모달 닫고 트랜잭션 모달 열기
+    setTxType("vote");
     setShowVoteModal(false)
     setShowTransactionModal(true)
 
@@ -438,6 +440,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     }
 
     try {
+      setTxType("execute");
       setShowTransactionModal(true);
       await writeContract({
         address: DAO_COMMITTEE_PROXY_ADDRESS as `0x${string}`,
@@ -484,11 +487,11 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       case AgendaStatus.VOTING:
         console.log("renderActionButton VOTING isVoter " , isVoter, hasVoted, isVoting )
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
                 isVoter && !hasVoted
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
               disabled={!isVoter || isVoting || hasVoted}
@@ -512,13 +515,13 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           Number(agenda.countingYes) > Number(agenda.countingNo)
         ) {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
                 onClick={handleExecute}
               >
-                <PlayCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">Execute</span>
+                <PlayCircle className="h-4 w-4" strokeWidth={2} />
+                Execute
               </button>
               {renderDropdownMenu()}
             </div>
@@ -726,15 +729,18 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           onClose={() => setShowTransactionModal(false)}
           state={{
             isSuccess,
-            error: waitError?.message || writeError?.message,
-            isLoading: isVoting,
+            error: (waitError?.message || writeError?.message) ?? null,
+            isExecuting: isVoting,
+            txHash: voteData || executeData || null,
+            operation: voteData ? "castVote" : executeData ? "executeAgenda" : "transaction",
           }}
-          title="Cast Your Vote"
-          txHash={voteData ?? null as string | null}
+          title={txType === "vote" ? "Cast Your Vote" : txType === "execute" ? "Execute Agenda" : "Transaction"}
+          txHash={(voteData || executeData) ? (voteData || executeData) as string : null}
           stepLabels={["Approve wallet", "Check blockchain", "Done"]}
-          successMessage="Vote cast successfully!"
-          errorMessage="Vote failed"
+          successMessage={txType === "vote" ? "Vote cast successfully!" : txType === "execute" ? "Agenda executed successfully!" : "Transaction successful!"}
+          errorMessage={txType === "vote" ? "Vote failed" : txType === "execute" ? "Agenda execution failed" : "Transaction failed"}
           explorerUrl={getEtherscanUrl('' , chainId)}
+          subMessage={txType === "vote" ? "Your vote has been recorded." : txType === "execute" ? "Agenda was executed on-chain." : undefined}
         />
       )}
     </div>

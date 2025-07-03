@@ -688,7 +688,8 @@ export default function DAOCommitteeMembers() {
     try {
       console.log('💰 활동 보상 청구 실행:', member.name, 'Amount:', member.claimableActivityReward);
 
-      // 트랜잭션 모달 열기
+      // 트랜잭션 타입 지정 후 모달 열기
+      setTxType("claimActivityReward");
       setShowTransactionModal(true);
 
       await claimActivityReward({
@@ -725,6 +726,9 @@ export default function DAOCommitteeMembers() {
 
 
   // console.log("🚀 committeeMembers ", committeeMembers);
+
+  // 트랜잭션 타입 상태
+  const [txType, setTxType] = useState<"vote" | "execute" | "claimActivityReward" | null>(null);
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -1598,9 +1602,10 @@ export default function DAOCommitteeMembers() {
           txHash: txHash ? txHash : null,
           operation: lastOperation,
         }}
-        title={lastOperation === 'changeMember' ? 'Member Challenge' : lastOperation === 'retireMember' ? 'Member Retire' : 'DAO Transaction'}
-        txHash={txHash ? txHash : null}
-        explorerUrl={chainId === 1 ? 'https://etherscan.io' : chainId === 11155111 ? 'https://sepolia.etherscan.io' : 'https://etherscan.io'}
+        title={txType === "claimActivityReward" ? "Claim Reward" : txType === "execute" ? "Execute Agenda" : txType === "vote" ? "Cast Your Vote" : "DAO Transaction"}
+        successMessage={txType === "claimActivityReward" ? "Reward claimed successfully!" : txType === "execute" ? "Agenda executed successfully!" : txType === "vote" ? "Vote cast successfully!" : "Transaction successful!"}
+        errorMessage={txType === "claimActivityReward" ? "Reward claim failed" : txType === "execute" ? "Agenda execution failed" : txType === "vote" ? "Vote failed" : "Transaction failed"}
+        subMessage={txType === "claimActivityReward" ? "Your activity reward has been sent to your wallet." : txType === "execute" ? "Agenda was executed on-chain." : txType === "vote" ? "Your vote has been recorded." : null}
       />
     </div>
   )

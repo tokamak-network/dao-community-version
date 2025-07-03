@@ -14,6 +14,7 @@ interface TransactionModalProps {
   successMessage?: string;
   errorMessage?: string;
   explorerUrl?: string;
+  subMessage?: string | null;
 }
 
 const defaultStepLabels = ["Approve wallet", "Check blockchain", "Done"];
@@ -28,6 +29,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   successMessage = "Transaction completed successfully",
   errorMessage = "Transaction failed",
   explorerUrl,
+  subMessage,
 }) => {
   if (!isOpen) return null;
 
@@ -48,8 +50,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <div className="rounded-full bg-green-100 p-4 mb-4">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#D1FAE5"/><path d="M16 24l6 6 10-10" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
-            <div className="text-xl font-semibold text-green-700 mb-2">{successMessage}</div>
-            <div className="text-gray-500">Member retirement executed successfully</div>
+            <div className="text-xl font-semibold text-black-700 mb-2">{successMessage}</div>
+            {subMessage && <div className="text-gray-500">{subMessage}</div>}
           </div>
         </>
       );
