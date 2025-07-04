@@ -285,14 +285,18 @@ npm run start
 
 ### 5. 시뮬레이션 서버 (선택사항)
 
-아젠다 시뮬레이션 기능을 사용하려면 로컬 노드가 필요합니다:
+아젠다 생성 페이지에서 아젠다 기본 정보화 실행 함수를 모두 입력하신 뒤에, Impact overview 메뉴를 통해 시뮬레이션을 할 수 있습니다.
 
 ```bash
 # Hardhat 또는 Anvil 로컬 노드 실행
-npx hardhat node
-# 또는
-anvil
+cd ../simulation-node
+npm i
+npx hardhat node --fork <RPC URL>
 ```
+
+RPC URL을 https://ethereum-sepolia-rpc.publicnode.com 을 사용한다면,
+`npx hardhat node --fork https://ethereum-sepolia-rpc.publicnode.com` 실행합니다.
+노드가 실행되는 것을 확인 하신후, 아젠다 Impact overview 화면의 'Simulation execution' 버튼을 실행하세요.
 
 ### 기술 스택
 
