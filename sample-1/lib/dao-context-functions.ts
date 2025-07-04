@@ -67,7 +67,7 @@ export function createDAOContextFunctions(
   /**
    * 위원회 멤버들 로드 (DAOContext.tsx와 동일하게)
    */
-  const loadCommitteeMembers = async (maxMemberCount?: number) => {
+  const loadCommitteeMembers = async (maxMemberCount?: number, onStatusUpdate?: (message: string) => void) => {
     loadedCommitteeMembers = true;
 
     try {
@@ -82,9 +82,10 @@ export function createDAOContextFunctions(
         actualMaxMember,
         committeeMembers,
         lastFetchTimestamp,
-        // 상태 메시지만 업데이트
+        // 상태 메시지와 진행률 콜백 모두 업데이트
         (message) => {
           setStatusMessage(message);
+          onStatusUpdate?.(message);
         }
       );
 
@@ -184,9 +185,11 @@ export function createDAOContextFunctions(
   /**
    * 위원회 멤버들 새로고침
    */
-  const refreshCommitteeMembers = async () => {
-    if (maxMember > 0) {
-      await loadCommitteeMembers(maxMember);
+  const refreshCommitteeMembers = async (options?: { maxMember?: number; onStatusUpdate?: (message: string) => void }) => {
+    const targetMaxMember = options?.maxMember || maxMember;
+
+    if (targetMaxMember > 0) {
+      await loadCommitteeMembers(targetMaxMember, options?.onStatusUpdate);
     } else {
       await loadMaxMembers();
     }

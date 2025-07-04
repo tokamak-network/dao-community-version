@@ -54,8 +54,6 @@ export const createActivityRewardClaimedHandler = (
 ): ActivityRewardClaimedHandler => {
   return (data) => {
 
-
-
     if (committeeMembers && committeeMembers.length > 0) {
       const targetMember = committeeMembers.find(member => {
         const operator = data.candidate.toLowerCase();
@@ -64,15 +62,12 @@ export const createActivityRewardClaimedHandler = (
         } else {
           return false;
         }
-
       });
 
       if (targetMember) {
-
         setTimeout(() => {
-
           refreshSpecificMember(targetMember.indexMembers);
-        }, 1000);
+        }, 500);
 
         return;
       }

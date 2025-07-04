@@ -186,6 +186,8 @@ class MultiWorkerRPCClient {
       // 우선순위별 워커 할당
       let selectedWorker: WorkerState;
 
+      // 우선순위별 워커 할당
+      // 워커 개수 변경시, 우선순위 관련 코드 수정 필요
       if (priority === "HIGH") {
         // HIGH: Worker 0-1 (2개) - DAO 조회 + DAO 챌린지
         const highWorkerIndex = this.currentWorkerIndex % 2; // 0, 1 중 선택

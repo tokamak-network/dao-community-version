@@ -58,7 +58,7 @@ export interface DAOContextType {
   committeeMembers: CommitteeMember[] | undefined;
   isLoadingMembers: boolean;
   membersError: string | null;
-  refreshCommitteeMembers: (maxMember?: number) => Promise<void>;
+  refreshCommitteeMembers: (options?: { maxMember?: number; onStatusUpdate?: (message: string) => void }) => Promise<void>;
   refreshSpecificMember: (slotIndex: number) => Promise<void>;
 
   // Layer2 Candidates 관련 (챌린징용)
