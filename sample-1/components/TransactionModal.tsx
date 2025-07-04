@@ -1,214 +1,165 @@
-"use client";
-
-import { useState, useEffect } from 'react';
+import React from "react";
+import { formatTransactionError, TransactionState } from "@/utils/transaction-utils";
+import { ExternalLink } from "lucide-react";
 import { useChainId } from 'wagmi';
+import { getTransactionUrl } from '@/utils/explorer';
 
 interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isExecuting: boolean;
-  isSuccess: boolean;
-  error: string | null | undefined;
-  txHash: string | null;
-  operation: string | null | undefined;
-  operationDisplayName?: string;
+  state: TransactionState;
+  title: string;
+  txHash?: string | null;
+  stepLabels?: [string, string, string];
+  successMessage?: string;
+  errorMessage?: string;
+  explorerUrl?: string;
+  subMessage?: string | null;
 }
 
-export function TransactionModal({
+const defaultStepLabels = ["Approve wallet", "Check blockchain", "Done"];
+
+export const TransactionModal: React.FC<TransactionModalProps> = ({
   isOpen,
   onClose,
-  isExecuting,
-  isSuccess,
-  error,
+  state,
+  title,
   txHash,
-  operation,
-  operationDisplayName
-}: TransactionModalProps) {
-  const chainId = useChainId();
-  const [isMounted, setIsMounted] = useState(false);
-
-  // 🎯 Hydration Error 방지
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // 체인 ID에 따른 익스플로러 URL 생성
-  const getExplorerUrl = (hash: string) => {
-    if (!isMounted) return '#'; // 마운트 전에는 빈 링크
-
-    switch (chainId) {
-      case 1: // Ethereum Mainnet
-        return `https://etherscan.io/tx/${hash}`;
-      case 11155111: // Sepolia Testnet
-        return `https://sepolia.etherscan.io/tx/${hash}`;
-      case 5: // Goerli Testnet
-        return `https://goerli.etherscan.io/tx/${hash}`;
-      case 17000: // Holesky Testnet
-        return `https://holesky.etherscan.io/tx/${hash}`;
-      default:
-        return `https://etherscan.io/tx/${hash}`;
-    }
-  };
-
-  const getOperationDisplayName = (op: string | null) => {
-    switch (op) {
-      case 'changeMember': return '멤버 챌린지';
-      case 'retireMember': return '멤버 은퇴';
-      case 'claimActivityReward': return '활동 보상 청구';
-      case 'castVote': return '투표';
-      case 'updateSeigniorage': return '시뇨리지 업데이트';
-      default: return operationDisplayName || '트랜잭션';
-    }
-  };
-
-  const getOperationIcon = (op: string | null) => {
-    switch (op) {
-      case 'changeMember': return '⚔️';
-      case 'retireMember': return '👋';
-      case 'claimActivityReward': return '💰';
-      case 'castVote': return '🗳️';
-      case 'updateSeigniorage': return '⚡';
-      default: return '🔄';
-    }
-  };
-
+  stepLabels = defaultStepLabels,
+  successMessage = "Transaction completed successfully",
+  errorMessage = "Transaction failed",
+  explorerUrl,
+  subMessage,
+}) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-        {/* 헤더 */}
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {getOperationIcon(operation || null)} {getOperationDisplayName(operation || null)}
-          </h3>
-          {(isSuccess || error) && (
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+  const chainId = useChainId();
 
-        {/* 진행 상태 */}
-        <div className="space-y-4">
-          {/* 로딩 중 */}
-          {isExecuting && (
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <div className="space-y-2">
-                <p className="text-gray-800 font-medium">Processing transaction...</p>
-                <p className="text-sm text-gray-600">
-                                      {!txHash ? 'Please approve the transaction in your wallet' : 'Waiting for blockchain confirmation...'}
-                </p>
-              </div>
+  // Determine current step
+  let step = 0;
+  if (state.isSuccess) step = 2;
+  else if (txHash) step = 1;
+  else step = 0;
+
+  // 상태별 아이콘/메시지
+  const renderStatus = () => {
+    if (state.isSuccess) {
+      return (
+        <>
+          <div className="flex flex-col items-center justify-center my-6">
+            <div className="rounded-full bg-green-100 p-4 mb-4">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#D1FAE5"/><path d="M16 24l6 6 10-10" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
-          )}
-
-          {/* 성공 */}
-          {isSuccess && (
-            <div className="text-center">
-              <div className="text-green-500 text-4xl mb-4">✅</div>
-              <div className="space-y-2">
-                <p className="text-gray-800 font-medium">트랜잭션이 성공적으로 완료되었습니다!</p>
-                <p className="text-sm text-gray-600">
-                  {getOperationDisplayName(operation || null)}이(가) 성공적으로 실행되었습니다.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* 실패 */}
-          {error && (
-            <div className="text-center">
-              <div className="text-red-500 text-4xl mb-4">❌</div>
-              <div className="space-y-2">
-                <p className="text-gray-800 font-medium">트랜잭션이 실패했습니다</p>
-                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md max-h-32 overflow-y-auto">
-                  <p className="break-words leading-relaxed">
-                    {error}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 트랜잭션 해시 표시 */}
-          {txHash && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-md">
-              <p className="text-sm text-gray-600 mb-3">트랜잭션 해시:</p>
-
-              {/* 전체 해시 표시 - 선택 가능하고 줄바꿈 허용 */}
-              <div className="mb-4">
-                <div className="text-xs bg-white px-3 py-3 rounded border w-full break-all select-all font-mono leading-relaxed cursor-text">
-                  {txHash}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">💡 위 텍스트를 선택해서 복사할 수 있습니다</p>
-              </div>
-
-              {/* Explorer 링크 */}
-              <div className="text-center">
-                <a
-                  href={getExplorerUrl(txHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-                >
-                  🔍 Explorer에서 보기
-                </a>
-              </div>
-            </div>
-          )}
-
-          {/* 버튼들 */}
-          <div className="flex gap-3 mt-6">
-            {error && (
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-              >
-                닫기
-              </button>
-            )}
-
-            {isSuccess && (
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                확인
-              </button>
-            )}
+            <div className="text-xl font-semibold text-black-700 mb-2">{successMessage}</div>
+            {subMessage && <div className="text-gray-500">{subMessage}</div>}
           </div>
-
-          {/* 진행 단계 표시 */}
-          {isExecuting && (
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-gray-500 mb-2">
-                <span className={!txHash ? 'text-blue-600 font-medium' : 'text-green-600'}>
-                  1. 지갑 승인
-                </span>
-                <span className={txHash && !isSuccess && !error ? 'text-blue-600 font-medium' : txHash ? 'text-green-600' : ''}>
-                  2. 블록체인 확인
-                </span>
-                <span className={isSuccess ? 'text-green-600 font-medium' : ''}>
-                  3. 완료
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                  style={{
-                    width: !txHash ? '33%' : isSuccess ? '100%' : '66%'
-                  }}
-                />
-              </div>
+        </>
+      );
+    }
+    if (state.error) {
+      return (
+        <>
+          <div className="flex flex-col items-center justify-center my-6">
+            <div className="rounded-full bg-red-100 p-4 mb-4">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#FEE2E2"/><path d="M16 32l16-16M16 16l16 16" stroke="#EF4444" strokeWidth="3" strokeLinecap="round"/></svg>
             </div>
-          )}
+            <div className="text-xl font-semibold text-red-700 mb-2">{errorMessage}</div>
+            <div className="text-gray-500">{formatTransactionError({ message: state.error })}</div>
+          </div>
+        </>
+      );
+    }
+    // 진행중
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center my-6">
+          <div className="relative mb-4">
+            <svg className="animate-spin" width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" stroke="#E5E7EB" strokeWidth="6" fill="none"/><circle cx="24" cy="24" r="20" stroke="#3B82F6" strokeWidth="6" fill="none" strokeDasharray="125.6" strokeDashoffset="100"/></svg>
+          </div>
+          <div className="text-lg font-medium text-gray-800 mb-1">Processing Transaction...</div>
+          <div className="text-gray-500 text-sm">
+            {step === 0 && "Please approve the transaction from your wallet."}
+            {step === 1 && "Waiting for blockchain confirmation..."}
+          </div>
         </div>
+      </>
+    );
+  };
+
+  // 해시 표시
+  const renderTxHash = () => {
+    if (!txHash) return null;
+    const shortHash = txHash.slice(0, 6) + "..." + txHash.slice(-4);
+    return (
+      <div className="flex items-center justify-between bg-gray-100 rounded px-3 py-2 mt-2 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-blue-700 select-all">{shortHash}</span>
+          <button
+            className="text-gray-400 hover:text-gray-600"
+            onClick={() => navigator.clipboard.writeText(txHash)}
+            title="Copy hash"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><rect x="3" y="3" width="13" height="13" rx="2"/></svg>
+          </button>
+        </div>
+        {txHash && (
+          <a
+            href={getTransactionUrl(txHash, chainId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-700 ml-2"
+            title="View on Explorer"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+    );
+  };
+
+  // 단계별 진행 바
+  const renderStepBar = () => (
+    <div className="flex flex-col mt-6">
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        {stepLabels.map((label, idx) => (
+          <span key={label} className={step === idx ? "text-blue-600 font-semibold" : step > idx ? "text-gray-400" : ""}>{`${idx + 1}. ${label}`}</span>
+        ))}
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-1">
+        <div
+          className="bg-blue-600 h-1 rounded-full transition-all duration-500"
+          style={{ width: `${((step + 1) / 3) * 100}%` }}
+        />
       </div>
     </div>
   );
-}
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6 relative">
+        {/* 헤더 */}
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          {(state.isSuccess || state.error) && (
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          )}
+        </div>
+        {/* 상태별 내용 */}
+        {renderStatus()}
+        {/* 해시 */}
+        {renderTxHash()}
+        {/* 진행 바 */}
+        {renderStepBar()}
+        {/* 완료 버튼 */}
+        {state.isSuccess && (
+          <button
+            className="w-full mt-6 py-2 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
+            onClick={onClose}
+          >
+            OK
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

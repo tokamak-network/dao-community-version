@@ -302,7 +302,6 @@ export const loadCommitteeMembers = async (
 export const refreshSpecificMember = async (
   slotIndex: number
 ): Promise<CommitteeMember | null> => {
-
   try {
     const publicClient = await getSharedPublicClient();
 
@@ -325,7 +324,6 @@ export const refreshSpecificMember = async (
 
     // 공통 함수를 사용하여 멤버 상세 정보 조회
     const updatedMember = await fetchMemberDetails(publicClient, memberAddress, slotIndex);
-
 
     return updatedMember;
 

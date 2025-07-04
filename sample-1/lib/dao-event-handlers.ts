@@ -53,12 +53,14 @@ export const createActivityRewardClaimedHandler = (
   committeeMembers?: any[] // 현재 위원회 멤버 목록
 ): ActivityRewardClaimedHandler => {
   return (data) => {
+    console.log('💰 Activity reward claimed:', data);
 
     if (committeeMembers && committeeMembers.length > 0) {
+      const operator = data.candidate.toLowerCase();
+
       const targetMember = committeeMembers.find(member => {
-        const operator = data.candidate.toLowerCase();
-        if (member.creationAddress.toLowerCase() === operator) {
-            return true;
+        if (member.creationAddress?.toLowerCase() === operator) {
+          return true;
         } else {
           return false;
         }
@@ -68,14 +70,12 @@ export const createActivityRewardClaimedHandler = (
         setTimeout(() => {
           refreshSpecificMember(targetMember.indexMembers);
         }, 500);
-
         return;
       }
     }
 
     console.warn('⚠️ Could not find specific member for activity reward claim, refreshing all slots');
     for (let i = 0; i < maxMember; i++) {
-
       refreshSpecificMember(i);
     }
   };

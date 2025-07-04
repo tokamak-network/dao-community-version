@@ -17,7 +17,7 @@ interface TransactionModalProps {
   subMessage?: string | null;
 }
 
-const defaultStepLabels = ["Approve wallet", "Check blockchain", "Done"];
+const defaultStepLabels: [string, string, string] = ["Approve wallet", "Check blockchain", "Done"];
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   isOpen,
@@ -31,9 +31,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   explorerUrl,
   subMessage,
 }) => {
-  if (!isOpen) return null;
-
   const chainId = useChainId();
+
+  if (!isOpen) {
+    return null;
+  }
 
   // Determine current step
   let step = 0;
@@ -122,7 +124,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     <div className="flex flex-col mt-6">
       <div className="flex justify-between text-xs text-gray-500 mb-1">
         {stepLabels.map((label, idx) => (
-          <span key={label} className={step === idx ? "text-blue-600 font-semibold" : step > idx ? "text-gray-400" : ""}>{`${idx + 1}. ${label}`}</span>
+          <span key={`step-${idx}`} className={step === idx ? "text-blue-600 font-semibold" : step > idx ? "text-gray-400" : ""}>{`${idx + 1}. ${label}`}</span>
         ))}
       </div>
       <div className="w-full bg-gray-200 rounded-full h-1">

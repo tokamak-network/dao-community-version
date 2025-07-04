@@ -101,7 +101,7 @@ export function createDAOContextFunctions(
     }
   };
 
-  /**
+    /**
    * 특정 멤버 새로고침 (slotIndex 기반)
    */
   const refreshSpecificMember = async (slotIndex: number) => {

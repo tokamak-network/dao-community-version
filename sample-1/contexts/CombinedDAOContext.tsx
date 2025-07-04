@@ -319,7 +319,7 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
 
     // 컴포넌트 언마운트 시 이벤트 워처 정리
     return cleanupDAO;
-  }, [chain.id, CONTRACTS.daoCommittee.address]);
+  }, [chain.id, CONTRACTS.daoCommittee.address, maxMember, committeeMembers, daoFunctions.refreshSpecificMember, daoFunctions.resetLayer2Cache]);
 
   // 모듈화된 함수들을 사용한 contextValue
   const contextValue = useMemo(() => ({
