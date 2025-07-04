@@ -49,6 +49,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
     async function fetchCurrentStatus() {
       try {
         if (typeof window === 'undefined' || !(window as any).ethereum) return
+        if (!DAO_COMMITTEE_PROXY_ADDRESS) return
         const provider = new ethers.BrowserProvider((window as any).ethereum)
         // 버전 확인
         const daoContract = new ethers.Contract(
@@ -66,7 +67,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
         if (version === '2.0.0') {
           // currentAgendaStatus 호출
           const statusContract = new ethers.Contract(
-            DAO_COMMITTEE_PROXY_ADDRESS,
+            DAO_COMMITTEE_PROXY_ADDRESS!,
             ['function currentAgendaStatus(uint256) external view returns (uint256 currentResult, uint256 currentStatus)'],
             provider
           )

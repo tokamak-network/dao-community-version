@@ -536,7 +536,7 @@ export default function DAOCommitteeMembers() {
 
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0 });
 
-  // Patch refreshCommitteeMembers to support progress
+  // Refresh committee members with progress
   const refreshWithProgress = () => {
     setLoadingProgress({ current: 0, total: 0 });
     refreshCommitteeMembers({
