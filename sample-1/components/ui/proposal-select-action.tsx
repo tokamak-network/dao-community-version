@@ -171,14 +171,14 @@ function RequiredContractAddress({
 
               implementationAddress = await contract.implementation();
             } else if (getImplementationFunction) {
-              console.log("Trying getImplementation() function...");
+
               implementationAddress = await contract.getImplementation();
             } else if (logicFunction) {
-              console.log("Trying logic() function...");
+
               implementationAddress = await contract.logic();
             } else {
               // Try to get implementation address from storage slot (EIP-1967)
-              console.log("Trying EIP-1967 storage slot...");
+
               const implementationSlot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
               const storageValue = await provider.getStorage(value, implementationSlot);
               if (storageValue && storageValue !== "0x0000000000000000000000000000000000000000000000000000000000000000") {
@@ -564,7 +564,6 @@ function ActionCard({
 
   useEffect(() => {
     try {
-      console.log("Decoding calldata:", { method, calldata });
 
       // Extract function name and parameter types from method string
       const match = method.match(/(.+)\((.*)\)/);
@@ -575,10 +574,10 @@ function ActionCard({
       }
 
       const [_, funcName, paramTypes] = match;
-      console.log("Parsed method:", { funcName, paramTypes });
+
 
       const types = paramTypes.split(",").map((t) => t.trim());
-      console.log("Parameter types:", types);
+
 
       // Create a minimal ABI for decoding
       const minimalAbi = [
@@ -591,11 +590,10 @@ function ActionCard({
           })),
         },
       ];
-      console.log("Created minimal ABI:", minimalAbi);
 
       const iface = new Interface(minimalAbi);
       const decoded = iface.parseTransaction({ data: calldata });
-      console.log("Decoded transaction:", decoded);
+
 
       if (decoded) {
         const formattedParams = decoded.args
@@ -614,12 +612,11 @@ function ActionCard({
               value = arg;
             }
 
-            console.log(`Formatted parameter ${index}:`, { type, value });
             return `${type}: ${value}`;
           })
           .join(", ");
 
-        console.log("Final formatted parameters:", formattedParams);
+
         setDecodedParams(formattedParams);
       } else {
         console.error("Failed to decode transaction");
