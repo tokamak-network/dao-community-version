@@ -115,7 +115,12 @@ export default function DAOCommitteeMembers() {
       return { canChallenge: false, myLayer2: null, myLayer2s: [] };
     }
 
-    // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외)
+    // 빈 슬롯인지 확인
+    const isEmptySlot = member.creationAddress === '0x0000000000000000000000000000000000000000' ||
+                       member.candidateContract === '0x0000000000000000000000000000000000000000' ||
+                       member.name.includes('Empty Slot');
+
+    // 내가 operator나 manager인 Layer2 찾기 (쿨다운 체크 + 이미 위원회 멤버 제외 + 스테이킹 비교)
     const myLayer2s = layer2Candidates.filter(candidate => {
       // 1. 쿨다운 시간이 설정되어 있고, 아직 쿨다운이 끝나지 않았으면 챌린지 불가
       const currentTime = Math.floor(Date.now() / 1000);
@@ -137,7 +142,22 @@ export default function DAOCommitteeMembers() {
       const isManager = candidate.manager && candidate.manager.toLowerCase() === address.toLowerCase();
       const isMyLayer2 = isOwner || isOperator || isManager;
 
-      return isMyLayer2;
+      if (!isMyLayer2) {
+        return false;
+      }
+
+      // 4. 스테이킹 비교 (빈 슬롯이 아닌 경우에만)
+      if (!isEmptySlot) {
+        const targetStaking = BigInt(member.totalStaked);
+        const candidateStaking = BigInt(candidate.totalStaked);
+
+        // 타겟 멤버보다 스테이킹이 높아야 챌린지 가능
+        if (candidateStaking <= targetStaking) {
+          return false;
+        }
+      }
+
+      return true;
     });
 
     return {
