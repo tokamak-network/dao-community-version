@@ -1,304 +1,338 @@
-# Tokamak DAO 커뮤니티 버전 웹 애플리케이션
+# Tokamak DAO Community Version Web Application
 
-이 프로젝트는 Tokamak DAO(탈중앙화 자율조직) 커뮤니티 운영을 위한 웹 애플리케이션입니다.
+This project is a web application for operating the Tokamak DAO (Decentralized Autonomous Organization) community.
 
 ---
 
 ## Table of Documents
 
-- Features
-- 시스템 구성도
-- 상세 모듈 및 구현 방법
-- 설치 방법
+- [Features](#features)
+- [Folder Structure](#folder-structure)
+- [Key Modules and Functions](#key-modules-and-functions)
+- [Environment Configuration](#environment-configuration)
+- [Execution Guide](#execution-guide)
 
 ## Features
 
-### DAO 커미티 관련 기능
+### DAO Committee Related Features
 
-- **커미티 멤버 리스트**: 모든 DAO 커미티 멤버와 그 정보를 조회할 수 있습니다.
-- **멤버 상태 확인**: 현재 사용자가 커미티 멤버인지 확인할 수 있습니다.
-- **Layer2 후보자**: Layer2 챌린지 후보자를 조회 및 관리할 수 있습니다.
-- **커미티 멤버 새로고침**: 블록체인에서 커미티 멤버 데이터를 새로고침합니다.
-- **활동 보상 청구**: (해당되는 경우) 활동 보상을 청구할 수 있습니다.
-- **챌린지 분석**: 챌린지 진행 상황과 결과를 분석 및 표시하고, (해당되는 경우) 챌린지를 요청할 수 있습니다.
-- **멤버 은퇴**: (해당되는 경우) 멤버에서 은퇴할 수 있습니다.
+- **Committee Member List**: View all DAO committee members and their information.
+- **Member Status Check**: Check detailed information of current committee members.
+- **Layer2 Candidates**: View Layer2 challenge candidates.
+- **Activity Reward Claim**: Claim member activity rewards (if applicable).
+- **Challenge Analysis**: Analyze and display challenge progress and results, and request challenges (if applicable).
+- **Member Retirement**: Retire from membership (if applicable).
+- **Real-time Event Monitoring**: UI (committee status) is immediately updated when ChangedMember (member replacement-challenge), ClaimedActivityReward (activity reward claim), Layer2Registered (layer2 creation) events occur on the blockchain.
 
+### Agenda Related Features
 
-### 아젠다 관련 기능
+- **Agenda Creation**: Create new agendas (on-chain proposals).
+- **Agenda Simulation**: Provides pre-simulation functionality by hard-forking a local node before submitting agendas on-chain. Through simulation, you can preview on-chain execution results and gas costs.
+- **Agenda Metadata Submission**: Provides an interface to submit agenda metadata to the agenda repository when creating agendas. Submitting to the agenda metadata repository allows users to visually and easily recognize registered agendas.
+- **Agenda Creator Signature Generation**: Generate creator signatures for agenda metadata.
+- **Agenda List and Details**: View agenda lists and detailed information.
+- **Voting**: Vote on agendas (if you are a DAO member) with on-chain transaction and UI feedback.
+- **Execution**: Anyone can execute agendas when conditions are met.
+- **Real-time Event Monitoring**: UI (agenda status) is immediately updated when AgendaCreated, VoteCasted, and AgendaExecuted events occur on the blockchain.
+- **Progressive Pagination**: Agenda lists are loaded in batches to improve performance and UX.
+- **Batch Loading via Worker System**: Agenda lists are loaded in batches by background workers, with support for rate limiting and abort functionality.
+- **Configurable Batch Delay**: Agenda loading batch delay can be configured via environment variables.
+- **Error Handling**: UI and state management for various error situations like 404, network issues, etc.
+- **Context-based State Management**: Global state and pagination-specific state are separated to improve performance and maintainability.
 
-- **아젠다 생성**: 새로운 아젠다(온체인 제안)를 생성할 수 있습니다.
-- **아젠다 시뮬레이션**: 아젠다를 온체인에 제출하기 전에 로컬에 노드를 하드포크하여 사전 시뮬레이션 기능을 제공합니다. 시뮬레이션을 통해 온체인 실행결과와 가스비를 미리 알 수 있습니다.
-- **아젠다 메타데이타 제출**: 아젠다 생성시, 아젠다 저장소에 아젠다 메타데이타를 제출하는 인터페이스를 제공합니다. 아젠다 메타데이타 저장소에 제출하면, 등록한 아젠다를 사용자들이 시각적으로 쉽게 인지할 수 있도록 합니다.
-- **아젠다 제출자 서명 생성**: 아젠다 메타데이타에 생성자의 서명을 생성합니다.
-- **아젠다 리스트 및 상세**: 아젠다 목록과 상세 정보를 조회할 수 있습니다.
-- **투표**: (다오 멤버인 경우) 아젠다에 투표할 수 있으며, 온체인 트랜잭션 및 UI 피드백이 제공됩니다.
-- **실행**: 조건이 충족되면 누구든지 아젠다를 실행할 수 있습니다.
-- **실시간 이벤트 모니터링**: 블록체인에서 AgendaCreated(아젠다 생성), VoteCasted(투표), AgendaExecuted(아젠다 실행) 이벤트가 발생하면 UI(아젠다의 상태)가 즉시 갱신됩니다.
-- **프로그레시브 페이지네이션**: 아젠다 목록은 배치 단위로 불러와 성능과 UX를 개선합니다.
-- **워커 시스템을 통한 배치 로딩**: 아젠다 목록은 백그라운드 워커가 배치 단위로 데이터를 불러오며, 레이트 리미팅 및 중단(Abort)도 지원합니다.
-- **설정 가능한 배치 딜레이**: 환경 변수로 아젠다 로딩 배치 딜레이를 설정할 수 있습니다.
-- **에러 처리**: 404, 네트워크 등 다양한 에러 상황에 대한 UI 및 상태 관리가 제공됩니다.
-- **Context 기반 상태 관리**: 전역 상태와 페이지네이션 전용 상태를 분리하여 성능과 유지보수성을 높였습니다.
+### Common Features
 
-### 공통
+- **Contract Integration**: All major actions (agenda, voting, execution, etc.) are directly integrated with smart contracts.
+- **Environment Variable-based Configuration**: Key parameters like RPC URL, contract addresses, batch delays, etc. can be configured via environment variables.
 
-- **컨트랙트 연동**: 모든 주요 액션(아젠다, 투표, 실행 등)은 스마트 컨트랙트와 직접 연동됩니다.
-- **환경 변수 기반 설정**: RPC URL, 컨트랙트 주소, 배치 딜레이 등 주요 파라미터를 환경 변수로 설정할 수 있습니다.
-
-
-
-## 폴더 구조
+## Folder Structure
 
 ```
 dao-community-sample/
 ├── app/                    # Next.js 13+ App Router
-│   ├── agenda/            # 아젠다 관련 페이지
-│   │   ├── [id]/         # 아젠다 상세 페이지
-│   │   └── page.tsx      # 아젠다 목록 페이지
-│   ├── dao-committee/    # DAO 커미티 페이지
-│   ├── api/              # API 라우트
-│   │   ├── submit-pr/    # PR 제출 API
-│   │   └── simulate/     # 시뮬레이션 API
-│   ├── layout.tsx        # 루트 레이아웃
-│   ├── providers.tsx     # 프로바이더 설정
-│   └── page.tsx          # 메인 페이지
-├── components/            # 재사용 가능한 컴포넌트
-│   ├── agenda/           # 아젠다 관련 컴포넌트
-│   ├── dao/              # DAO 관련 컴포넌트
-│   ├── layout/           # 레이아웃 컴포넌트
-│   ├── modals/           # 모달 컴포넌트
-│   ├── ui/               # UI 컴포넌트 (시뮬레이션 포함)
-│   └── wallet/           # 지갑 연동 컴포넌트
+│   ├── agenda/            # Agenda related pages
+│   │   ├── [id]/         # Agenda detail page
+│   │   └── page.tsx      # Agenda list page
+│   ├── dao-committee/    # DAO Committee page
+│   ├── api/              # API routes
+│   │   ├── submit-pr/    # PR submission API
+│   │   └── simulate/     # Simulation API
+│   ├── layout.tsx        # Root layout
+│   ├── providers.tsx     # Provider setup
+│   └── page.tsx          # Main page
+├── components/            # Reusable components
+│   ├── agenda/           # Agenda related components
+│   ├── dao/              # DAO related components
+│   ├── layout/           # Layout components
+│   ├── modals/           # Modal components
+│   ├── ui/               # UI components (including simulation)
+│   └── wallet/           # Wallet integration components
 ├── contexts/             # React Context
 │   └── CombinedDAOContext.tsx
-├── lib/                  # 유틸리티 함수 및 라이브러리
-│   ├── agenda-*.ts       # 아젠다 관련 로직
-│   ├── dao-*.ts          # DAO 관련 로직
-│   ├── utils.ts          # 공통 유틸리티
-│   └── signature.ts      # 서명 관련 함수
-├── types/                # TypeScript 타입 정의
-├── hooks/                # 커스텀 훅
-├── utils/                # 유틸리티 함수
-├── config/               # 설정 파일
-├── constants/            # 상수 정의
-├── abis/                 # 스마트 컨트랙트 ABI
-└── docs/                 # 문서
+├── lib/                  # Utility functions and libraries
+│   ├── agenda-*.ts       # Agenda related logic
+│   ├── dao-*.ts          # DAO related logic
+│   ├── utils.ts          # Common utilities
+│   └── signature.ts      # Signature related functions
+├── types/                # TypeScript type definitions
+├── hooks/                # Custom hooks
+├── utils/                # Utility functions
+├── config/               # Configuration files
+├── constants/            # Constant definitions
+└── abis/                 # Smart contract ABIs
 ```
 
-## 주요 모듈 및 함수
+## Key Modules and Functions
 
 ### CombinedDAOContext
 
-**위치**: `contexts/CombinedDAOContext.tsx`
+**Location**: `contexts/CombinedDAOContext.tsx`
 
-- **역할**: DAO 및 아젠다 관리를 위한 전역 상태 관리
-- **주요 기능**:
-  - 아젠다 목록 및 상세 정보 관리
-  - DAO 커미티 멤버 정보 관리
-  - Layer2 후보자 관리 (다오 멤버 챌린지 가능여부 분석)
-  - 실시간 이벤트 모니터링 (다오 멤버 변경사항, 아젠다 변경사항 모니터링)
-  - 블록체인 상태와 UI 동기화
+- **Role**: Global state management for DAO and agenda management
+- **Key Features**:
+  - Agenda list and detail information management
+  - DAO committee member information management
+  - Layer2 candidate management (DAO member challenge feasibility analysis)
+  - Real-time event monitoring (DAO member changes, agenda changes monitoring)
+  - Blockchain state and UI synchronization
 
-### 다오커미티 컴포넌트
+### DAO Committee Components
 
-**위치**: `components/dao/`, `app/dao-committee/`
+**Location**: `components/dao/`, `app/dao-committee/`
 
-- **주요 컴포넌트**:
-  - `DAOCommitteeMembers.tsx`: 커미티 멤버 정보 카드
-  - `CheckChallengeButton.tsx`: 챌린지 확인 및 요청 버튼
-- **기능**:
-  - 커미티 멤버 목록 표시
-  - 멤버 상태 확인 및 관리
-  - 챌린지 분석 및 처리
-  - 활동 보상 청구
-  - 멤버 탈퇴
+- **Key Components**:
+  - `DAOCommitteeMembers.tsx`: Committee member information cards
+  - `CheckChallengeButton.tsx`: Challenge check and request button
+- **Features**:
+  - Display committee member list
+  - Check and manage member status
+  - Challenge analysis and processing
+  - Activity reward claiming
+  - Member retirement
 
 ### AgendaPagination
 
-**위치**: `lib/agenda-pagination.ts`
+**Location**: `lib/agenda-pagination.ts`
 
-- **역할**: 아젠다의 프로그레시브 페이지네이션 처리
-- **주요 기능**:
-  - 배치 단위 아젠다 로딩
-  - 중복 없는 upsert(추가/갱신) 로직
-  - 레이트 리미팅 및 중단 지원
-  - 성능 최적화된 데이터 로딩
+- **Role**: Progressive pagination handling for agendas
+- **Key Features**:
+  - Batch-based agenda loading
+  - Duplicate-free upsert (add/update) logic
+  - Rate limiting and abort support
+  - Performance-optimized data loading
 
-### RPC 워커
+### RPC Worker
 
-**위치**: `lib/shared-rpc-client.ts`, `lib/rpc-utils.ts`
+**Location**: `lib/shared-rpc-client.ts`, `lib/rpc-utils.ts`
 
-- **역할**: 백그라운드 배치 작업 및 RPC 요청 관리
-- **주요 기능**:
-  - 멀티워커 RPC 요청 처리
-  - 우선순위 기반 큐 관리 (우선순위에 따라 담당역할 배정함)
-  - 레이트 리미팅 및 에러 처리
-  - 진행률 추적 및 모니터링
+- **Role**: Background batch processing and RPC request management
+- **Key Features**:
+  - Multi-worker RPC request processing
+  - Priority-based queue management (role assignment based on priority)
+  - Rate limiting and error handling
+  - Progress tracking and monitoring
 
-### 시뮬레이션
+### Simulation
 
-**위치**: `components/ui/proposal-impact-overview.tsx`
+**Location**:
+- **UI Component**: `components/ui/proposal-impact-overview.tsx`
+- **API Endpoint**: `app/api/simulate/route.ts`
 
-- **역할**: 아젠다 실행 전 시뮬레이션 제공
-- **주요 기능**:
-  - 로컬 노드 하드포크를 통한 시뮬레이션
-  - 가스비 및 실행 결과 미리 확인
-  - 실시간 시뮬레이션 로그 표시
-  - 에러 및 성공 케이스 처리
+- **Role**: Provide simulation before agenda execution
+- **Key Features**:
+  - Simulation via local node hard fork
+  - Preview gas costs and execution results
+  - Real-time simulation log display
+  - Error and success case handling
+- **API Features**:
+  - **Endpoint**: `POST /api/simulate`
+  - **Streaming**: Real-time log transmission via Server-Sent Events(SSE)
+  - **Hard Fork**: Local node forking through Hardhat
+  - **Account Impersonation**: DAO account simulation via `hardhat_impersonateAccount`
+  - **Balance Setting**: Automatic ETH balance allocation for simulation
+- **Environment Setup**:
+  - **Required Environment Variable**: `NEXT_PUBLIC_LOCALHOST_RPC_URL=http://127.0.0.1:8545`
+  - **Local Node Execution**: `npx hardhat node --fork <RPC_URL>`
+  - **Simulation Prerequisites**: Hard-forked local node execution required
+- **Usage**:
+  1. Enter basic agenda information and execution functions on agenda creation page
+  2. Navigate to "Impact Overview" menu
+  3. Run local Hardhat node (`npx hardhat node --fork <RPC_URL>`)
+  4. Click "Simulate Execution" button to execute simulation
 
-### PR 제출
+### PR Submission
 
-**위치**: `app/api/submit-pr/route.ts`, `components/modals/AgendaSubmissionModal.tsx`
+**Location**:
+- **API Endpoint**: `app/api/submit-pr/route.ts`
+- **UI Component**: `components/modals/AgendaSubmissionModal.tsx`
 
-- **역할**: 아젠다 메타데이터를 GitHub 저장소에 PR로 제출
-- **주요 기능**:
-  - 자동 포크 및 브랜치 생성
-  - 메타데이터 파일 생성 및 업데이트
-  - PR 생성 및 제출
-  - 로컬 백업 파일 다운로드
+- **Role**: Submit agenda metadata as PR to GitHub repository
+- **Key Features**:
+  - Automatic fork and branch creation
+  - Metadata file creation and update
+  - PR creation and submission
+  - Local backup file download
+- **API Features**:
+  - **Endpoint**: `POST /api/submit-pr`
+  - **GitHub API Integration**: Repository management through Octokit
+  - **Automatic Fork**: Fork creation from original repository to user account
+  - **Branch Management**: Unique branch name generation and conflict prevention
+  - **Synchronization**: Sync fork with original repository to latest state
+  - **Error Handling**: Handle fork creation failures, permission errors, etc.
+- **Environment Setup**:
+  - **Required Environment Variables**:
+    - `GITHUB_TOKEN`: GitHub personal access token
+    - `GITHUB_FORK_OWNER`: Fork owner (your GitHub account)
+    - `GITHUB_OWNER`: Base repository owner (`tokamak-network`)
+    - `GITHUB_REPO`: Repository name (`dao-agenda-metadata-repository`)
+  - **GitHub Token Permissions**: `repo` permission required (for forking user's token)
+- **Usage**:
+  1. Click "Submit PR" button after completing agenda creation
+  2. Confirm signature message and sign with wallet
+  3. Automatically create fork and branch
+  4. Upload metadata file and create PR
+  5. Automatically download local backup file
 
-### 이벤트 구독 및 반영
+### Event Subscription and Reflection
 
-**위치**: `lib/agenda-event-monitor.ts`, `lib/dao-event-monitor.ts`
+**Location**: `lib/agenda-event-monitor.ts`, `lib/dao-event-monitor.ts`
 
-- **역할**: 블록체인 이벤트 실시간 모니터링 및 UI 반영
-- **주요 기능**:
-  - AgendaCreated, VoteCasted, AgendaExecuted 이벤트 구독
-  - ChangedMember, ClaimedActivityReward, Layer2Registered 이벤트 구독
-  - 이벤트 발생 시 UI 상태 즉시 갱신
-  - 이벤트 핸들러를 통한 상태 업데이트
-  - 에러 처리 및 재연결 로직
+- **Role**: Real-time blockchain event monitoring and UI reflection
+- **Key Features**:
+  - Subscribe to AgendaCreated, VoteCasted, AgendaExecuted events
+  - Subscribe to ChangedMember, ClaimedActivityReward, Layer2Registered events
+  - Immediate UI state update when events occur
+  - State updates through event handlers
+  - Error handling and reconnection logic
 
-### 서명 기능
+### Signature Functionality
 
-**위치**: `lib/signature.ts`
+**Location**: `lib/signature.ts`
 
-- **역할**: 아젠다 메타데이터 생성자 서명 및 검증
-- **주요 기능**:
-  - 아젠다 제출자 서명 메시지 생성
-  - 로컬 저장용 서명과 PR 제출용 서명 구분
-  - 타임스탬프 기반 서명 메시지 포맷
-  - 아젠다 ID와 트랜잭션 해시를 포함한 서명 생성
+- **Role**: Agenda metadata creator signature and verification
+- **Key Features**:
+  - Agenda submitter signature message generation
+  - Distinction between local storage signature and PR submission signature
+  - Timestamp-based signature message format
+  - Signature generation including agenda ID and transaction hash
 
-## 환경설정
+## Environment Configuration
 
-프로젝트 루트에 `.env.local` 파일을 생성하고 다음 환경 변수를 설정하세요:
-이더리움 메인넷 환경에서 구동하려면  `.env.example.mainnet` 을 복사하시고, 이더리움 세폴리아 테스트넷 환경에서 구동하려면  `.env.example.sepolia` 을 복사해서 사용하세요.
+Create a `.env.local` file in the project root and set the following environment variables:
+To run in Ethereum mainnet environment, copy `.env.example.mainnet`, and to run in Ethereum Sepolia testnet environment, copy `.env.example.sepolia`.
 
-### 네트웤/컨트랙 환경 변수
+### Network/Contract Environment Variables
 
 ```bash
-# 체인 설정
-NEXT_PUBLIC_CHAIN_ID=11155111                    # 1: 메인넷, 11155111: 세폴리아
-NEXT_PUBLIC_CHAIN_NAME=Sepolia                   # 체인 이름 , Mainnet or Sepolia
-NEXT_PUBLIC_CHAIN_NETWORK=sepolia                # 네트워크 이름, mainnet or sepolia
+# Chain configuration
+NEXT_PUBLIC_CHAIN_ID=11155111                    # 1: Mainnet, 11155111: Sepolia
+NEXT_PUBLIC_CHAIN_NAME=Sepolia                   # Chain name, Mainnet or Sepolia
+NEXT_PUBLIC_CHAIN_NETWORK=sepolia                # Network name, mainnet or sepolia
 NEXT_PUBLIC_EXPLORER_URL=https://sepolia.etherscan.io
 
-# 컨트랙 조회시 사용하는 RPC 설정
+# RPC configuration for contract queries
 NEXT_PUBLIC_RPC_URL=https://rpc.sepolia.org
 
-# 이벤트 모니터링용 RPC
+# RPC for event monitoring
 NEXT_PUBLIC_RPC_URL_FOR_EVENT=https://eth-sepolia.g.alchemy.com/v2/{your_api_key}
 
-
-# 아젠다 등록시, 액션 컨트랙의 타켓 컨트랙 함수 조회
+# Target contract function query for agenda registration action contracts
 NEXT_PUBLIC_ETHERSCAN_API_KEY={your_etherscan_api_key_here}
 NEXT_PUBLIC_ETHERSCAN_API_URL=https://api-sepolia.etherscan.io/api
 
-# 아젠다 시뮬레이션시 하드포크한 노드 URL
+# Hard-forked node URL for agenda simulation
 NEXT_PUBLIC_LOCALHOST_RPC_URL=http://127.0.0.1:8545
 
-# 컨트랙트 주소
-NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS=0x...     # DAO 아젠다 매니저 주소
-NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS=0x...    # DAO 커미티 프록시 주소
-NEXT_PUBLIC_TON_CONTRACT_ADDRESS=0x...           # TON 컨트랙트 주소
-NEXT_PUBLIC_SEIG_MANAGER_ADDRESS=0x...           # 세이그 매니저 주소
-NEXT_PUBLIC_LAYER2_MANAGER_ADDRESS=0x...         # Layer2 매니저 주소
-NEXT_PUBLIC_LAYER2_REGISTRY_ADDRESS=0x...        # Layer2 레지스트리 주소
-NEXT_PUBLIC_L1_BRIDGE_REGISTRY_ADDRESS=0x...        # Layer2 브릿지 레지스트리 주소
+# Contract addresses
+NEXT_PUBLIC_DAO_AGENDA_MANAGER_ADDRESS=0x...     # DAO Agenda Manager address
+NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS=0x...    # DAO Committee Proxy address
+NEXT_PUBLIC_TON_CONTRACT_ADDRESS=0x...           # TON Contract address
+NEXT_PUBLIC_SEIG_MANAGER_ADDRESS=0x...           # Seig Manager address
+NEXT_PUBLIC_LAYER2_MANAGER_ADDRESS=0x...         # Layer2 Manager address
+NEXT_PUBLIC_LAYER2_REGISTRY_ADDRESS=0x...        # Layer2 Registry address
+NEXT_PUBLIC_L1_BRIDGE_REGISTRY_ADDRESS=0x...     # Layer2 Bridge Registry address
 ```
 
-### 선택적 환경 변수
+### Optional Environment Variables
 
 ```bash
-# RPC CAll 성능 튜닝
-NEXT_PUBLIC_CONTRACT_BATCH_DELAY_MS=1500         # 배치 로딩 딜레이 (ms)
-NEXT_PUBLIC_CONTRACT_BATCH_SIZE=3                # 배치 크기
-NEXT_PUBLIC_CONTRACT_CACHE_DURATION_MS=12000     # 캐시 지속 시간 (ms)
+# RPC Call performance tuning
+NEXT_PUBLIC_CONTRACT_BATCH_DELAY_MS=1500         # Batch loading delay (ms)
+NEXT_PUBLIC_CONTRACT_BATCH_SIZE=3                # Batch size
+NEXT_PUBLIC_CONTRACT_CACHE_DURATION_MS=12000     # Cache duration (ms)
 
-# RPC CAll 워커 설정
-NEXT_PUBLIC_RPC_WORKER_COUNT=5                   # RPC 워커 쓰레드 개수, 현재 최적화되었음. 수정하면 우선순위 관련 모듈 변경이 필요함. shared0rpc-client.ts#우선순위별 워커 할당 코드
-NEXT_PUBLIC_WORKER_REQUEST_INTERVAL=500          # 워커당 최소 요청 간격 (ms)
-NEXT_PUBLIC_RPC_WORKER_LOG=false                 # 워커 실행 로그 패널 표시여부
+# RPC Call worker configuration
+NEXT_PUBLIC_RPC_WORKER_COUNT=5                   # Number of RPC worker threads, currently optimized. Modification requires changes to priority-related modules. shared-rpc-client.ts#priority-based worker allocation code
+NEXT_PUBLIC_WORKER_REQUEST_INTERVAL=500          # Minimum request interval per worker (ms)
+NEXT_PUBLIC_RPC_WORKER_LOG=false                 # Whether to display worker execution log panel
 ```
 
-### GitHub 설정 (PR 제출용)
+### GitHub Configuration (for PR submission)
 
 ```bash
-# GitHub 설정
-GITHUB_TOKEN={your_github_token}                    # GitHub 개인 액세스 토큰
-GITHUB_FORK_OWNER={your_github_username}            # 포크 소유자
-GITHUB_OWNER=tokamak-network                        # 베이스 소유자
-GITHUB_REPO=dao-agenda-metadata-repository          # 베이스 저장소
+# GitHub configuration
+GITHUB_TOKEN={your_github_token}                    # GitHub personal access token
+GITHUB_FORK_OWNER={your_github_username}            # Fork owner
+GITHUB_OWNER=tokamak-network                        # Base owner
+GITHUB_REPO=dao-agenda-metadata-repository          # Base repository
 ```
 
-## 실행 방법
+## Execution Guide
 
-### 1. 의존성 설치
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. 환경 변수 설정
+### 2. Environment Variable Setup
 
 `cp .env.example.mainnet .env.local` or `cp .env.example.sepolia .env.local`
 
-`.env.local` 파일에서 아래 값을 본인에 맞게 수정한다.
+Modify the following values in the `.env.local` file according to your setup:
 
 ```bash
-# 이벤트 모니터링용 RPC
+# RPC for event monitoring
 NEXT_PUBLIC_RPC_URL_FOR_EVENT=https://eth-sepolia.g.alchemy.com/v2/{your_api_key}
 
-# 아젠다 등록시, 액션 컨트랙의 타켓 컨트랙 함수 조회
+# Target contract function query for agenda registration action contracts
 NEXT_PUBLIC_ETHERSCAN_API_KEY={your_etherscan_api_key_here}
 
-GITHUB_TOKEN={your_github_token}                    # GitHub 개인 액세스 토큰
-GITHUB_FORK_OWNER={your_github_username}            # 포크 소유자
+GITHUB_TOKEN={your_github_token}                    # GitHub personal access token
+GITHUB_FORK_OWNER={your_github_username}            # Fork owner
 ```
 
-
-### 3. 개발 서버 실행
+### 3. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`으로 접속합니다.
+Access `http://localhost:3000` in your browser.
 
-### 4. 프로덕션 빌드
+### 4. Production Build
 
 ```bash
 npm run build
 npm run start
 ```
 
-### 5. 시뮬레이션 서버 (선택사항)
+### 5. Simulation Server (Optional)
 
-아젠다 생성 페이지에서 아젠다 기본 정보화 실행 함수를 모두 입력하신 뒤에, Impact overview 메뉴를 통해 시뮬레이션을 할 수 있습니다.
+After entering all agenda basic information and execution functions on the agenda creation page, you can simulate through the Impact overview menu.
 
 ```bash
-# Hardhat 또는 Anvil 로컬 노드 실행
+# Run Hardhat or Anvil local node
 cd ../simulation-node
 npm i
 npx hardhat node --fork <RPC URL>
 ```
 
-RPC URL을 https://ethereum-sepolia-rpc.publicnode.com 을 사용한다면,
-`npx hardhat node --fork https://ethereum-sepolia-rpc.publicnode.com` 실행합니다.
-노드가 실행되는 것을 확인 하신후, 아젠다 Impact overview 화면의 'Simulation execution' 버튼을 실행하세요.
+If using https://ethereum-sepolia-rpc.publicnode.com as the RPC URL,
+run `npx hardhat node --fork https://ethereum-sepolia-rpc.publicnode.com`.
+After confirming the node is running, execute the 'Simulation execution' button on the agenda Impact overview screen.
 
-### 기술 스택
+### Technology Stack
 
 - **Frontend**: Next.js 14, React 18, TypeScript
 - **Blockchain**: wagmi, viem, ethers.js
