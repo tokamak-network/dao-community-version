@@ -162,7 +162,7 @@ class MultiWorkerRPCClient {
   }
 
   /**
-   * 우선순위를 가진 요청을 큐에 추가 (우선순위별 워커 할당)
+   * Add requests with priorities to the queue (assign workers by priority)
    */
   public async queueRequest<T>(
     requestFn: () => Promise<T>,
@@ -183,34 +183,34 @@ class MultiWorkerRPCClient {
         timestamp: Date.now()
       };
 
-      // 우선순위별 워커 할당
+      // Assign workers by priority
       let selectedWorker: WorkerState;
 
-      // 우선순위별 워커 할당
-      // 워커 개수 변경시, 우선순위 관련 코드 수정 필요
+      // Assign workers by priority
+      // When the number of workers changes, priority-related code needs to be modified.
       if (priority === "HIGH") {
-        // HIGH: Worker 0-1 (2개) - DAO 조회 + DAO 챌린지
+        // HIGH: Worker 0-1 (2 workers) - DAO Lookup + DAO Challenge
         const highWorkerIndex = this.currentWorkerIndex % 2; // 0, 1 중 선택
         selectedWorker = this.workers[highWorkerIndex];
         this.currentWorkerIndex = (this.currentWorkerIndex + 1) % 2;
       } else if (priority === "MEDIUM") {
-        // MEDIUM: Worker 2 (1개) - 아젠다 목록
+        // MEDIUM: Worker 2 (1 worker) - Agenda List
         selectedWorker = this.workers[2];
       } else {
-        // LOW: Worker 3-4 (2개) - 아젠다 상세 + 환경설정값
+        // LOW: Worker 3-4 (2 workers) - Agenda Details + Set Values
         const lowWorkerIndex = 3 + (this.currentWorkerIndex % 2); // 3, 4 중 선택
         selectedWorker = this.workers[lowWorkerIndex];
         this.currentWorkerIndex = (this.currentWorkerIndex + 1) % 2;
       }
 
-      // 우선순위에 따라 워커의 개별 큐에 삽입
+      // Insert into individual queues of workers according to priority
       const insertIndex = this.findInsertIndexForWorker(selectedWorker.queue, priorityValue);
       selectedWorker.queue.splice(insertIndex, 0, queuedRequest);
 
-      // 총 요청 수 증가
+      // Increase total number of requests
       this.progressState.totalRequests++;
 
-      // 해당 워커가 비활성 상태면 시작
+      // Start if the worker is inactive
       if (!selectedWorker.isActive) {
         this.runWorker(selectedWorker);
       }

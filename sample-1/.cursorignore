@@ -18,6 +18,7 @@ mcp.json
 
 # Dependencies
 node_modules/
+backup/
 
 # Environment variables
 .env

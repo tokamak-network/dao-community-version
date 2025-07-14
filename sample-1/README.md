@@ -282,7 +282,9 @@ GITHUB_REPO=dao-agenda-metadata-repository          # Base repository
 ### 1. Install Dependencies
 
 ```bash
-npm install
+git clone https://github.com/tokamak-network/dao-community-version.git
+cd ./dao-community-version/sample-1
+npm install --legacy-peer-deps
 ```
 
 ### 2. Environment Variable Setup

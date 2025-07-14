@@ -6,6 +6,7 @@ import { Send, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import { ethers, AbiCoder, BrowserProvider } from "ethers";
 import { useCombinedDAOContext } from "@/contexts/CombinedDAOContext";
 import { getExplorerUrl, openEtherscan } from "@/utils/explorer";
+import { isValidUrl } from "@/utils/format";
 import { useChainId } from "wagmi";
 import { TON_CONTRACT_ADDRESS } from "@/config/contracts";
 
@@ -69,7 +70,7 @@ export function ProposalPreview({
     minimumVotingPeriodSeconds,
   } = useCombinedDAOContext();
 
-  const chainId = useChainId();
+    const chainId = useChainId();
    // Encode parameters when component mounts or actions change
    useEffect(() => {
     const fetchData = async () => {
@@ -205,7 +206,7 @@ export function ProposalPreview({
        const canSubmit = isSubmitEnabled();
        onSubmitStatusChange(canSubmit);
      }
-   }, [encodedData, supportsMemoField, onSubmitStatusChange]);
+   }, [encodedData, supportsMemoField, onSubmitStatusChange, title, description, snapshotUrl, actions]);
 
   const toggleParams = (actionId: string) => {
     setExpandedParams(prev => ({
@@ -345,6 +346,19 @@ export function ProposalPreview({
   };
 
   const isSubmitEnabled = () => {
+    // Check if required fields are filled
+    if (!title || !title.trim()) {
+      return false;
+    }
+
+    if (!description || !description.trim()) {
+      return false;
+    }
+
+    if (!snapshotUrl || !snapshotUrl.trim()) {
+      return false;
+    }
+
     if (!encodedData || encodedData === "Encoding parameters...") {
       return false;
     }
@@ -368,12 +382,31 @@ export function ProposalPreview({
     <div className="bg-white p-6">
       {/* Title Section */}
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-          {title || "The area where the title you wrote is displayed."}
+        <h2 className={`text-2xl font-semibold mb-4 ${
+          title ? "text-gray-900" : "text-red-400 italic"
+        }`}>
+          {title || "The area where the title you wrote is displayed. (Required)"}
         </h2>
 
-                {/* Snapshot & Discourse Links */}
+                {/* Description & Snapshot Links */}
         <div className="flex gap-3">
+          {description && isValidUrl(description) ? (
+            <a
+              href={description}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition"
+            >
+              <ExternalLink className="w-4 h-4 mr-1" />
+              Description
+            </a>
+          ) : (
+            <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-500 bg-red-50 border-2 border-red-300 rounded-full cursor-not-allowed">
+              <ExternalLink className="w-4 h-4 mr-1" />
+              Description (Required)
+            </span>
+          )}
+
           {snapshotUrl ? (
             <a
               href={snapshotUrl}
@@ -385,28 +418,13 @@ export function ProposalPreview({
               Snapshot
             </a>
           ) : (
-            <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 rounded-full cursor-not-allowed">
+            <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-500 bg-red-50 border-2 border-red-300 rounded-full cursor-not-allowed">
               <ExternalLink className="w-4 h-4 mr-1" />
-              Snapshot
+              Snapshot (Required)
             </span>
           )}
 
-          {discourseUrl ? (
-            <a
-              href={discourseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 transition"
-            >
-              <ExternalLink className="w-4 h-4 mr-1" />
-              Discourse
-            </a>
-          ) : (
-            <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 rounded-full cursor-not-allowed">
-              <ExternalLink className="w-4 h-4 mr-1" />
-              Discourse
-            </span>
-          )}
+
         </div>
       </div>
 
@@ -646,7 +664,7 @@ export function ProposalPreview({
                                   {actions.length === 0
                                     ? "[]"
                                     : actions.map((action, index) => (
-                                        <div key={index} className="mb-1">
+                                        <div key={`${action.id}-${index}`} className="mb-1">
                                           <span className="text-gray-500">
                                             #{index + 1}:
                                           </span>{" "}

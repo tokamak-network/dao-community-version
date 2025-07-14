@@ -80,3 +80,17 @@ export function formatDateTime(timestamp: number): string {
   const date = new Date(timestamp * 1000);
   return date.toLocaleString();
 }
+
+/**
+ * Check if a string is a valid URL
+ * @param string - String to validate
+ * @returns True if valid URL, false otherwise
+ */
+export function isValidUrl(string: string): boolean {
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
