@@ -64,7 +64,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#FEE2E2"/><path d="M16 32l16-16M16 16l16 16" stroke="#EF4444" strokeWidth="3" strokeLinecap="round"/></svg>
             </div>
             <div className="text-xl font-semibold text-red-700 mb-2">{errorMessage}</div>
-            <div className="text-gray-500">{formatTransactionError({ message: state.error })}</div>
+            <div className="text-gray-500 text-sm text-center max-w-full break-words px-4 max-h-32 overflow-y-auto">
+              {(() => {
+                const errorMsg = formatTransactionError({ message: state.error });
+                // 매우 긴 메시지는 더 간단하게 표시
+                if (errorMsg.length > 100) {
+                  return "Please check your wallet connection and try again.";
+                }
+                return errorMsg;
+              })()}
+            </div>
           </div>
         </>
       );

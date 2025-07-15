@@ -51,7 +51,45 @@ export function formatTransactionError(error: TransactionError | null | undefine
     return 'Transaction was cancelled';
   }
 
-  // 기타 에러는 원본 메시지 반환 (필요시 추가 필터링 가능)
+  // 메타마스크 재로그인 필요한 경우
+  if (errorMessage.includes('has not been authorized by the user') ||
+      errorMessage.includes('not been authorized') ||
+      errorMessage.includes('account has not been authorized')) {
+    return 'Please reconnect your wallet. Your session may have expired.';
+  }
+
+  // 일반적인 메타마스크 에러들
+  if (errorMessage.includes('insufficient funds')) {
+    return 'Insufficient funds for transaction';
+  }
+
+  if (errorMessage.includes('gas required exceeds allowance')) {
+    return 'Transaction requires more gas than available';
+  }
+
+  if (errorMessage.includes('nonce too low')) {
+    return 'Transaction nonce conflict. Please try again.';
+  }
+
+  if (errorMessage.includes('replacement transaction underpriced')) {
+    return 'Transaction fee too low. Please increase gas price.';
+  }
+
+  if (errorMessage.includes('execution reverted')) {
+    return 'Transaction failed: Contract execution reverted';
+  }
+
+  // 매우 긴 에러 메시지는 간단하게 요약
+  if (errorMessage.length > 200) {
+    // 첫 번째 문장만 추출하거나 중요한 부분만 추출
+    const firstSentence = errorMessage.split('.')[0];
+    if (firstSentence.length < 100) {
+      return firstSentence;
+    }
+    return 'Transaction failed. Please check your wallet connection and try again.';
+  }
+
+  // 기타 에러는 원본 메시지 반환
   return errorMessage;
 }
 
