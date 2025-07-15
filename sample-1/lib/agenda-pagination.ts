@@ -404,18 +404,36 @@ export class AgendaPagination {
 
   // 아젠다를 upsert(있으면 갱신, 없으면 추가)하는 메서드 (prev 상태 기준, id 중복 방지)
   upsertAgenda(newAgenda: any) {
+    const agendas = this.state.agendas || [];
+    const exists = agendas.some((a: any) => a.id === newAgenda.id);
+
+    console.log('🔄 UpsertAgenda called:', {
+      agendaId: newAgenda.id,
+      agendaTitle: newAgenda.title,
+      exists,
+      currentAgendasCount: agendas.length,
+      currentAgendaIds: agendas.map((a: any) => a.id)
+    });
+
     this.state = {
       ...this.state,
       agendas: (() => {
-        const agendas = this.state.agendas || [];
-        const exists = agendas.some((a: any) => a.id === newAgenda.id);
         if (exists) {
-          return agendas.map((a: any) => a.id === newAgenda.id ? newAgenda : a);
+          const updated = agendas.map((a: any) => a.id === newAgenda.id ? newAgenda : a);
+          console.log('✏️ Updated existing agenda:', { agendaId: newAgenda.id });
+          return updated;
         } else {
-          return [newAgenda, ...agendas];
+          const newList = [newAgenda, ...agendas];
+          console.log('➕ Added new agenda to list:', {
+            agendaId: newAgenda.id,
+            newListLength: newList.length,
+            newListIds: newList.map((a: any) => a.id)
+          });
+          return newList;
         }
       })(),
     };
     this.callbacks.onStateChange?.(this.state);
+    console.log('📤 State change callback called');
   }
 }

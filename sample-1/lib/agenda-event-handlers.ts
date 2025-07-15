@@ -52,9 +52,22 @@ export type AgendaCreatedHandler = (data: {
   ): AgendaCreatedHandler => {
     return async (data) => {
       const agendaId = Number(data.id);
+      console.log('🔄 Processing agenda created event:', {
+        agendaId,
+        hasUpdateAgendaData: !!updateAgendaData,
+        hasUpsertAgenda: !!upsertAgenda
+      });
+
       const newAgenda = await updateAgendaData(agendaId, true);
+      console.log('📝 Updated agenda data:', {
+        agendaId,
+        hasNewAgenda: !!newAgenda,
+        agendaTitle: newAgenda?.title
+      });
+
       if (upsertAgenda && newAgenda) {
         upsertAgenda(newAgenda);
+        console.log('✅ Agenda upserted to pagination state:', { agendaId });
       }
     };
   };

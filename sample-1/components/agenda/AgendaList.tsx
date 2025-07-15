@@ -32,6 +32,20 @@ export default function AgendaList() {
   const hasMoreAgendas = hasMore ? hasMore() : false;
   const remainingAgendas = getRemainingCount ? getRemainingCount() : 0;
 
+  // 디버깅: 아젠다 목록 변경 감지
+  useEffect(() => {
+    console.log('📋 Agenda list updated:', {
+      totalAgendas: displayAgendas.length,
+      agendaIds: displayAgendas.map((a: any) => a.id),
+      paginationState: paginationState ? {
+        totalLoaded: paginationState.agendas?.length,
+        isLoading: paginationState.isLoading,
+        hasMore: hasMoreAgendas,
+        remaining: remainingAgendas
+      } : null
+    });
+  }, [displayAgendas.length, paginationState?.agendas?.length]);
+
   // "View more" 버튼 클릭 시 다음 페이지 로드
   const handleLoadMore = () => {
     if (loadNextPage) loadNextPage();
