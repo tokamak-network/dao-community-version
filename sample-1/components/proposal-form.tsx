@@ -917,6 +917,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                       />
                     ) : this.state.showImpactOverview ? (
                       <ProposalImpactOverview
+                        key={Date.now()}
                         actions={this.state.actions}
                       />
                     ) : this.state.showEditAction && this.state.editingAction ? (

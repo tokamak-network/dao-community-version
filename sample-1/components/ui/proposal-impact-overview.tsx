@@ -27,6 +27,7 @@ export function ProposalImpactOverview({
 }: ProposalImpactOverviewProps) {
   // Simulation state management
   const [simulationStep, setSimulationStep] = useState<"initial" | "results">("initial");
+  const [simulationType, setSimulationType] = useState<"batch" | "individual">("individual");
   const [simulatedActions, setSimulatedActions] = useState<Action[]>([]);
   const [generalSimulationLogs, setGeneralSimulationLogs] = useState<string[]>([]);
   const [expandedActionLogs, setExpandedActionLogs] = useState<{ [actionId: string]: boolean }>({});
@@ -71,6 +72,7 @@ export function ProposalImpactOverview({
     }));
 
     setSimulationStep("results");
+    setSimulationType("individual");
     setSimulatedActions(initialSimActions);
     setGeneralSimulationLogs(["Connecting to simulation server..."]);
     setExpandedActionLogs({});
@@ -92,6 +94,55 @@ export function ProposalImpactOverview({
       return;
     }
 
+    await executeSimulation(false); // Individual execution
+  };
+
+  const handleBatchSimulateExecution = async () => {
+    // Close existing SSE connection
+    if (eventSourceInstance) {
+      eventSourceInstance.close();
+      setEventSourceInstance(null);
+    }
+
+    const initialSimActions = actions.map((action) => ({
+      ...action,
+      simulationResult: "Pending" as "Pending",
+      gasUsed: "",
+      errorMessage: "",
+      logs: [],
+    }));
+
+    setSimulationStep("results");
+    setSimulationType("batch");
+    setSimulatedActions(initialSimActions);
+    setGeneralSimulationLogs(["Connecting to simulation server for batch execution..."]);
+    setExpandedActionLogs({});
+
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
+    const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
+    const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+
+    if (!daoAddress || !forkRpc || !localRpc) {
+      alert("Required environment variables are not set.");
+      const errorActions = actions.map((a) => ({
+        ...a,
+        simulationResult: "Failed" as "Failed",
+        errorMessage: "Config error",
+      }));
+      setSimulationStep("results");
+      setSimulatedActions(errorActions);
+      setGeneralSimulationLogs(["Configuration error. Check .env.local file."]);
+      return;
+    }
+
+    await executeSimulation(true); // Batch execution
+  };
+
+  const executeSimulation = async (batchMode: boolean) => {
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
+    const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
+    const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+
     try {
       const response = await fetch("/api/simulate", {
         method: "POST",
@@ -101,6 +152,7 @@ export function ProposalImpactOverview({
           daoContractAddress: daoAddress,
           forkRpcUrl: forkRpc,
           localRpcUrl: localRpc,
+          batchMode: batchMode, // 새로운 옵션 추가
         }),
       });
 
@@ -122,7 +174,7 @@ export function ProposalImpactOverview({
           }))
         );
         setGeneralSimulationLogs(prevLogs =>
-          prevLogs.filter(log => log !== "Connecting to simulation server...").concat(`Error: ${errorMsg}`)
+          prevLogs.filter(log => log !== "Connecting to simulation server..." && log !== "Connecting to simulation server for batch execution...").concat(`Error: ${errorMsg}`)
         );
         throw new Error(errorMsg);
       }
@@ -287,20 +339,77 @@ export function ProposalImpactOverview({
             simulation.
           </p>
         </div>
-        <Button
-          variant="secondary"
-          className="bg-slate-100 hover:bg-slate-200 text-sm"
-          onClick={handleSimulateExecution}
-        >
-          Simulate execution
-        </Button>
+        <div className="space-y-4">
+          <h4 className="text-lg font-medium text-gray-900 mb-3">Choose simulation type:</h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Batch Simulate Option - 추천하므로 앞에 배치 */}
+            <div className="border border-gray-200 rounded-lg p-4 bg-white hover:border-blue-400 hover:bg-blue-50 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+              <div className="flex flex-col h-full">
+                <div className="flex-1 mb-3">
+                  <h5 className="font-medium text-gray-900 mb-2">Batch Simulation</h5>
+                  <p className="text-sm text-gray-600 mb-2">
+                    All actions will be executed together in a single block sequence.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Mimics actual DAO agenda execution. Recommended for final testing.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 hover:bg-blue-600 hover:border-blue-600 hover:text-white text-gray-700 font-medium transition-colors"
+                  onClick={handleBatchSimulateExecution}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Run Batch Simulation
+                </Button>
+              </div>
+            </div>
+
+            {/* Individual Simulate Option */}
+            <div className="border border-gray-200 rounded-lg p-4 bg-white hover:border-blue-400 hover:bg-blue-50 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+              <div className="flex flex-col h-full">
+                <div className="flex-1 mb-3">
+                  <h5 className="font-medium text-gray-900 mb-2">Individual Simulation</h5>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Each action will be executed in separate blocks, one after another.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Use this to test individual action behavior and identify potential issues.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 hover:bg-blue-600 hover:border-blue-600 hover:text-white text-gray-700 font-medium transition-colors"
+                  onClick={handleSimulateExecution}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Run Individual Simulation
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <p className="text-sm text-gray-600">
+              <strong>Tip:</strong> Start with Individual Simulation to test each action separately,
+              then use Batch Simulation to verify they work together as intended.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   ) : (
     <div className="flex-1 p-6">
       <div className="max-w-4xl">
         <div className="flex justify-between items-center mb-1">
-          <h1 className="text-xl font-semibold">Simulations</h1>
+          <h1 className="text-xl font-semibold">
+            {simulationType === "batch" ? "Batch Simulation Results" : "Individual Simulation Results"}
+          </h1>
         </div>
         {generalSimulationLogs.length > 0 && (
           <div className="mb-4 p-3 bg-gray-800 text-gray-200 rounded-md text-xs font-mono max-h-32 overflow-y-auto">

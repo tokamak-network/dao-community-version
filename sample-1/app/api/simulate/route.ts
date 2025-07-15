@@ -26,11 +26,12 @@ interface SimulateRequestBody {
   forkRpcUrl: string;
   localRpcUrl: string;
   blockNumber?: string | number;
+  batchMode?: boolean; // 배치 실행 모드 옵션
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { actions, daoContractAddress, forkRpcUrl, localRpcUrl, blockNumber }: SimulateRequestBody =
+    const { actions, daoContractAddress, forkRpcUrl, localRpcUrl, blockNumber, batchMode }: SimulateRequestBody =
       await request.json();
 
     console.log("[API] Simulation request received:", {
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       forkUrl: forkRpcUrl,
       localUrl: localRpcUrl,
       block: blockNumber,
+      batchMode: batchMode || false,
     });
 
     if (!actions || !daoContractAddress || !forkRpcUrl || !localRpcUrl) {
@@ -73,8 +75,9 @@ export async function POST(request: NextRequest) {
 
         const localProvider = new ethers.JsonRpcProvider(localRpcUrl);
 
-        const cleanup = async () => {
+                const cleanup = async () => {
           try {
+
             await localProvider.send("hardhat_stopImpersonatingAccount", [
               daoContractAddress,
             ]);
@@ -155,9 +158,40 @@ export async function POST(request: NextRequest) {
               return;
             }
 
+
+
+            // 배치 모드 메시지 추가
+            if (batchMode) {
+              console.log("[API LOG] Starting batch simulation mode - all actions will be executed in sequence");
+              sendSseEvent("log", {
+                message: "Batch simulation mode: All actions will be executed in the same block sequence",
+              });
+            } else {
+              console.log("[API LOG] Starting individual simulation mode - each action will be executed separately");
+              sendSseEvent("log", {
+                message: "Individual simulation mode: Each action will be executed in separate blocks",
+              });
+            }
+
+            // 배치 모드에서는 자동 마이닝을 비활성화
+            if (batchMode) {
+              try {
+                await localProvider.send("evm_setAutomine", [false]);
+                console.log("[API LOG] Auto mining disabled for batch mode");
+                sendSseEvent("log", {
+                  message: "Auto mining disabled for batch execution",
+                });
+              } catch (error) {
+                console.warn("[API WARN] Could not disable auto mining:", error);
+              }
+            }
+
+            const txHashes: string[] = [];
+            const actionResults: { [actionId: string]: { success: boolean; receipt?: any; error?: string } } = {};
+
             for (const action of actions) {
               console.log(
-                `[API ACTION ${action.id} LOG] Starting simulation for: ${action.title}`
+                `[API ACTION ${action.id} LOG] Starting ${batchMode ? 'batch' : 'individual'} simulation for: ${action.title}`
               );
               let simulatingActionState: Action = {
                 ...action,
@@ -167,7 +201,7 @@ export async function POST(request: NextRequest) {
               sendSseEvent("actionUpdate", { action: simulatingActionState });
               sendSseEvent("actionLog", {
                 actionId: action.id,
-                message: `Starting simulation for: ${action.title}`,
+                message: `Starting ${batchMode ? 'batch' : 'individual'} simulation for: ${action.title}`,
               });
 
               let result: "Passed" | "Failed" = "Failed";
@@ -175,16 +209,27 @@ export async function POST(request: NextRequest) {
               let errorMessage = "";
 
               try {
+                // 가스 한도 추정
+                let gasLimit = "0x1C9C380"; // 30M gas as default
+                try {
+                  const estimatedGas = await localProvider.estimateGas({
+                    from: daoContractAddress,
+                    to: action.contractAddress,
+                    data: action.calldata,
+                    value: "0x0",
+                  });
+                  gasLimit = "0x" + (estimatedGas * BigInt(120) / BigInt(100)).toString(16); // 120% of estimated
+                } catch (gasError) {
+                  // Gas estimation failed, use default
+                }
+
                 const txParams = {
                   from: daoContractAddress,
                   to: action.contractAddress,
                   data: action.calldata,
                   value: "0x0",
+                  gas: gasLimit,
                 };
-                console.log(
-                  `[API ACTION ${action.id} LOG] Sending transaction...`,
-                  txParams
-                );
                 sendSseEvent("actionLog", {
                   actionId: action.id,
                   message: `Sending transaction...`,
@@ -193,82 +238,234 @@ export async function POST(request: NextRequest) {
                   txParams,
                 ]);
                 console.log(
-                  `[API ACTION ${action.id} LOG] Tx sent: ${txHash}. Waiting for receipt...`
+                  `[API ACTION ${action.id} LOG] Tx sent: ${txHash}. ${batchMode ? 'Queued for batch execution' : 'Waiting for receipt...'}`,
                 );
                 sendSseEvent("actionLog", {
                   actionId: action.id,
-                  message: `Tx sent: ${txHash}. Waiting for receipt...`,
+                  message: `Tx sent: ${txHash}. ${batchMode ? 'Queued for batch execution' : 'Waiting for receipt...'}`,
                 });
 
-                let receipt = null;
-                for (let i = 0; i < 10; i++) {
-                  await new Promise((resolve) => setTimeout(resolve, 300));
-                  receipt = await localProvider.getTransactionReceipt(txHash);
-                  console.log(
-                    `[API ACTION ${action.id} LOG] Receipt attempt ${i + 1}`,
-                    receipt ? `Status: ${receipt.status}` : "Not found yet"
-                  );
-                  if (receipt) break;
-                  sendSseEvent("actionLog", {
-                    actionId: action.id,
-                    message: `Receipt attempt ${i + 1}...`,
-                  });
-                }
+                txHashes.push(txHash);
 
-                if (receipt && receipt.status === 1) {
-                  result = "Passed";
-                  gasUsedString = receipt.gasUsed.toString();
-                  console.log(
-                    `[API ACTION ${action.id} LOG] PASSED. Gas: ${gasUsedString}`
-                  );
-                  sendSseEvent("actionLog", {
-                    actionId: action.id,
-                    message: `PASSED. Gas: ${gasUsedString}`,
-                  });
-                } else {
-                  errorMessage = `FAILED. Status: ${receipt?.status}.`;
-                  if (receipt) gasUsedString = receipt.gasUsed.toString();
-                  if (!receipt) errorMessage = "Receipt not found.";
-                  console.log(`[API ACTION ${action.id} LOG] FAILED: ${errorMessage}`);
-                  sendSseEvent("actionLog", {
-                    actionId: action.id,
-                    message: errorMessage,
-                  });
-                }
-              } catch (e: any) {
-                errorMessage = e.reason || e.message || "Unknown error.";
-                if (e.transactionHash) {
-                  try {
-                    const failedReceipt = await localProvider.getTransactionReceipt(
-                      e.transactionHash
-                    );
-                    if (failedReceipt) gasUsedString = failedReceipt.gasUsed.toString();
-                  } catch (rcptError) {
-                    /* ignore */
+
+
+                if (!batchMode) {
+                  // 개별 모드에서는 즉시 영수증 처리
+                  let receipt = null;
+                  for (let i = 0; i < 10; i++) {
+                    await new Promise((resolve) => setTimeout(resolve, 300));
+                    receipt = await localProvider.getTransactionReceipt(txHash);
+                    if (receipt) break;
                   }
+
+                  if (receipt) {
+                    result = "Passed";
+                    gasUsedString = receipt.gasUsed
+                      ? receipt.gasUsed.toString()
+                      : "N/A";
+                    console.log(
+                      `[API ACTION ${action.id} LOG] Transaction successful. Gas used: ${gasUsedString}`
+                    );
+                    sendSseEvent("actionLog", {
+                      actionId: action.id,
+                      message: `Transaction successful. Gas used: ${gasUsedString}`,
+                    });
+                  } else {
+                    result = "Failed";
+                    errorMessage = "Transaction receipt not found";
+                    console.log(
+                      `[API ACTION ${action.id} LOG] Transaction failed: ${errorMessage}`
+                    );
+                    sendSseEvent("actionLog", {
+                      actionId: action.id,
+                      message: `Transaction failed: ${errorMessage}`,
+                    });
+                  }
+
+                  // 개별 모드에서 즉시 결과 업데이트
+                  const finalActionState: Action = {
+                    ...action,
+                    simulationResult: result,
+                    gasUsed: gasUsedString,
+                    errorMessage: errorMessage,
+                  };
+                  sendSseEvent("actionUpdate", { action: finalActionState });
+                } else {
+                  // 배치 모드에서는 나중에 처리하기 위해 저장
+                  actionResults[action.id] = { success: true };
                 }
-                if (e.data) errorMessage += ` (data: ${e.data})`;
-                console.log(`[API ACTION ${action.id} EXCEPTION] ${errorMessage}`, e);
+              } catch (error: any) {
+                console.error(
+                  `[API ACTION ${action.id} LOG] Transaction failed:`,
+                  error
+                );
+                result = "Failed";
+                errorMessage = error.message || "Transaction failed";
                 sendSseEvent("actionLog", {
                   actionId: action.id,
-                  message: `EXCEPTION: ${errorMessage}`,
+                  message: `Transaction failed: ${errorMessage}`,
+                });
+
+                if (!batchMode) {
+                  // 개별 모드에서 즉시 결과 업데이트
+                  const finalActionState: Action = {
+                    ...action,
+                    simulationResult: result,
+                    gasUsed: gasUsedString,
+                    errorMessage: errorMessage,
+                  };
+                  sendSseEvent("actionUpdate", { action: finalActionState });
+                } else {
+                  // 배치 모드에서는 에러 저장
+                  actionResults[action.id] = { success: false, error: errorMessage };
+                }
+              }
+            }
+
+            // 배치 모드에서 모든 트랜잭션을 보낸 후 처리
+            if (batchMode && txHashes.length > 0) {
+              try {
+                console.log("[API LOG] Mining all transactions in batch...");
+                sendSseEvent("log", {
+                  message: "Mining all transactions in a single block...",
+                });
+
+
+
+                // 블록 마이닝 실행
+                await localProvider.send("evm_mine", []);
+
+
+
+                console.log("[API LOG] Block mined. Processing receipts...");
+                sendSseEvent("log", {
+                  message: "Block mined successfully. Processing transaction receipts...",
+                });
+
+
+
+                // 모든 트랜잭션 영수증을 가져와서 결과 업데이트
+                for (let i = 0; i < actions.length; i++) {
+                  const action = actions[i];
+                  const txHash = txHashes[i];
+
+                  if (actionResults[action.id]?.success) {
+                    try {
+                      // 배치 모드에서도 영수증을 기다리는 로직 추가
+                      let receipt = null;
+                      for (let retryCount = 0; retryCount < 10; retryCount++) {
+                        await new Promise((resolve) => setTimeout(resolve, 300));
+                        receipt = await localProvider.getTransactionReceipt(txHash);
+                        if (receipt) break;
+                      }
+
+                      let result: "Passed" | "Failed" = "Failed";
+                      let gasUsedString = "";
+                      let errorMessage = "";
+
+                      if (receipt && receipt.status === 1) {
+                        result = "Passed";
+                        gasUsedString = receipt.gasUsed ? receipt.gasUsed.toString() : "N/A";
+                        console.log(`[API ACTION ${action.id} LOG] Batch execution successful. Gas used: ${gasUsedString}`);
+                        sendSseEvent("actionLog", {
+                          actionId: action.id,
+                          message: `Batch execution successful. Gas used: ${gasUsedString}`,
+                        });
+                      } else {
+                        result = "Failed";
+                        errorMessage = receipt ? `Transaction failed with status: ${receipt.status}` : "Transaction receipt not found";
+                        console.log(`[API ACTION ${action.id} LOG] Batch execution failed: ${errorMessage}`);
+                        sendSseEvent("actionLog", {
+                          actionId: action.id,
+                          message: `Batch execution failed: ${errorMessage}`,
+                        });
+                      }
+
+                      const finalActionState: Action = {
+                        ...action,
+                        simulationResult: result,
+                        gasUsed: gasUsedString,
+                        errorMessage: errorMessage,
+                      };
+                      sendSseEvent("actionUpdate", { action: finalActionState });
+                    } catch (error: any) {
+                      console.error(`[API ACTION ${action.id} LOG] Error processing receipt:`, error);
+                      const finalActionState: Action = {
+                        ...action,
+                        simulationResult: "Failed",
+                        gasUsed: "",
+                        errorMessage: error.message || "Error processing transaction receipt",
+                      };
+                      sendSseEvent("actionUpdate", { action: finalActionState });
+                    }
+                  } else {
+                    // 이미 실패한 트랜잭션 처리
+                    const finalActionState: Action = {
+                      ...action,
+                      simulationResult: "Failed",
+                      gasUsed: "",
+                      errorMessage: actionResults[action.id].error || "Transaction failed",
+                    };
+                    sendSseEvent("actionUpdate", { action: finalActionState });
+                  }
+                }
+
+                // 자동 마이닝 재활성화
+                try {
+                  await localProvider.send("evm_setAutomine", [true]);
+                  console.log("[API LOG] Auto mining re-enabled");
+                  sendSseEvent("log", {
+                    message: "Auto mining re-enabled",
+                  });
+                } catch (error) {
+                  console.warn("[API WARN] Could not re-enable auto mining:", error);
+                }
+
+                sendSseEvent("log", {
+                  message: "Batch simulation completed successfully",
+                });
+
+                                                // 배치 시뮬레이션 완료 후 시간 경과 시뮬레이션
+                const blocksToMine = 3; // 3개의 빈 블록 마이닝
+                const timePerBlock = 12; // 12초 (이더리움 평균 블록 시간)
+
+                sendSseEvent("log", {
+                  message: `Simulating time passage: ${blocksToMine} blocks (${blocksToMine * timePerBlock}s)...`,
+                });
+
+                                // 시간 증가
+                try {
+                  await localProvider.send("evm_increaseTime", [blocksToMine * timePerBlock]);
+                } catch (error) {
+                  console.warn(`[API WARN] Could not increase time:`, error);
+                }
+
+                // 빈 블록들 마이닝
+                for (let i = 0; i < blocksToMine; i++) {
+                  try {
+                    await localProvider.send("evm_mine", []);
+                  } catch (error) {
+                    console.warn(`[API WARN] Could not mine empty block ${i + 1}:`, error);
+                  }
+                }
+
+                const finalBlockNumber = await localProvider.getBlockNumber();
+                sendSseEvent("log", {
+                  message: `Time passage simulation completed. Current block: ${finalBlockNumber}`,
+                });
+
+
+              } catch (error: any) {
+                console.error("[API ERROR] Batch processing failed:", error);
+                sendSseEvent("error", {
+                  message: `Batch processing failed: ${error.message}`,
                 });
               }
-
-              const finalActionState: Action = {
-                ...action,
-                simulationResult: result,
-                gasUsed: gasUsedString,
-                errorMessage: errorMessage,
-                type: action.type || "Custom",
-              };
-              console.log(
-                `[API ACTION ${action.id} UPDATE] Final state:`,
-                finalActionState.simulationResult
-              );
-              sendSseEvent("actionUpdate", { action: finalActionState });
             }
+
             console.log("[API LOG] All actions processed.");
+
+
           } catch (error: any) {
             console.error("[API ERROR]", error);
             sendSseEvent("error", {
