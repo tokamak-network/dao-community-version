@@ -7,7 +7,7 @@ import { ethers, AbiCoder, BrowserProvider } from "ethers";
 import { useCombinedDAOContext } from "@/contexts/CombinedDAOContext";
 import { getExplorerUrl, openEtherscan } from "@/utils/explorer";
 import { isValidUrl } from "@/utils/format";
-import { useChainId } from "wagmi";
+import { chain } from "@/config/chain";
 import { TON_CONTRACT_ADDRESS } from "@/config/contracts";
 
 // Contract addresses
@@ -70,7 +70,7 @@ export function ProposalPreview({
     minimumVotingPeriodSeconds,
   } = useCombinedDAOContext();
 
-    const chainId = useChainId();
+    const chainId = chain.id;
    // Encode parameters when component mounts or actions change
    useEffect(() => {
     const fetchData = async () => {
@@ -546,7 +546,7 @@ export function ProposalPreview({
             <h4 className="text-sm font-medium text-gray-700 mb-2">TON Contract</h4>
             <div
               className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100 text-blue-600 hover:underline"
-              onClick={() => TON_CONTRACT_ADDRESS && openEtherscan(TON_CONTRACT_ADDRESS)}
+              onClick={() => TON_CONTRACT_ADDRESS && window.open(getExplorerUrl(TON_CONTRACT_ADDRESS, chainId), '_blank')}
             >
               {TON_CONTRACT_ADDRESS || 'Not configured'}
               <ExternalLink className="w-4 h-4 ml-2" />
@@ -569,12 +569,12 @@ export function ProposalPreview({
               {/* Spender */}
               <div>
                 <div className="text-sm text-gray-500 mb-1">Spender</div>
-                <div
-                  className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
-                  onClick={() =>
-                    openEtherscan(DAO_COMMITTEE_PROXY_ADDRESS)
-                  }
-                >
+                            <div
+              className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+              onClick={() =>
+                window.open(getExplorerUrl(DAO_COMMITTEE_PROXY_ADDRESS, chainId), '_blank')
+              }
+            >
                   {DAO_COMMITTEE_PROXY_ADDRESS}
                   <ExternalLink className="w-4 h-4 ml-2" />
                 </div>

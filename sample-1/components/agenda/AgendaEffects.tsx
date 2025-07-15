@@ -7,6 +7,7 @@ import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { TON_CONTRACT_ADDRESS } from '@/config/contracts'
 import { chain } from '@/config/chain'
 import { getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
+import { getExplorerUrl } from '@/utils/explorer'
 import React from 'react'
 
 interface AgendaEffectsProps {
@@ -31,6 +32,7 @@ interface SubmissionData {
 
 export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
   const { getTransactionData } = useCombinedDAOContext()
+  const chainId = chain.id
   const [expandedParams, setExpandedParams] = useState<{
     [key: string]: boolean
   }>({})
@@ -57,8 +59,8 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
   }, [agenda.creationCalldata, isLoadingSubmission])
 
   const openEtherscan = (address: string) => {
-    const explorerUrl = process.env.NEXT_PUBLIC_EXPLORER_URL || 'https://etherscan.io'
-    window.open(`${explorerUrl}/address/${address}`, '_blank')
+    const explorerUrl = getExplorerUrl(address, chainId)
+    window.open(explorerUrl, '_blank')
   }
 
   const decodeCalldata = (action: any) => {

@@ -2,7 +2,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAccount, useChainId } from 'wagmi'
+import { useAccount } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus, getNetworkName, getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
@@ -24,7 +24,7 @@ export default function AgendaList() {
     hasMore,
     getRemainingCount
   } = useCombinedDAOContext();
-  const chainId = useChainId();
+  const chainId = chain.id;
 
   // 현재 페이지에 보여줄 아젠다 목록
   const displayAgendas = paginationState?.agendas || [];

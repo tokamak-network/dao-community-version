@@ -4,6 +4,8 @@ import { formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, 
 import { useEffect, useState } from 'react'
 import { ethers } from 'ethers'
 import { DAO_COMMITTEE_PROXY_ADDRESS } from '@/config/contracts'
+import { getTransactionUrl } from '@/utils/explorer'
+import { chain } from '@/config/chain'
 
 interface AgendaInfoProps {
   agenda: AgendaWithMetadata
@@ -36,6 +38,8 @@ const getCurrentStatusText = (status: number) => {
 }
 
 export default function AgendaInfo({ agenda }: AgendaInfoProps) {
+  const chainId = chain.id
+
   // Calculate dynamic status
   const currentStatus = calculateAgendaStatus(agenda, BigInt(Math.floor(Date.now() / 1000)))
   const statusMessage = getStatusMessage(agenda, currentStatus)
@@ -82,8 +86,8 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
   }, [agenda.id])
 
   const openTransaction = (txHash: string) => {
-    const explorerUrl = process.env.NEXT_PUBLIC_EXPLORER_URL || 'https://etherscan.io'
-    window.open(`${explorerUrl}/tx/${txHash}`, '_blank')
+    const explorerUrl = getTransactionUrl(txHash, chainId)
+    window.open(explorerUrl, '_blank')
   }
 
   // Use a more user-friendly fallback for description

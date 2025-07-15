@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
-import { useAccount, useChainId } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { formatTONWithUnit, formatRelativeTime, formatDateTime, formatTokenAmountWithUnit } from '@/utils/format'
 import { CheckChallengeButton } from '@/components/CheckChallengeButton'
 import { CommitteeMember, Candidate } from '@/types/dao'
@@ -16,6 +16,7 @@ import { useDAOCandidate } from '@/hooks/useDAOCandidate'
 import { TransactionModal } from '@/components/ui/TransactionModal'
 import { TransactionState } from '@/utils/transaction-utils'
 import { getExplorerUrl } from '@/utils/explorer'
+import { chain } from '@/config/chain'
 
 export default function DAOCommitteeMembers() {
   const {
@@ -40,7 +41,7 @@ export default function DAOCommitteeMembers() {
   } = useCombinedDAOContext()
 
   const { isConnected: isWalletConnected, address } = useAccount()
-  const chainId = useChainId()
+  const chainId = chain.id
   const { changeMember, retireMember, claimActivityReward, isExecuting: isDAOCandidateExecuting, isSuccess: isDAOCandidateSuccess, error: daoCandidateError, txHash, lastOperation, reset: resetDAOCandidate } = useDAOCandidate()
 
   // 🎯 Hydration Error 방지
@@ -748,7 +749,7 @@ export default function DAOCommitteeMembers() {
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Address</label>
                       <a
-                        href={`https://etherscan.io/address/${member.creationAddress}`}
+                        href={getExplorerUrl(member.creationAddress, chainId)}
                         className="text-sm text-blue-600 hover:text-blue-800 font-mono ml-4"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -760,7 +761,7 @@ export default function DAOCommitteeMembers() {
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Contract</label>
                       <a
-                        href={`https://etherscan.io/address/${member.candidateContract}`}
+                        href={getExplorerUrl(member.candidateContract, chainId)}
                         className="text-sm text-blue-600 hover:text-blue-800 font-mono ml-4"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -1380,13 +1381,13 @@ export default function DAOCommitteeMembers() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-gray-900 text-sm">{layer2.name}</span>
-                                <a
-                                  href={`https://etherscan.io/address/${layer2.candidateContract}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-500 hover:text-blue-700"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                                <a
+                  href={getExplorerUrl(layer2.candidateContract, chainId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700"
+                  onClick={(e) => e.stopPropagation()}
+                >
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                   </svg>

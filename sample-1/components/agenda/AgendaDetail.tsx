@@ -12,8 +12,7 @@ import {
   useAccount,
   useContractRead,
   useContractWrite,
-  useWaitForTransactionReceipt,
-  useChainId
+  useWaitForTransactionReceipt
 } from 'wagmi'
 
 import {
@@ -48,7 +47,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
   const { address } = useAccount()
   const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda } = useCombinedDAOContext()
-  const chainId = useChainId();
+  const chainId = chain.id;
 
   // agenda prop이 변경될 때 localAgenda 업데이트
   useEffect(() => {
