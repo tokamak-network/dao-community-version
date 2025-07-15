@@ -4,7 +4,7 @@ import { formatDate, formatDateSimple, getStatusMessage, calculateAgendaStatus, 
 import { useEffect, useState } from 'react'
 import { ethers } from 'ethers'
 import { DAO_COMMITTEE_PROXY_ADDRESS } from '@/config/contracts'
-import { getTransactionUrl } from '@/utils/explorer'
+import { getTransactionUrl, getExplorerUrl } from '@/utils/explorer'
 import { chain } from '@/config/chain'
 
 interface AgendaInfoProps {
@@ -93,11 +93,26 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
   // Use a more user-friendly fallback for description
   const description = agenda.description || "-";
 
+  // Check if description is a valid URL
+  const isValidUrl = (string: string) => {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex justify-between py-2">
         <span className="text-gray-600 text-sm">Agenda Creator</span>
-        <a href="#" className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all">
+        <a
+          href={getExplorerUrl(agenda.creator?.address ?? "0x0000000000000000000000000000000000000000", chainId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all"
+        >
           {formatAddress((agenda.creator?.address ?? "0x0000000000000000000000000000000000000000") as string)}
         </a>
       </div>
@@ -218,7 +233,18 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
 
       <div className="flex justify-between py-2">
         <span className="text-gray-600 text-sm">Agenda Description</span>
-        <span className="text-gray-900 text-sm">{description}</span>
+        {isValidUrl(description) ? (
+          <a
+            href={description}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 text-sm break-all"
+          >
+            {description}
+          </a>
+        ) : (
+          <span className="text-gray-900 text-sm">{description}</span>
+        )}
       </div>
     </div>
   )
