@@ -552,6 +552,9 @@ export default function DAOCommitteeMembers() {
     return isCreator || isManager;
   }
 
+  // 툴팁 표시 상태
+  const [showTooltip, setShowTooltip] = useState(false)
+
   // 트랜잭션 타입 상태
   const [txType, setTxType] = useState<"vote" | "execute" | "claimActivityReward" | null>(null);
 
@@ -580,8 +583,23 @@ export default function DAOCommitteeMembers() {
             <h1 className="text-2xl font-normal text-zinc-900 font-['Inter']">
               DAO Committee Members
             </h1>
-            <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center border border-gray-300">
-              <span className="text-xs text-gray-600 font-medium">?</span>
+            <div
+              className="relative"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+            >
+              <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center border border-gray-300 cursor-help">
+                <span className="text-xs text-gray-600 font-medium">?</span>
+              </div>
+              {showTooltip && (
+                <div className="absolute left-0 top-6 w-80 bg-black text-white text-sm rounded-lg p-3 shadow-lg z-10">
+                  <div className="relative">
+                    DAO candidates with the most staked TON are eligible to serve as DAO committee members and vote on DAO agendas. Currently, there are three members.
+                    {/* 화살표 */}
+                    <div className="absolute -top-2 left-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-black"></div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
