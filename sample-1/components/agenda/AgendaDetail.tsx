@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { AgendaWithMetadata } from '@/types/agenda'
 import { CommitteeMember } from '@/types/dao'
 import { formatDateSimple, getStatusMessage, calculateAgendaStatus,
@@ -45,8 +46,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [isCheckingVotes, setIsCheckingVotes] = useState(false)
   const [txType, setTxType] = useState<"vote" | "execute" | null>(null)
 
+  const router = useRouter()
   const { address } = useAccount()
-  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda, paginationState, loadNextPage, hasMore } = useCombinedDAOContext()
   const chainId = chain.id;
 
   // agenda prop이 변경될 때 localAgenda 업데이트
@@ -257,6 +259,63 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     if (!address) return null;
     return getCommitteeMemberInfo(address);
   }, [address, getCommitteeMemberInfo])
+
+  // 이전/다음 아젠다 ID 계산 (아젠다 ID 기준)
+  const { previousAgendaId, nextAgendaId } = useMemo(() => {
+    if (!paginationState?.agendas || paginationState.agendas.length === 0) {
+      return { previousAgendaId: null, nextAgendaId: null };
+    }
+
+    const currentAgendaId = localAgenda.id;
+
+    // 아젠다 ID 기준으로 이전/다음 찾기
+    const previousAgendaId = currentAgendaId > 1 ? currentAgendaId - 1 : null;
+    const nextAgendaId = currentAgendaId + 1;
+
+    // 실제로 해당 ID의 아젠다가 목록에 있는지 확인
+    const previousExists = previousAgendaId ? paginationState.agendas.some((a: any) => a.id === previousAgendaId) : false;
+    const nextExists = paginationState.agendas.some((a: any) => a.id === nextAgendaId);
+
+    return {
+      previousAgendaId: previousExists ? previousAgendaId : null,
+      nextAgendaId: nextExists ? nextAgendaId : null
+    };
+  }, [paginationState?.agendas, localAgenda.id])
+
+  // 이전 아젠다 로딩 상태
+  const [isLoadingPrevious, setIsLoadingPrevious] = useState(false);
+
+  // 이전/다음 아젠다로 이동하는 함수
+  const navigateToAgenda = (agendaId: number) => {
+    router.push(`/agenda/${agendaId}`);
+  }
+
+  // 이전 아젠다로 이동 (필요시 더 로드)
+  const navigateToPreviousAgenda = async () => {
+    const targetId = localAgenda.id - 1;
+    if (targetId < 1) return;
+
+    setIsLoadingPrevious(true);
+
+    try {
+      // 현재 목록에서 해당 아젠다 찾기
+      const exists = paginationState?.agendas?.some((a: any) => a.id === targetId);
+
+      if (exists) {
+        // 있으면 바로 이동
+        navigateToAgenda(targetId);
+      } else if (hasMore && hasMore()) {
+        // 없고 더 로드할 데이터가 있으면 로드 후 이동
+        await loadNextPage?.();
+        navigateToAgenda(targetId);
+      }
+      // 없고 더 로드할 데이터도 없으면 아무것도 하지 않음
+    } catch (error) {
+      console.error('Error loading previous agenda:', error);
+    } finally {
+      setIsLoadingPrevious(false);
+    }
+  }
 
   // 사용자가 여러 멤버의 소유자인지 확인
   const userMemberships = useMemo(() => {
@@ -490,11 +549,27 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           ← BACK TO ALL AGENDAS
         </Link>
 
-        <div className="flex gap-3">
-          <button className="px-3 py-1.5 bg-white border border-gray-300 text-gray-500 text-xs rounded-md hover:bg-gray-50 transition-colors">
-            ← PREVIOUS AGENDA
+                <div className="flex gap-3">
+          <button
+            onClick={navigateToPreviousAgenda}
+            disabled={localAgenda.id <= 1 || isLoadingPrevious}
+            className={`px-3 py-1.5 bg-white border border-gray-300 text-xs rounded-md transition-colors ${
+              localAgenda.id > 1 && !isLoadingPrevious
+                ? 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                : 'text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {isLoadingPrevious ? '← LOADING...' : '← PREVIOUS AGENDA'}
           </button>
-          <button className="px-3 py-1.5 bg-white border border-gray-300 text-gray-500 text-xs rounded-md hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => nextAgendaId && navigateToAgenda(nextAgendaId)}
+            disabled={!nextAgendaId}
+            className={`px-3 py-1.5 bg-white border border-gray-300 text-xs rounded-md transition-colors ${
+              nextAgendaId
+                ? 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                : 'text-gray-400 cursor-not-allowed'
+            }`}
+          >
             NEXT AGENDA →
           </button>
         </div>
