@@ -693,20 +693,17 @@ export default function DAOCommitteeMembers() {
                   {/* Challenge 버튼 - 실제 챌린지 권한이 있을 때만 표시 */}
                   {(() => {
                     const { canChallenge, myLayer2, myLayer2s } = canChallengeWith(member);
-                    if (canChallenge && myLayer2 && myLayer2s) {
+                                        if (canChallenge && myLayer2 && myLayer2s) {
                       return (
                         <div
                           className="min-w-[110px] px-4 py-1 rounded-md inline-flex justify-center items-center cursor-pointer"
                           style={{backgroundColor: '#2A72E5'}}
                           onClick={() => {
-                            if (myLayer2s.length > 1) {
-                              setSelectedMemberForChallenge(member);
-                              setAvailableLayer2s(myLayer2s);
-                              setSelectedLayer2Index(0);
-                              setShowLayer2SelectModal(true);
-                            } else {
-                              handleChallenge(member);
-                            }
+                            // 하나든 여러개든 모달을 통해 확인하도록 수정
+                            setSelectedMemberForChallenge(member);
+                            setAvailableLayer2s(myLayer2s);
+                            setSelectedLayer2Index(0);
+                            setShowLayer2SelectModal(true);
                           }}
                           title={
                             myLayer2s.length > 1
