@@ -33,6 +33,7 @@ export function ProposalImpactOverview({
   const [expandedActionLogs, setExpandedActionLogs] = useState<{ [actionId: string]: boolean }>({});
   const [eventSourceInstance, setEventSourceInstance] = useState<EventSource | null>(null);
   const [pendingText, setPendingText] = useState("Pending...");
+  const [nodeConnectionStatus, setNodeConnectionStatus] = useState<"unchecked" | "checking" | "connected" | "disconnected">("unchecked");
 
   const rpcUrl = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL || "Local Node";
 
@@ -55,6 +56,37 @@ export function ProposalImpactOverview({
       }
     };
   }, [eventSourceInstance]);
+
+  const checkNodeConnection = async () => {
+    setNodeConnectionStatus("checking");
+
+    try {
+      const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
+      if (!localRpc) {
+        setNodeConnectionStatus("disconnected");
+        return;
+      }
+
+      const response = await fetch(localRpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: "eth_blockNumber",
+          params: [],
+          id: 1,
+          jsonrpc: "2.0",
+        }),
+      });
+
+      if (response.ok) {
+        setNodeConnectionStatus("connected");
+      } else {
+        setNodeConnectionStatus("disconnected");
+      }
+    } catch (error) {
+      setNodeConnectionStatus("disconnected");
+    }
+  };
 
   const handleSimulateExecution = async () => {
     // Close existing SSE connection
@@ -253,6 +285,26 @@ export function ProposalImpactOverview({
           }
         } catch (streamError) {
           console.error("Stream processing error:", streamError);
+
+          // 스트림 처리 중 에러가 발생했을 때 사용자에게 피드백 제공
+          setGeneralSimulationLogs(prevLogs => [
+            ...prevLogs,
+            `Stream error: ${streamError instanceof Error ? streamError.message : 'Connection lost'}`,
+            "Please check your network connection and try again."
+          ]);
+
+          // 진행 중인 액션들을 실패 상태로 업데이트
+          setSimulatedActions(prevActions =>
+            prevActions.map((action) => ({
+              ...action,
+              simulationResult: action.simulationResult === "Pending" || action.simulationResult === "Simulating..."
+                ? "Failed" as "Failed"
+                : action.simulationResult,
+              errorMessage: action.simulationResult === "Pending" || action.simulationResult === "Simulating..."
+                ? "Connection lost during simulation"
+                : action.errorMessage,
+            }))
+          );
         }
       };
 
@@ -260,6 +312,35 @@ export function ProposalImpactOverview({
 
     } catch (error) {
       console.error("Simulation error:", error);
+      // 에러가 발생했을 때 사용자에게 명확한 피드백 제공
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred during simulation";
+
+      // 시뮬레이션 액션들을 실패 상태로 업데이트
+      setSimulatedActions(prevActions =>
+        prevActions.map((action) => ({
+          ...action,
+          simulationResult: action.simulationResult === "Pending" || action.simulationResult === "Simulating..."
+            ? "Failed" as "Failed"
+            : action.simulationResult,
+          errorMessage: action.simulationResult === "Pending" || action.simulationResult === "Simulating..."
+            ? errorMessage
+            : action.errorMessage,
+          logs: [...(action.logs || []), `Simulation Error: ${errorMessage}`],
+        }))
+      );
+
+      // 일반 로그에 에러 메시지 추가
+      setGeneralSimulationLogs(prevLogs => [
+        ...prevLogs.filter(log =>
+          log !== "Connecting to simulation server..." &&
+          log !== "Connecting to simulation server for batch execution..."
+        ),
+        `Simulation failed: ${errorMessage}`,
+        "Please check your local Hardhat node and try again."
+      ]);
+
+      // 시뮬레이션 단계는 "results"로 유지하여 에러 결과를 표시
+      // 사용자가 다시 시도할 수 있도록 "Back to Setup" 버튼 추가 필요
     }
   };
 
@@ -303,7 +384,7 @@ export function ProposalImpactOverview({
         break;
 
       case "simulationComplete":
-        setGeneralSimulationLogs(prevLogs => [...prevLogs, "Simulation completed"]);
+        setGeneralSimulationLogs(prevLogs => [...prevLogs, "Simulation completed", "Results are ready for review. Use 'Back to Setup' button to run simulation again."]);
         break;
 
       default:
@@ -338,6 +419,38 @@ export function ProposalImpactOverview({
             After the Hardhat node is running, you can proceed with the
             simulation.
           </p>
+
+          <div className="mt-4 flex items-center space-x-3">
+            <Button
+              variant="outline"
+              onClick={checkNodeConnection}
+              disabled={nodeConnectionStatus === "checking"}
+              className="text-sm"
+            >
+              {nodeConnectionStatus === "checking" ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Checking...
+                </>
+              ) : (
+                "Check Node Connection"
+              )}
+            </Button>
+
+            {nodeConnectionStatus === "connected" && (
+              <span className="text-sm text-green-600 flex items-center">
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                Node connected
+              </span>
+            )}
+
+            {nodeConnectionStatus === "disconnected" && (
+              <span className="text-sm text-red-600 flex items-center">
+                <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                Node not running
+              </span>
+            )}
+          </div>
         </div>
         <div className="space-y-4">
           <h4 className="text-lg font-medium text-gray-900 mb-3">Choose simulation type:</h4>
@@ -359,6 +472,7 @@ export function ProposalImpactOverview({
                   variant="outline"
                   className="w-full border-gray-300 hover:bg-blue-600 hover:border-blue-600 hover:text-white text-gray-700 font-medium transition-colors"
                   onClick={handleBatchSimulateExecution}
+                  disabled={nodeConnectionStatus === "disconnected"}
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -384,6 +498,7 @@ export function ProposalImpactOverview({
                   variant="outline"
                   className="w-full border-gray-300 hover:bg-blue-600 hover:border-blue-600 hover:text-white text-gray-700 font-medium transition-colors"
                   onClick={handleSimulateExecution}
+                  disabled={nodeConnectionStatus === "disconnected"}
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -410,6 +525,19 @@ export function ProposalImpactOverview({
           <h1 className="text-xl font-semibold">
             {simulationType === "batch" ? "Batch Simulation Results" : "Individual Simulation Results"}
           </h1>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSimulationStep("initial");
+              setNodeConnectionStatus("unchecked");
+            }}
+            className="text-gray-600 hover:text-gray-800 border-gray-300 hover:border-gray-400"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Setup
+          </Button>
         </div>
         {generalSimulationLogs.length > 0 && (
           <div className="mb-4 p-3 bg-gray-800 text-gray-200 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
@@ -420,7 +548,7 @@ export function ProposalImpactOverview({
             ))}
           </div>
         )}
-        <p className="text-gray-500 mb-4">
+                <p className="text-gray-500 mb-4">
           Detailed simulation results per proposal action provided by {rpcUrl}
         </p>
         <div className="border rounded-md overflow-hidden mb-6">
