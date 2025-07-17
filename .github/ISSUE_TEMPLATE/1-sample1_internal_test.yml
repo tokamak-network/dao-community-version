@@ -31,7 +31,6 @@ body:
         - Agenda - Save A Metadata Locally
         - Agenda - Voting
         - Agenda - Execution
-        - Agenda - Simulation
         - UI/UX (interface, design, usability, responsive design, etc)
         - Wallet (connection, transactions, signature generation, etc)
         - Network  (connection, etc)
