@@ -47,7 +47,7 @@ body:
         2. Click on '...'
         3. See error
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: expected
@@ -56,7 +56,7 @@ body:
       description: What you expected to happen
       placeholder: What should have happened?
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: actual
@@ -65,7 +65,7 @@ body:
       description: A clear and concise description of what actually happened.
       placeholder: What actually happened?
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: environment
