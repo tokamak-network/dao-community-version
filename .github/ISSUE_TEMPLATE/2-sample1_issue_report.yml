@@ -1,14 +1,14 @@
-name: Sample-2 User Report
-description: Report a bug or issue in Sample-2 as an user
-title: "[BUG/ISSUE] "
-labels: ["sample-2", "user-report", "needs-review"]
+name: 🧪 Sample-1 User Report
+description: Report a bug or issue in Sample-1 as an user
+title: "[SAMPLE-1 ISSUE] "
+labels: ["sample-1", "user-report", "needs-review"]
 assignees:
   - Zena-park
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting a bug in Sample-2!
+        Thank you for reporting a bug in Sample-1!
 
         Please provide as much detail as possible to help us understand and fix the issue.
 
@@ -18,15 +18,12 @@ body:
       label: Bug Type
       description: What type of functionality is affected?
       options:
-        - Proposal Management (creation, contract version support, multi-action, etc.)
-        - Advanced UI (dual-mode editor, interactive guide, impact overview, etc.)
-        - Voting System (committee voting, real-time updates, voting history, etc.)
-        - Execution Process (status tracking, transaction monitoring, expiration, etc.)
-        - Data Management (event updates, contract storage, metadata integration, etc.)
+        - DAO Committee (member list, status, rewards, challenges, etc.)
+        - Agenda (creation, voting, execution, list, details, etc.)
         - Simulation (transaction simulation, gas estimation, etc.)
         - UI/UX (interface, design, usability, responsive design)
-        - Wallet (connection, transactions, validation)
-        - Network/Blockchain (connection, data loading, multi-network support)
+        - Wallet (connection, transactions, signature generation)
+        - Network/Blockchain (connection, data loading, events)
         - Other
     validations:
       required: true

@@ -1,4 +1,4 @@
-name: Sample-1 Internal Test Issue
+name: 🐛 Sample-1 Internal Test
 description: Report issues found during internal testing of Sample-1
 title: "[INTERNAL TEST] "
 labels: ["sample-1", "internal-test", "needs-review"]
