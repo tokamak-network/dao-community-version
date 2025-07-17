@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 SAMPLE-1 README
+    url: https://github.com/tokamak-network/dao-community-version/blob/main/sample-1/README.md#tokamak-dao-community-version-web-application
+    about: Learn about Sample-1 features including DAO Committee management and Agenda operations
+  - name: 📖 SAMPLE-2 README
+    url: https://github.com/tokamak-network/dao-community-version/blob/main/sample-2/README.md#dao-community-version-sample-2
+    about: Learn about Sample-2 features including enhanced proposal management and advanced UI
+  - name: Tokamak Network Website
+    url: https://tokamak.network/
+    about: Visit the official Tokamak Network website
