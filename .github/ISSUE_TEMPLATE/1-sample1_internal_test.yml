@@ -18,16 +18,17 @@ body:
       label: Bug Type
       description: What type of functionality is affected?
       options:
-        - DAO Committee - Committee Member List
-        - DAO Committee - Member Details
-        - DAO Committee - Activity Reward Claim
-        - DAO Committee - Challenge Analysis
-        - DAO Committee - Member Retirement
-        - Agenda - Agenda List and Details
-        - Agenda - Agenda Creation
-        - Agenda - Agenda Simulation
-        - Agenda - Agenda Metadata Submission
-        - Agenda - Agenda Creator Signature Generation
+        - DAO Candidates - Committee Member List
+        - DAO Candidates - Member Details
+        - DAO Candidates - Activity Reward Claim
+        - DAO Candidates - Challenge Analysis/Challenge
+        - DAO Candidates - Member Retirement
+        - Agenda - List
+        - Agenda - Details
+        - Agenda - Creation
+        - Agenda - Simulation
+        - Agenda - Metadata Submission
+        - Agenda - Save A Metadata Locally
         - Agenda - Voting
         - Agenda - Execution
         - Agenda - Simulation
