@@ -7,16 +7,6 @@
 >
 > Simply copy a prompt from the files in the `prompts/` folder and paste it into the chat to use it.
 
----
-
-## 📄 Smart Contract Usage Guide
-
-For detailed instructions on how to use each DAO contract function (such as how to fetch agenda lists, agenda details, and call contract methods), please refer to:
-
-- [contract-usage.md](./contract-usage.md)
-
----
-
 This folder provides example prompts for various features that can be used in a DAO (Decentralized Autonomous Organization) community version, utilizing claude.ai. Each prompt is designed to help you quickly build useful apps for DAO operations.
 
 ## Purpose
@@ -37,3 +27,11 @@ This folder provides example prompts for various features that can be used in a 
 
 ## Extensibility
 - If you need a new feature, simply add a new prompt file in the same format.
+
+---
+
+## 📄 Smart Contract Usage Guide
+
+For detailed instructions on how to use each DAO contract function (such as how to fetch agenda lists, agenda details, and call contract methods), please refer to:
+
+- [contract-usage.md](./contract-usage.md)

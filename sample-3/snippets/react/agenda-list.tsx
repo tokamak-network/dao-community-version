@@ -1,57 +1,41 @@
-// React example: Fetch agenda list from blockchain using ethers.js
-import React, { useEffect, useState } from 'react';
-import { ethers } from 'ethers';
+// React example: Fetch agenda list from blockchain using wagmi
+import React, { useMemo } from 'react';
+import { useContractRead, useContractReads } from 'wagmi';
 import { CONTRACT_ADDRESSES } from '../../common/contract-addresses';
-import agendaAbi from '../../common/abi/agenda.json';
-import { NETWORKS } from '../../common/network';
+import agendaAbi from '../../common/abi/DAOAgendaManager.json';
 
-interface Agenda {
-  id: number;
-  createdTimestamp: number;
-  status: string;
-  // 필요한 필드 추가
-}
+const AGENDA_MANAGER = CONTRACT_ADDRESSES.mainnet.DAO_AGENDA_MANAGER;
 
 const AgendaList: React.FC = () => {
-  const [agendas, setAgendas] = useState<Agenda[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 1. Get total number of agendas
+  const { data: numAgendas, isLoading: loadingCount, error: errorCount } = useContractRead({
+    address: AGENDA_MANAGER,
+    abi: agendaAbi,
+    functionName: 'numAgendas',
+    watch: true,
+  });
 
-  useEffect(() => {
-    const fetchAgendas = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // 네트워크와 주소 정보 사용
-        const provider = new ethers.JsonRpcProvider(NETWORKS.mainnet.rpcUrl);
-        const agendaManager = new ethers.Contract(
-          CONTRACT_ADDRESSES.mainnet.DAO_AGENDA_MANAGER,
-          agendaAbi,
-          provider
-        );
-        const numAgendas: number = Number(await agendaManager.numAgendas());
-        const agendaList: Agenda[] = [];
-        for (let i = numAgendas - 1; i >= 0; i--) {
-          const agenda = await agendaManager.agendas(i);
-          agendaList.push({
-            id: i,
-            createdTimestamp: Number(agenda.createdTimestamp),
-            status: agenda.status?.toString() ?? '',
-            // 필요한 필드 추가
-          });
-        }
-        setAgendas(agendaList);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAgendas();
-  }, []);
+  // 2. Prepare agenda numbers (latest first)
+  const agendaNumbers = useMemo(() => {
+    if (!numAgendas) return [];
+    const n = Number(numAgendas);
+    return Array.from({ length: n }, (_, i) => n - 1 - i);
+  }, [numAgendas]);
 
-  if (loading) return <div>Loading agendas...</div>;
-  if (error) return <div>Error: {error}</div>;
+  // 3. Fetch agenda details in batch
+  const { data: agendas, isLoading: loadingAgendas, error: errorAgendas } = useContractReads({
+    contracts: agendaNumbers.map((no) => ({
+      address: AGENDA_MANAGER,
+      abi: agendaAbi,
+      functionName: 'agendas',
+      args: [no],
+    })),
+    enabled: agendaNumbers.length > 0,
+  });
+
+  if (loadingCount || loadingAgendas) return <div>Loading agendas...</div>;
+  if (errorCount) return <div>Error: {errorCount.message}</div>;
+  if (errorAgendas) return <div>Error: {errorAgendas.message}</div>;
 
   return (
     <table>
@@ -63,11 +47,11 @@ const AgendaList: React.FC = () => {
         </tr>
       </thead>
       <tbody>
-        {agendas.map(agenda => (
-          <tr key={agenda.id}>
-            <td>{agenda.id}</td>
-            <td>{new Date(agenda.createdTimestamp * 1000).toLocaleString()}</td>
-            <td>{agenda.status}</td>
+        {agendas && agendas.map((agenda, idx) => (
+          <tr key={agendaNumbers[idx]}>
+            <td>{agendaNumbers[idx]}</td>
+            <td>{agenda?.result?.createdTimestamp?.toString?.()}</td>
+            <td>{agenda?.result?.status?.toString?.()}</td>
           </tr>
         ))}
       </tbody>

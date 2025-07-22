@@ -14,8 +14,8 @@
 3. **목록 표시**
    - 최신 아젠다부터 역순으로 번호를 나열 (예: [numAgendas-1, ..., 0])
 
-### 코드 예제
-    - React(ethers.js) 예제: `snippets/react/agenda-list.tsx`
+### 예제
+    - React 예제: `snippets/react/agenda-list.tsx`
 
 ---
 
@@ -35,8 +35,8 @@
      - Status -> 0: NONE, 1: NOTICE, 2: VOTING, 3: WAITING_EXEC, 4: EXECUTED, 5: ENDED, 6: NO AGENDA
 
 
-### 코드 예제
-    - React(ethers.js) 예제: `snippets/react/agenda-detail.tsx`
+### 예제
+    - React 예제: `snippets/react/agenda-detail.tsx`
 
 
 ---
