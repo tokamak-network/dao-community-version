@@ -14,14 +14,14 @@ This repository is a **monorepo for the Tokamak DAO Community Version applicatio
   - Main features: Enhanced proposal creation, multi-action support, real-time voting system, advanced data management, responsive design, etc.
   - Uses modern frontend stack: Next.js, React, Tailwind CSS, and more.
 
-- **[sample-3/](./sample-3/)**
-  - A folder for prompts and guides that users can create themselves using Claude.ai.
-  - Will include AI prompt examples and usage guides for DAO community operations, automation, and custom workflows.
+- **[sample-3/](./sample-3/)** 🚀✨
+  - **Build your own DAO community apps and tools using only Claude.ai prompts!**
+  - 📝 *No coding required—just write prompts to extend community features.*
+  - 📚 Example prompts, usage guides, and practical tutorials will be continuously added.
 
 - **[simulation-node/](./simulation-node/)**
-  - A Hardhat-based project for smart contract simulation and testing.
-  - Main features: Local node fork, contract deployment/testing, simulation environment.
-  - Contains Solidity contracts, test code, and Hardhat configuration files.
+  - A Hardhat-based project for smart contract simulation and deployment.
+  - Main features: Local node fork, contract deployment, simulation environment.
 
 - **[.github/](./.github/)**
   - Contains GitHub-related configuration files such as issue templates, PR templates, and workflows.
