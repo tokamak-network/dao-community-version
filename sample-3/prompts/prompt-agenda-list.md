@@ -1,7 +1,7 @@
-# Agenda PR Prompt Example
+# Agenda List Prompt Example
 
 ## Purpose
-Use this prompt to submit agenda (proposal) metadata as a Pull Request (PR) to the repository.
+This prompt can be used to retrieve a list of Tokamak Dao agendas and view agenda details.
 
 ## Example Prompt (EN)
 ```
