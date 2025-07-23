@@ -15,7 +15,9 @@
    - 최신 아젠다부터 역순으로 번호를 나열 (예: [numAgendas-1, ..., 0])
 
 ### 예제
-    - React 예제: `snippets/react/agenda-list.tsx`
+   - React 예제: `snippets/react/agenda-list.tsx`
+
+### prompt :
 
 ---
 

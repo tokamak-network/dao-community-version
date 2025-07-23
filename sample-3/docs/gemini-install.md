@@ -54,7 +54,8 @@ Now you can use gemini.
     - /memory: Manage AI's learning memory (GEMINI.md) (add, show, refresh)
     - /restore: Restore files to their state before running the tool.
     - /stats: Show statistics for the current session (token usage, etc.)
-    - /theme: Change the visual theme of the CLI. - /auth: Change the authentication method.
+    - /theme: Change the visual theme of the CLI.
+    - /auth: Change the authentication method.
     - /about: Show version information.
     - /tools: Show a list of available tools.
     - /quit or /exit: Exit the CLI
