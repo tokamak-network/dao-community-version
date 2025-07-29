@@ -280,6 +280,17 @@ GITHUB_OWNER=tokamak-network                        # 베이스 소유자
 GITHUB_REPO=dao-agenda-metadata-repository          # 베이스 저장소
 ```
 
+#### GITHUB_TOKEN 생성 가이드
+
+1. GitHub에 로그인 후 **Settings** > **Developer settings** > **Personal access tokens** > **Tokens (classic)**로 이동
+2. **Generate new token** > **Generate new token (classic)** 클릭
+3. **Note**에 토큰 용도 입력 (예: "DAO Agenda PR Bot")
+4. **Expiration**에서 만료일 설정
+5. **Select scopes**에서 다음 권한을 체크:
+   - `workflow` (Update GitHub Action workflows)
+6. **Generate token** 클릭
+7. `ghp_`로 시작하는 토큰이 생성됩니다. 이 값을 `GITHUB_TOKEN` 환경변수에 설정하세요
+
 ## 실행 방법
 
 ### 1. 의존성 설치

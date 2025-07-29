@@ -277,6 +277,17 @@ GITHUB_OWNER=tokamak-network                        # Base owner
 GITHUB_REPO=dao-agenda-metadata-repository          # Base repository
 ```
 
+#### GITHUB_TOKEN Creation Guide
+
+1. Log in to GitHub and navigate to **Settings** > **Developer settings** > **Personal access tokens** > **Tokens (classic)**
+2. Click **Generate new token** > **Generate new token (classic)**
+3. Enter token purpose in **Note** (e.g., "DAO Agenda PR Bot")
+4. Set expiration date in **Expiration**
+5. Check the following permission in **Select scopes**:
+   - `workflow` (Update GitHub Action workflows)
+6. Click **Generate token**
+7. A token starting with `ghp_` will be generated. Set this to the `GITHUB_TOKEN` environment variable
+
 ## Execution Guide
 
 ### 1. Install Dependencies
