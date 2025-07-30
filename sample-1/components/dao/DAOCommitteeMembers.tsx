@@ -1434,12 +1434,15 @@ export default function DAOCommitteeMembers() {
                 onClick={() => {
                   if (selectedLayer2Index >= 0 && selectedLayer2Index < availableLayer2s.length && selectedMemberForChallenge) {
                     const selectedLayer2 = availableLayer2s[selectedLayer2Index];
+                    const memberToChallenge = selectedMemberForChallenge; // 먼저 저장
+
                     setSelectedLayer2ForChallenge(selectedLayer2);
                     setShowLayer2SelectModal(false);
                     setSelectedMemberForChallenge(null);
                     setAvailableLayer2s([]);
                     setSelectedLayer2Index(-1);
-                    handleChallenge(selectedMemberForChallenge);
+
+                    handleChallenge(memberToChallenge); // 저장된 값 사용
                   }
                 }}
                 className={`px-6 py-2.5 rounded-lg font-semibold text-lg transition-colors ${
