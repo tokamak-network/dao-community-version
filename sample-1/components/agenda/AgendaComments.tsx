@@ -131,7 +131,7 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
                   <a href="#" className="text-blue-600 hover:text-blue-700 font-mono">
                     {formatAddress(voteInfo.address)}
                   </a>
-                  <span className="text-gray-700 ml-1">voted</span>
+                  {voteInfo.hasVoted && <span className="text-gray-700 ml-1">voted</span>}
                   <span className="ml-1">{getVoteText(voteInfo.vote, voteInfo.hasVoted, isLoadingVotes, voteInfo.synced)}</span>
                 </div>
               </div>
