@@ -45,10 +45,26 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [memberVoteInfos, setMemberVoteInfos] = useState<{ hasVoted: boolean }[]>([])
   const [isCheckingVotes, setIsCheckingVotes] = useState(false)
   const [txType, setTxType] = useState<"vote" | "execute" | null>(null)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false)
 
   const router = useRouter()
   const { address } = useAccount()
-  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda, paginationState, loadNextPage, hasMore } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, isLoadingMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda, paginationState, loadNextPage, hasMore } = useCombinedDAOContext()
+
+    // 지갑 연결/변경 시 짧은 로딩 피드백 제공
+  useEffect(() => {
+    if (address) {
+      setIsCheckingAuth(true)
+      const timer = setTimeout(() => {
+        setIsCheckingAuth(false)
+      }, 800) // 0.8초간 로딩 표시
+
+      return () => clearTimeout(timer)
+    } else {
+      setIsCheckingAuth(false)
+    }
+  }, [address])
+
   const chainId = chain.id;
 
   // agenda prop이 변경될 때 localAgenda 업데이트
@@ -245,14 +261,22 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   }, [localAgenda.id, getAgenda, refetch]);
 
 
-  // 🔬 TEST: isVoter 중복 정의 에러로 인한 임시 주석처리
+      // 투표 권한 확인 중인지 상태
+  const isCheckingVotingAuth = useMemo(() => {
+    // 인위적 로딩 상태 또는 실제 멤버 데이터 로딩 중
+    return Boolean(address && (isLoadingMembers || isCheckingAuth))
+  }, [address, isLoadingMembers, isCheckingAuth])
+
+      // 투표 권한이 있는지 확인
   const isVoter = useMemo(() => {
+    // 권한 확인 중이면 false 반환 (로딩 상태에서는 투표 불가)
+    if (isCheckingVotingAuth) return false
 
     return address && (
       localAgenda.voters?.includes(address) ||
       isCommitteeMember(address as string)
     )
-  }, [address, localAgenda.voters, isCommitteeMember])
+  }, [address, localAgenda.voters, isCommitteeMember, isCheckingVotingAuth])
 
   // 멤버 정보 가져오기
   const memberInfo = useMemo(() => {
@@ -493,19 +517,30 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
           <div className="flex items-center gap-1">
             <button
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-                isVoter && !hasVoted
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                isCheckingVotingAuth
+                  ? "bg-blue-100 text-blue-600 cursor-wait"
+                  : isVoter && !hasVoted
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
-              disabled={!isVoter || isVoting || hasVoted}
+              disabled={!isVoter || isVoting || hasVoted || isCheckingVotingAuth}
               onClick={() => {
                 setShowVoteModal(true);
               }}
             >
-              <Vote className="h-4 w-4" />
-              <span className="text-sm font-medium">
-                {isVoting ? "Voting..." : hasVoted ? "Already Voted" : "Vote"}
-              </span>
+              {isCheckingVotingAuth ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent flex-shrink-0"></div>
+                  <span className="text-sm font-medium">Checking...</span>
+                </>
+              ) : (
+                <>
+                  <Vote className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {isVoting ? "Voting..." : hasVoted ? "Already Voted" : "Vote"}
+                  </span>
+                </>
+              )}
             </button>
             {renderDropdownMenu()}
           </div>
