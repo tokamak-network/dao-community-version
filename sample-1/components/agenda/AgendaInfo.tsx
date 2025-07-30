@@ -159,13 +159,13 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
           <div className="flex justify-between py-2">
             <span className="text-gray-600 text-sm">Current Result</span>
             <span className="text-gray-900 text-sm font-mono">
-              {getCurrentResultText(currentStatusData.currentResult)} ({currentStatusData.currentResult})
+              {getCurrentResultText(currentStatusData.currentResult)}
             </span>
           </div>
           <div className="flex justify-between py-2">
             <span className="text-gray-600 text-sm">Current Status</span>
             <span className="text-gray-900 text-sm font-mono">
-              {getCurrentStatusText(currentStatusData.currentStatus)} ({currentStatusData.currentStatus})
+              {getCurrentStatusText(currentStatusData.currentStatus)}
             </span>
           </div>
         </div>
