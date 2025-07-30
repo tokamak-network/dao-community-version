@@ -126,7 +126,7 @@ export default function AgendaList() {
               window.open(url, '_blank');
             }}
           >
-            Go to entire agendas
+            Go to metadata repository
           </button>
         </div>
 
