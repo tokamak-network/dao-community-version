@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { useAccount } from 'wagmi'
-import { formatTONWithUnit, formatRelativeTime, formatDateTime, formatTokenAmountWithUnit } from '@/utils/format'
+import { formatTONWithUnit, formatRelativeTime, formatDateTime, formatTokenAmountWithUnit, formatTokenAmountWithUnitPrecise } from '@/utils/format'
 import { CheckChallengeButton } from '@/components/CheckChallengeButton'
 import { CommitteeMember, Candidate } from '@/types/dao'
 import { createRobustPublicClient, readContractWithRetry } from "@/lib/rpc-utils"
@@ -668,7 +668,7 @@ export default function DAOCommitteeMembers() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-900 text-xs font-normal font-['Inter']">Total Staked </span>
-                    <span className="text-slate-700 text-xs font-normal font-['Inter']">{formatTokenAmountWithUnit(member.totalStaked, 'TON', 27)}</span>
+                    <span className="text-slate-700 text-xs font-normal font-['Inter']">{formatTokenAmountWithUnit(member.totalStaked, 'WTON', 27)}</span>
                   </div>
                   <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{member.name}</div>
                   <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">{member.description}</div>
@@ -725,8 +725,8 @@ export default function DAOCommitteeMembers() {
                           }}
                           title={
                             myLayer2s.length > 1
-                              ? `${myLayer2s.length}개 Layer2 중 선택`
-                              : `${myLayer2.name}로 챌린지 실행 (${(Number(myLayer2.totalStaked) / 1e27).toLocaleString()} WTON)`
+                              ? `Select from ${myLayer2s.length} Layer2s`
+                              : `Execute challenge with ${myLayer2.name} (${(Number(myLayer2.totalStaked) / 1e27).toLocaleString()} WTON)`
                           }
                         >
                           <div className="text-center justify-start text-sm font-semibold font-['Proxima_Nova'] leading-loose" style={{color: '#FFFFFF'}}>
@@ -788,7 +788,7 @@ export default function DAOCommitteeMembers() {
                     <div className="flex justify-between">
                       <label className="text-sm font-medium text-gray-600">Total Staked</label>
                       <p className="text-sm text-gray-900 font-medium text-right">
-                        {formatTONWithUnit(member.totalStaked)}
+                        {formatTokenAmountWithUnitPrecise(member.totalStaked, "WTON", 27, 8)}
                       </p>
                     </div>
 
@@ -804,7 +804,7 @@ export default function DAOCommitteeMembers() {
                     <div className="flex justify-between">
                       <label className="text-sm font-medium text-gray-600">Claimable Activity Reward</label>
                       <div className="text-sm text-gray-900 font-medium text-right flex items-center gap-2">
-                        {member.claimableActivityReward ? formatTONWithUnit(member.claimableActivityReward) : "Not available"}
+                        {member.claimableActivityReward ? formatTokenAmountWithUnitPrecise(member.claimableActivityReward, "WTON", 18, 8) : "Not available"}
 
                           {/* Claim Reward 버튼: 상세 하단에 작고 색상 변경하여 배치 */}
                           {isOwnMember(member) && (

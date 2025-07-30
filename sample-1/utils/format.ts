@@ -22,6 +22,58 @@ export function formatWeiToToken(weiAmount: string | bigint, decimals: number = 
 }
 
 /**
+ * Convert wei amount to token format with dynamic decimal places
+ * Shows significant digits even for very small amounts
+ * @param weiAmount - Amount in wei (string or bigint)
+ * @param decimals - Number of decimal places (default: 18 for ETH/most ERC20)
+ * @param maxDecimals - Maximum decimal places to show (default: 8)
+ * @returns Formatted token amount string
+ */
+export function formatWeiToTokenPrecise(weiAmount: string | bigint, decimals: number = 18, maxDecimals: number = 8): string {
+  try {
+    const amount = typeof weiAmount === 'string' ? BigInt(weiAmount) : weiAmount;
+    const divisor = BigInt(10 ** decimals);
+    const tokenAmount = Number(amount) / Number(divisor);
+
+    if (tokenAmount === 0) return '0';
+
+    // For very small amounts, find first significant digit
+    if (tokenAmount < 1) {
+      const tokenStr = tokenAmount.toString();
+      const decimalIndex = tokenStr.indexOf('.');
+
+      if (decimalIndex !== -1) {
+        let significantIndex = -1;
+        for (let i = decimalIndex + 1; i < tokenStr.length; i++) {
+          if (tokenStr[i] !== '0') {
+            significantIndex = i;
+            break;
+          }
+        }
+
+        if (significantIndex !== -1) {
+          // Show up to 2 significant digits after the first non-zero digit
+          const decimalPlaces = Math.min(significantIndex - decimalIndex + 2, maxDecimals);
+          return tokenAmount.toLocaleString('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: decimalPlaces
+          });
+        }
+      }
+    }
+
+    // For larger amounts, use standard formatting
+    return tokenAmount.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+  } catch (error) {
+    console.error('Error formatting token amount:', error);
+    return '0';
+  }
+}
+
+/**
  * Format token amount with unit
  * @param weiAmount - Amount in wei
  * @param unit - Token unit (e.g., 'TON', 'ETH', 'USDT')
@@ -30,6 +82,18 @@ export function formatWeiToToken(weiAmount: string | bigint, decimals: number = 
  */
 export function formatTokenAmountWithUnit(weiAmount: string | bigint, unit: string = 'TON', decimals: number = 18): string {
   return `${formatWeiToToken(weiAmount, decimals)} ${unit}`;
+}
+
+/**
+ * Format token amount with unit showing precise decimals for small amounts
+ * @param weiAmount - Amount in wei
+ * @param unit - Token unit (e.g., 'TON', 'ETH', 'USDT')
+ * @param decimals - Number of decimal places
+ * @param maxDecimals - Maximum decimal places to show
+ * @returns Formatted string with token unit
+ */
+export function formatTokenAmountWithUnitPrecise(weiAmount: string | bigint, unit: string = 'TON', decimals: number = 18, maxDecimals: number = 8): string {
+  return `${formatWeiToTokenPrecise(weiAmount, decimals, maxDecimals)} ${unit}`;
 }
 
 // Backward compatibility - TON specific functions
