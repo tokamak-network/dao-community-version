@@ -380,6 +380,8 @@ export function ProposalPreview({
 
   return (
     <div className="bg-white p-6">
+
+
       {/* Title Section */}
       <div className="mb-6">
         <h2 className={`text-2xl font-semibold mb-4 ${

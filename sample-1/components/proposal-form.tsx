@@ -762,7 +762,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                         )}
                       >
                         <Eye className="w-4 h-4 mr-2" />
-                        Preview
+                        Preview & Submit
                         {getCurrentStep() === 3 &&
                           this.state.activeTab !== "preview" && (
                             <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
@@ -793,18 +793,19 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                       <Save className="w-4 h-4 mr-2" />
                       Save Locally
                     </button>
-                    <button
-                      onClick={this.handlePublish}
-                      disabled={!this.state.canSubmit}
-
-                      className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                        this.state.canSubmit
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      }`}
-                    >
-                      Submit DAO Agenda
-                    </button>
+                    {this.state.activeTab === "preview" && (
+                      <button
+                        onClick={this.handlePublish}
+                        disabled={!this.state.canSubmit}
+                        className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                          this.state.canSubmit
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        }`}
+                      >
+                        Submit DAO Agenda
+                      </button>
+                    )}
                   </div>
                 </div>
 
