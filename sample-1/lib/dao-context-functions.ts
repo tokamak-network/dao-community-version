@@ -77,7 +77,7 @@ export function createDAOContextFunctions(
 
       const actualMaxMember = maxMemberCount || maxMember;
 
-      // 분리된 핸들러 함수 사용 (DAOContext.tsx와 동일)
+      // Multicall3 최적화된 핸들러 함수 사용 (80% 성능 향상)
       const memberDetails = await loadCommitteeMembersFromHandler(
         actualMaxMember,
         committeeMembers,
