@@ -542,6 +542,9 @@ export function validateParameterType(value: string, type: string): boolean {
       const lowerValue = value.toLowerCase();
       return /^0x[a-f0-9]{40}$/.test(lowerValue);
     } else if (type.startsWith("uint") || type.startsWith("int")) {
+      // Check for leading/trailing whitespace
+      if (value !== value.trim()) return false;
+
       // Check if it's a valid number and not negative for uint
       const num = BigInt(value);
       if (type.startsWith("uint") && num < BigInt(0)) return false;
@@ -563,9 +566,9 @@ export function getParameterTypeErrorMessage(type: string): string {
   if (type === "address") {
     return "Invalid Ethereum address";
   } else if (type.startsWith("uint")) {
-    return "Must be a positive number";
+    return "Must be a positive number (no spaces allowed)";
   } else if (type.startsWith("int")) {
-    return "Must be a valid number";
+    return "Must be a valid number (no spaces allowed)";
   } else if (type === "bool") {
     return "Must be true or false";
   } else if (type === "bytes" || type.startsWith("bytes")) {
