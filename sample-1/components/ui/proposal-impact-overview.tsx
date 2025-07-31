@@ -175,7 +175,31 @@ export function ProposalImpactOverview({
     const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
     const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
 
+    let snapshotId: string | null = null;
+
     try {
+      // Create snapshot before simulation to preserve state
+      console.log('Creating snapshot before simulation...');
+      const snapshotResponse = await fetch(localRpc!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'evm_snapshot',
+          params: [],
+          id: Date.now()
+        })
+      });
+
+      if (snapshotResponse.ok) {
+        const snapshotData = await snapshotResponse.json();
+        snapshotId = snapshotData.result;
+        console.log('Snapshot created:', snapshotId);
+        setGeneralSimulationLogs(prev => [...prev, `Snapshot created: ${snapshotId}`]);
+      } else {
+        console.warn('Failed to create snapshot, proceeding without state preservation');
+        setGeneralSimulationLogs(prev => [...prev, 'Warning: Failed to create snapshot - state may be modified']);
+      }
       const response = await fetch("/api/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -341,6 +365,43 @@ export function ProposalImpactOverview({
 
       // 시뮬레이션 단계는 "results"로 유지하여 에러 결과를 표시
       // 사용자가 다시 시도할 수 있도록 "Back to Setup" 버튼 추가 필요
+    } finally {
+      // Always revert to snapshot after simulation to preserve state
+      if (snapshotId && localRpc) {
+        try {
+          console.log('Reverting to snapshot:', snapshotId);
+          const revertResponse = await fetch(localRpc, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'evm_revert',
+              params: [snapshotId],
+              id: Date.now()
+            })
+          });
+
+          if (revertResponse.ok) {
+            const revertData = await revertResponse.json();
+            if (revertData.result) {
+              console.log('Successfully reverted to snapshot');
+              setGeneralSimulationLogs(prev => [...prev, 'State restored to pre-simulation snapshot']);
+            } else {
+              console.warn('Failed to revert snapshot');
+              setGeneralSimulationLogs(prev => [...prev, 'Warning: Failed to restore original state']);
+            }
+          } else {
+            console.warn('Failed to revert snapshot - response not ok');
+            setGeneralSimulationLogs(prev => [...prev, 'Warning: Failed to restore original state']);
+          }
+        } catch (revertError) {
+          console.error('Error reverting snapshot:', revertError);
+          setGeneralSimulationLogs(prev => [...prev, 'Warning: Failed to restore original state']);
+        }
+      } else if (snapshotId) {
+        console.warn('Cannot revert snapshot - localRpc not available');
+        setGeneralSimulationLogs(prev => [...prev, 'Warning: Cannot restore original state - RPC not available']);
+      }
     }
   };
 
@@ -511,8 +572,8 @@ export function ProposalImpactOverview({
 
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <p className="text-sm text-gray-600">
-              <strong>Tip:</strong> Start with Individual Simulation to test each action separately,
-              then use Batch Simulation to verify they work together as intended.
+              <strong>Tip:</strong> Both simulations are now safe and read-only - they will not modify the local node state.
+              Start with Individual Simulation to test each action separately, then use Batch Simulation to verify they work together as intended.
             </p>
           </div>
         </div>
