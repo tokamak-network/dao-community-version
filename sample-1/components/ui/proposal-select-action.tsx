@@ -735,6 +735,15 @@ export function ProposalSelectAction({
       className={cn("md:col-span-2 bg-white p-4 rounded-md", className)}
       {...props}
     >
+      {/* Unsaved changes warning */}
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-amber-800">
+            Unsaved changes will be lost if you leave this page. To save, please create an action using the "Add Action" button.
+          </p>
+        </div>
+      </div>
 
       <div className="space-y-6">
         <div>
