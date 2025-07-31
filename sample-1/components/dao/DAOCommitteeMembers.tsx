@@ -1254,7 +1254,7 @@ export default function DAOCommitteeMembers() {
                             {/* 도전자 목록 */}
                             <div className="p-6">
                               <p className="text-md font-medium text-gray-700 mb-4">
-                                Challenging Layer2 ({item.challengers.length})
+                                Can Challenge This Member ({item.challengers.length})
                               </p>
 
                               <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
@@ -1307,8 +1307,11 @@ export default function DAOCommitteeMembers() {
                                       </div>
 
                                       <div className="text-right">
-                                        <p className="text-blue-600 text-md">
+                                        <p className="text-blue-600 text-md font-medium">
                                           +{((Number(challenger.totalStaked) - Number(item.member.totalStaked || 0)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          More stake than member
                                         </p>
                                       </div>
                                     </div>
@@ -1390,7 +1393,7 @@ export default function DAOCommitteeMembers() {
                 {/* 구분선과 챌린저 섹션 제목 */}
                 <div className="border-t border-gray-300 pt-3">
                   <h5 className="font-medium text-gray-900 mb-2">
-                    Challenging Layer2 ({availableLayer2s.length})
+                    Potential Challengers ({availableLayer2s.length})
                   </h5>
 
                   {/* 작은 챌린저 박스들 */}
@@ -1442,6 +1445,9 @@ export default function DAOCommitteeMembers() {
                           <div className="text-right">
                             <p className="text-blue-500 font-medium text-sm">
                               +{((Number(layer2.totalStaked) - Number(selectedMemberForChallenge.totalStaked)) / 1e27).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} WTON
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              More stake than member
                             </p>
                           </div>
                         </div>
