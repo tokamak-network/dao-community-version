@@ -1205,7 +1205,7 @@ export default function DAOCommitteeMembers() {
                                         Challenge
                                       </button>
                                       <p className="text-sm text-gray-500 mt-2">
-                                        You can execute real challenge transactions with your linked account.
+                                        You can execute real challenge transactions with your connected account.
                                       </p>
                                     </div>
                                   </div>
