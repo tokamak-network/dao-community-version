@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
+
 import { useRouter } from 'next/navigation'
 import { AgendaWithMetadata } from '@/types/agenda'
 import { CommitteeMember } from '@/types/dao'
@@ -577,12 +577,12 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Navigation */}
       <div className="flex justify-between items-center mb-4">
-        <Link
-          href="/agenda"
+        <button
+          onClick={() => router.back()}
           className="px-3 py-1.5 bg-white border border-gray-300 text-blue-600 text-xs rounded-md hover:bg-gray-50 transition-colors"
         >
           ← BACK TO ALL AGENDAS
-        </Link>
+        </button>
 
                 <div className="flex gap-3">
           <button
