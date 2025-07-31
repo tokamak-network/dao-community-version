@@ -47,7 +47,6 @@ export function AgendaSubmissionModal({
   const handleSaveAndSubmit = async () => {
     try {
       if (shouldSubmitPR && onSubmitPR) {
-        // PR 제출 (서명 → 메타데이터 생성 → 다운로드 → GitHub PR 제출을 한 번에)
 
         setPrStatus(PrSubmissionStatus.SUBMITTING);
         setPrError(null);
@@ -65,9 +64,10 @@ export function AgendaSubmissionModal({
         }
       } else if (shouldSaveLocally && onSaveLocally) {
         // 로컬 저장만 (서명 → 메타데이터 생성 → 다운로드)
-
         await onSaveLocally();
 
+      } else {
+        console.log("⚠️ No action selected or handlers not provided");
       }
     } catch (error) {
       setPrStatus(PrSubmissionStatus.ERROR);
@@ -296,9 +296,13 @@ export function AgendaSubmissionModal({
                           setShouldSubmitPR(true);
                           setShouldSaveLocally(true);
                           setPrError(null);
-                          setPrStatus(PrSubmissionStatus.IDLE);
+                          // PR 제출이 성공한 상태에서는 prStatus를 리셋하지 않음
+                          if (prUrl === null) {
+                            setPrStatus(PrSubmissionStatus.IDLE);
+                          }
                         }}
                         className="mt-1.5 w-4 h-4 text-green-600 focus:ring-green-500 focus:ring-2"
+                        disabled={!!prUrl}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
@@ -334,9 +338,13 @@ export function AgendaSubmissionModal({
                           setShouldSubmitPR(false);
                           setShouldSaveLocally(true);
                           setPrError(null);
-                          setPrStatus(PrSubmissionStatus.IDLE);
+                          // PR 제출이 성공한 상태에서는 prStatus를 리셋하지 않음
+                          if (prStatus !== PrSubmissionStatus.SUCCESS) {
+                            setPrStatus(PrSubmissionStatus.IDLE);
+                          }
                         }}
                         className="mt-1.5 w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                        disabled={false}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
@@ -412,7 +420,7 @@ export function AgendaSubmissionModal({
         {/* 모달 하단 버튼 - 고정 */}
         <div className="p-6 pt-0 flex-shrink-0 border-t border-gray-200">
           <div className="flex justify-end space-x-3">
-            {status === "confirmed" && agendaNumber && (
+            {status === "confirmed" && agendaNumber && prUrl === null && (
               <Button
                 onClick={handleSaveAndSubmit}
                 className={`${
@@ -424,7 +432,7 @@ export function AgendaSubmissionModal({
                 } text-white font-medium px-6 py-2.5 transition-all duration-200`}
                 disabled={
                   prStatus === PrSubmissionStatus.SUBMITTING ||
-                  (!shouldSubmitPR && !shouldSaveLocally)
+                  !!prUrl
                 }
               >
                 {prStatus === PrSubmissionStatus.SUBMITTING ? (
@@ -443,6 +451,16 @@ export function AgendaSubmissionModal({
                     Save Locally
                   </>
                 )}
+              </Button>
+            )}
+
+            {status === "confirmed" && agendaNumber && prUrl !== null && (
+              <Button
+                disabled
+                className="bg-gray-400 text-white font-medium px-6 py-2.5 cursor-not-allowed"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Already Submitted
               </Button>
             )}
 
