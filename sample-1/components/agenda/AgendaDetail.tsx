@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { AgendaWithMetadata } from '@/types/agenda'
@@ -85,7 +85,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     chainId: chain.id,
   })
 
-  // Check if user has already voted
+    // Check if user has already voted (using wallet address as fallback)
   const { data: hasVotedData, refetch } = useContractRead({
     address: DAO_AGENDA_MANAGER_ADDRESS as `0x${string}`,
     abi: [
@@ -107,10 +107,8 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     chainId: chain.id,
   })
 
-  // Memoize hasVoted value
-  const hasVoted = useMemo(() => {
-    return hasVotedData ?? false
-  }, [hasVotedData])
+  // Local state to immediately reflect voting status for specific memberships
+  const [localVotedMemberships, setLocalVotedMemberships] = useState<Set<string>>(new Set())
 
 
     // Prepare vote transaction
@@ -147,7 +145,16 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         setShowVoteModal(false);
         setVoteComment("");
 
-        // 🔄 투표 성공 후 데이터 새로고침
+        // 🔄 즉시 로컬 상태 업데이트 (UI 즉시 반영)
+        if (selectedMemberForVote?.creationAddress) {
+          setLocalVotedMemberships(prev => {
+            const newSet = new Set(prev);
+            newSet.add(selectedMemberForVote.creationAddress);
+            return newSet;
+          });
+        }
+
+        // 🔄 투표 성공 후 데이터 새로고침 (블록체인 데이터와 동기화)
         refetch(); // hasVoted 상태 갱신
         handleRefresh(); // 아젠다 데이터 전체 갱신
       } else if (executeData) {
@@ -365,6 +372,19 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
     return memberships;
   }, [address, committeeMembers]);
+
+  // Check if ALL user memberships have voted
+  const hasVoted = useMemo(() => {
+    if (!userMemberships.length) return hasVotedData ?? false; // Fallback to wallet address check
+
+    // Check if all memberships have voted (either locally or from blockchain data)
+    return userMemberships.every((membership, idx) => {
+      const creationAddress = membership.member.creationAddress;
+      const hasVotedLocally = localVotedMemberships.has(creationAddress);
+      const hasVotedOnChain = memberVoteInfos[idx]?.hasVoted ?? false;
+      return hasVotedLocally || hasVotedOnChain;
+    });
+  }, [userMemberships, localVotedMemberships, memberVoteInfos, hasVotedData])
 
   // 투표 모달이 열릴 때 각 멤버의 투표 여부를 가져옴
   useEffect(() => {
