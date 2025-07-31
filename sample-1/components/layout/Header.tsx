@@ -18,41 +18,88 @@ export default function Header() {
     setIsMounted(true)
   }, [])
 
-  // 연결 에러 로깅
+  // 연결 에러 로깅 (ConnectorAlreadyConnectedError는 무시)
   useEffect(() => {
     if (connectError) {
+      // ConnectorAlreadyConnectedError는 완전히 무시
+      if (connectError.message?.includes('ConnectorAlreadyConnectedError') ||
+          connectError.name?.includes('ConnectorAlreadyConnectedError')) {
+        console.log('ConnectorAlreadyConnectedError ignored - this is expected behavior')
+        return
+      }
+
+      // 다른 실제 에러만 로깅
       console.error('Connect error:', connectError)
     }
   }, [connectError])
+
+      // 지갑 상태 변화 감지 및 로깅 (디버깅용)
+  useEffect(() => {
+    console.log('Wallet state changed:', {
+      isConnected,
+      address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null,
+      isPending
+    })
+  }, [isConnected, address, isPending])
 
 
   // 현재 경로에 따라 활성 메뉴 스타일 결정
   const isActiveMenu = (path: string) => pathname === path
 
-  const handleConnect = async () => {
-
-    // 이미 연결되어 있다면 연결 시도하지 않음
-    if (isConnected && address) {
-
+    const handleConnect = async () => {
+    // 연결 시도 중이면 중복 실행 방지
+    if (isPending) {
+      console.log('Connection already in progress...')
       return
     }
 
+    // 이미 연결되어 있으면 그냥 성공으로 처리
+    if (isConnected && address) {
+      console.log('Wallet already connected:', address)
+      return
+    }
 
     // MetaMask connector 찾기 (injected connector)
     const injectedConnector = connectors.find(connector => connector.type === 'injected')
 
     if (injectedConnector) {
       try {
-
+        console.log('Attempting to connect wallet...')
         await connect({ connector: injectedConnector })
-
+        console.log('Wallet connected successfully')
       } catch (error) {
-        console.error('Connection failed:', error)
-        // ConnectorAlreadyConnectedError인 경우 상태 새로고침
+        // ConnectorAlreadyConnectedError 처리 - 강제 재연결 시도
         if (error instanceof Error && error.message.includes('ConnectorAlreadyConnectedError')) {
+          console.log('Connector already connected - attempting to reconnect...')
 
-          // 상태 불일치 감지 - 페이지 새로고침 권장
-          alert('Wallet connection state mismatch detected. Please refresh the page.')
+          try {
+            // 먼저 연결 해제 시도
+            console.log('Disconnecting first to clear state...')
+            disconnect()
+
+            // 잠시 대기 후 재연결 시도
+            setTimeout(async () => {
+              try {
+                console.log('Reconnecting after cleanup...')
+                await connect({ connector: injectedConnector })
+                console.log('Reconnection successful')
+              } catch (reconnectError) {
+                console.error('Reconnection failed:', reconnectError)
+                alert(`재연결에 실패했습니다. 메타마스크에서 연결을 해제한 후 다시 시도해주세요.\n\n에러: ${reconnectError instanceof Error ? reconnectError.message : 'Unknown error'}`)
+              }
+            }, 500)
+
+          } catch (disconnectError) {
+            console.error('Disconnect during reconnect failed:', disconnectError)
+            alert('연결 상태를 정리하는데 실패했습니다. 메타마스크에서 직접 연결을 해제한 후 다시 시도해주세요.')
+          }
+          return
+        }
+
+        // 실제 연결 실패의 경우에만 에러 로깅 및 알림
+        console.error('Actual connection failed:', error)
+        if (error instanceof Error) {
+          alert(`Connection failed: ${error.message}`)
         }
       }
     } else {
