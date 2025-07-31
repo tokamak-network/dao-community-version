@@ -5,6 +5,7 @@ import { useAccount } from 'wagmi'
 import { formatTONWithUnit, formatRelativeTime, formatDateTime, formatTokenAmountWithUnit, formatTokenAmountWithUnitPrecise } from '@/utils/format'
 import { CheckChallengeButton } from '@/components/CheckChallengeButton'
 import { CommitteeMember, Candidate } from '@/types/dao'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createRobustPublicClient, readContractWithRetry } from "@/lib/rpc-utils"
 import { daoCommitteeAbi } from "@/abis/dao-committee-versions"
 import { daoCandidateAbi } from "@/abis/dao-candidate"
@@ -554,6 +555,7 @@ export default function DAOCommitteeMembers() {
 
   // 툴팁 표시 상태
   const [showTooltip, setShowTooltip] = useState(false)
+  const [showChallengeTooltip, setShowChallengeTooltip] = useState(false)
 
   // 트랜잭션 타입 상태
   const [txType, setTxType] = useState<"vote" | "execute" | "claimActivityReward" | null>(null);
@@ -605,16 +607,38 @@ export default function DAOCommitteeMembers() {
 
           {/* Check the challenge 버튼 - 모든 사용자에게 표시 */}
           <div className="flex flex-col gap-2">
-            <button
-              onClick={handleGlobalChallengeCheck}
-              // disabled={isCheckingGlobal}
-              className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title={isMember ? "Analyze challenge status as committee member" : "Check challenge opportunities"}
-            >
-              <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
-              {isMember ? "Analyze Challenges" : "Check the challenge"}
+                                                <div className="flex items-center gap-2">
+              <button
+                onClick={handleGlobalChallengeCheck}
+                // disabled={isCheckingGlobal}
+                className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
+                {isMember ? "Analyze Challenges" : "Check the challenge"}
+                </div>
+              </button>
+              <div
+                className="relative"
+                onMouseEnter={() => setShowChallengeTooltip(true)}
+                onMouseLeave={() => setShowChallengeTooltip(false)}
+              >
+                <div className="w-4 h-4 bg-gray-100 rounded-full flex items-center justify-center border border-gray-300 cursor-help">
+                  <span className="text-xs text-gray-600 font-medium">?</span>
+                </div>
+                {showChallengeTooltip && (
+                  <div className="absolute right-0 top-6 w-80 bg-black text-white text-sm rounded-lg p-3 shadow-lg z-10">
+                    <div className="relative">
+                      {isMember
+                        ? "Analyze which candidates can challenge current committee members based on staking amounts and identify potential threats to your position"
+                        : "Find out which candidates have enough staking power to challenge current committee members and potentially replace them"
+                      }
+                      {/* 화살표 */}
+                      <div className="absolute -top-2 right-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-black"></div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </button>
+            </div>
           </div>
         </div>
 
