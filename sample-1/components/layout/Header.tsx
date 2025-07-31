@@ -211,15 +211,6 @@ export default function Header() {
                     Copy Address
                   </button>
                   <button
-                    className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-                    onClick={() => {
-                      handleConnect()
-                      setShowDropdown(false)
-                    }}
-                  >
-                    Reconnect
-                  </button>
-                  <button
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     onClick={handleDisconnect}
                   >
