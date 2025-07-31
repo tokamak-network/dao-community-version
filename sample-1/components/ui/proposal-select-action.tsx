@@ -129,10 +129,12 @@ function RequiredContractAddress({
           setError(null);
           onErrorChange?.(false);
           const proxyAbi = JSON.parse(proxyData.result);
-          // Filter only function and view types
+          // Filter only state-changing functions (exclude view and pure)
           const filteredProxyAbi = proxyAbi.filter(
             (item: any) =>
-              item.type === "function" && item.stateMutability != "view"
+              item.type === "function" &&
+              item.stateMutability !== "view" &&
+              item.stateMutability !== "pure"
           );
           setAbiProxy(filteredProxyAbi);
 
@@ -200,10 +202,12 @@ function RequiredContractAddress({
 
               if (logicData.status === "1") {
                 const logicAbi = JSON.parse(logicData.result);
-                // Filter only function and view types
+                // Filter only state-changing functions (exclude view and pure)
                 const filteredLogicAbi = logicAbi.filter(
                   (item: any) =>
-                    item.type === "function" && item.stateMutability != "view"
+                    item.type === "function" &&
+                    item.stateMutability !== "view" &&
+                    item.stateMutability !== "pure"
                 );
                 setAbiLogic(filteredLogicAbi);
               } else {
@@ -1044,7 +1048,8 @@ export function ProposalSelectAction({
                     const filteredAbi = abi.filter(
                       (item: any) =>
                         item.type === "function" &&
-                        item.stateMutability != "view"
+                        item.stateMutability !== "view" &&
+                        item.stateMutability !== "pure"
                     );
                     setCustomAbi(filteredAbi);
                   } catch (error) {
