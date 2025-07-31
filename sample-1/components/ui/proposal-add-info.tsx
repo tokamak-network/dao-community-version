@@ -19,8 +19,7 @@ interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {
 function RequiredString({ value, name }: { value: string; name: string }) {
   if (value === null || value.length === 0) {
     return (
-      <div className="flex items-center gap-1 text-red-500 mt-1">
-        <AlertCircle className="w-4 h-4" />
+      <div className="flex items-center gap-1 text-blue-500 mt-1">
         <span className="text-sm">{name} is required</span>
       </div>
     );
@@ -108,7 +107,7 @@ export function ProposalAddInfo({
               placeholder="Enter the title of your proposal"
               className={`${
                 title === null || title.length === 0
-                  ? "border-red-300 focus-visible:ring-red-300"
+                  ? "border-blue-300 focus-visible:ring-blue-300"
                   : titleError
                   ? "border-red-300 focus-visible:ring-red-300"
                   : "w-full border-gray-300"
@@ -134,7 +133,7 @@ export function ProposalAddInfo({
             placeholder="https://github.com/..."
             className={`${
               description === null || description.length === 0
-                ? "border-red-300 focus-visible:ring-red-300"
+                ? "border-gray-300 focus-visible:ring-gray-300"
                 : descriptionError
                 ? "border-red-300 focus-visible:ring-red-300"
                 : "border-gray-300"
@@ -164,9 +163,11 @@ export function ProposalAddInfo({
             <Input
               id="snapshot-url"
               value={snapshotUrl}
-              className={`w-full ${
-                snapshotUrlError
-                  ? "border-red-300 focus-visible:ring-red-300"
+              className={`${
+                snapshotUrl === null || description.length === 0
+                ? "border-gray-300 focus-visible:ring-gray-300"
+                : snapshotUrlError
+                   ? "border-red-300 focus-visible:ring-red-300"
                   : "border-gray-300"
               }`}
               onChange={handleSnapshotUrlChange}

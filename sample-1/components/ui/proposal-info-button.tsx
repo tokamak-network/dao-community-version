@@ -29,9 +29,6 @@ export function ProposalInfoButton({
     >
       <FileText className="mr-2 h-4 w-4" />
       {buttonText}
-      {!isComplete && (
-        <AlertCircle className="ml-auto h-4 w-4 text-orange-600" />
-      )}
     </Button>
   );
 }
