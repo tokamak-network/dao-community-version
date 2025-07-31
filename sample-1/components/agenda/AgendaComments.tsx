@@ -25,65 +25,90 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
   const { address } = useAccount()
   const { getVoterInfos } = useCombinedDAOContext()
 
-    useEffect(() => {
-      const fetchVoterInfos = async () => {
-        setIsLoadingVotes(true);
+      useEffect(() => {
+    const fetchVoterInfos = async () => {
+      // 🔥 기존 투표 데이터가 있고 voter 구성이 동일하다면 불필요한 fetch 방지
+      if (votes.length > 0 && agenda.voters &&
+          votes.length === agenda.voters.length &&
+          votes.every((vote, idx) => vote.address === agenda.voters![idx])) {
+        console.log('AgendaComments: Skipping unnecessary fetch - voters unchanged');
+        return;
+      }
 
-        if (!agenda.voters) {
-          // 초기에 voter가 없을 때 3명의 투표자에 대한 기본 UI 생성
-          const defaultVotes = Array(3)
-            .fill(null)
-            .map((_, index) => ({
-              address: `Committee Member ${index + 1}`,
-              vote: 0,
-              hasVoted: false,
-              synced: true,
-            }));
-          setVotes(defaultVotes);
-          setIsLoadingVotes(false);
-          return;
+      // 🔄 실제 데이터 변경이 필요한 경우에만 로딩 표시
+      setIsLoadingVotes(true);
 
-        } else {
-          const defaultVotes = agenda.voters.map((voter) => ({
-            address: voter,
+      if (!agenda.voters) {
+        // 초기에 voter가 없을 때 3명의 투표자에 대한 기본 UI 생성
+        const defaultVotes = Array(3)
+          .fill(null)
+          .map((_, index) => ({
+            address: `Committee Member ${index + 1}`,
             vote: 0,
             hasVoted: false,
-            synced: false,
+            synced: true,
           }));
-          setVotes(defaultVotes);
-          setIsLoadingVotes(false);
-        }
+        setVotes(defaultVotes);
+        setIsLoadingVotes(false);
+        return;
 
-        try {
-          const results = await getVoterInfos(agenda.id, agenda.voters);
+      } else {
+        const defaultVotes = agenda.voters.map((voter) => ({
+          address: voter,
+          vote: 0,
+          hasVoted: false,
+          synced: false,
+        }));
+        setVotes(defaultVotes);
+        setIsLoadingVotes(false);
+      }
 
-          // 🚀 바로 votes 업데이트
-          const votesInfo = agenda.voters.map((voter, index) => {
-            const result = results[index] as
-              | {
-                  isVoter: boolean;
-                  hasVoted: boolean;
-                  vote: bigint;
-                  synced: boolean;
-                }
-              | undefined;
-            return {
-              address: voter,
-              vote: result ? Number(result.vote) : 0,
-              hasVoted: result?.hasVoted || false,
-              synced: true,
-            };
-          });
+      try {
+        const results = await getVoterInfos(agenda.id, agenda.voters);
+
+        // 🚀 바로 votes 업데이트
+        const votesInfo = agenda.voters.map((voter, index) => {
+          const result = results[index] as
+            | {
+                isVoter: boolean;
+                hasVoted: boolean;
+                vote: bigint;
+                synced: boolean;
+              }
+            | undefined;
+          return {
+            address: voter,
+            vote: result ? Number(result.vote) : 0,
+            hasVoted: result?.hasVoted || false,
+            synced: true,
+          };
+        });
+
+        // 🎯 기존 데이터와 비교하여 변경사항이 있을 때만 업데이트
+        const hasChanges = votesInfo.some((newVote, idx) => {
+          const existingVote = votes[idx];
+          return !existingVote ||
+                 existingVote.hasVoted !== newVote.hasVoted ||
+                 existingVote.vote !== newVote.vote ||
+                 existingVote.synced !== newVote.synced;
+        });
+
+        if (hasChanges) {
+          console.log('AgendaComments: Updating votes due to changes');
           setVotes(votesInfo);
           setVoterInfos(results);
-        } catch (error) {
-          console.error("❌ AgendaComments: Failed to fetch voter infos:", error);
-        } finally {
-          setIsLoadingVotes(false);
+        } else {
+          console.log('AgendaComments: No changes detected, skipping update');
         }
-      };
-      fetchVoterInfos();
-  }, [agenda.id, agenda.voters, agenda.countingYes, agenda.countingNo, agenda.countingAbstain, getVoterInfos])
+      } catch (error) {
+        console.error("❌ AgendaComments: Failed to fetch voter infos:", error);
+      } finally {
+        setIsLoadingVotes(false);
+      }
+    };
+    fetchVoterInfos();
+    // 🎯 의존성 배열에서 counting 값들 제거 - 이들은 실제 투표 내용 변경과 무관
+}, [agenda.id, agenda.voters, getVoterInfos])
 
 
   const totalVotes =
