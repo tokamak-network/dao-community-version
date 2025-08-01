@@ -27,11 +27,36 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
 
       useEffect(() => {
     const fetchVoterInfos = async () => {
-      // 🔥 기존 투표 데이터가 있고 voter 구성이 동일하다면 불필요한 fetch 방지
-      if (votes.length > 0 && agenda.voters &&
-          votes.length === agenda.voters.length &&
-          votes.every((vote, idx) => vote.address === agenda.voters![idx])) {
-        console.log('AgendaComments: Skipping unnecessary fetch - voters unchanged');
+      // 🔥 투표 데이터 변경 감지를 위한 종합적인 비교
+      const hasVoterDataChanged = () => {
+        // 1. 투표자 수 변경 확인
+        if (!agenda.voters || votes.length !== agenda.voters.length) {
+          // console.log(`AgendaComments: Voter count changed: ${votes.length} → ${agenda.voters?.length || 0}`);
+          return true;
+        }
+
+        // 2. 투표자 구성 변경 확인 (순서나 주소 변경)
+        if (!votes.every((vote, idx) => vote.address === agenda.voters![idx])) {
+          // console.log('AgendaComments: Voter composition changed');
+          return true;
+        }
+
+        // 3. 투표 카운트 변경 확인 (새로운 투표나 투표 변경)
+        const totalVoteCount = Number(agenda.countingYes) + Number(agenda.countingNo) + Number(agenda.countingAbstain);
+        const currentVoteCount = votes.filter(vote => vote.hasVoted).length;
+
+        if (totalVoteCount !== currentVoteCount) {
+          // console.log(`AgendaComments: Vote count changed: ${currentVoteCount} → ${totalVoteCount} (Yes: ${agenda.countingYes}, No: ${agenda.countingNo}, Abstain: ${agenda.countingAbstain})`);
+          return true;
+        }
+
+        // 4. 모든 조건이 동일하면 변경 없음
+        // console.log('AgendaComments: No vote data changes detected, skipping fetch');
+        return false;
+      };
+
+      // 변경사항이 없으면 fetch 생략
+      if (votes.length > 0 && !hasVoterDataChanged()) {
         return;
       }
 
@@ -94,11 +119,11 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
         });
 
         if (hasChanges) {
-          console.log('AgendaComments: Updating votes due to changes');
+          // console.log('AgendaComments: Updating votes due to changes');
           setVotes(votesInfo);
           setVoterInfos(results);
         } else {
-          console.log('AgendaComments: No changes detected, skipping update');
+          // console.log('AgendaComments: No changes detected, skipping update');
         }
       } catch (error) {
         console.error("❌ AgendaComments: Failed to fetch voter infos:", error);

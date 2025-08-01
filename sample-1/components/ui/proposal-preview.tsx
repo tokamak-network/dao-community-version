@@ -81,9 +81,9 @@ export function ProposalPreview({
           !minimumNoticePeriodSeconds ||
           !minimumVotingPeriodSeconds
         ) {
-          console.log(
-            "\n=== createAgendaFees ||  minimumNoticePeriodSeconds || minimumVotingPeriodSeconds are null"
-          );
+          // console.log(
+          //   "\n=== createAgendaFees ||  minimumNoticePeriodSeconds || minimumVotingPeriodSeconds are null"
+          // );
           return;
         }
 

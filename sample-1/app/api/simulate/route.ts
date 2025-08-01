@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
     const { actions, daoContractAddress, forkRpcUrl, localRpcUrl, blockNumber, batchMode }: SimulateRequestBody =
       await request.json();
 
-    console.log("[API] Simulation request received:", {
-      actionsCount: actions.length,
-      dao: daoContractAddress,
-      forkUrl: forkRpcUrl,
-      localUrl: localRpcUrl,
-      block: blockNumber,
-      batchMode: batchMode || false,
-    });
+    // console.log("[API] Simulation request received:", {
+    //   actionsCount: actions.length,
+    //   dao: daoContractAddress,
+    //   forkUrl: forkRpcUrl,
+    //   localUrl: localRpcUrl,
+    //   block: blockNumber,
+    //   batchMode: batchMode || false,
+    // });
 
     if (!actions || !daoContractAddress || !forkRpcUrl || !localRpcUrl) {
       return NextResponse.json({
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         let isStreamClosed = false;
         const sendSseEvent = (eventName: string, data: any) => {
           if (isStreamClosed) {
-            console.log(`[API] Skipping SSE event '${eventName}' - stream already closed`);
+            // console.log(`[API] Skipping SSE event '${eventName}' - stream already closed`);
             return;
           }
           try {
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(message));
           } catch (error: any) {
             if (error.code === 'ERR_INVALID_STATE') {
-              console.log(`[API] Stream closed during SSE event '${eventName}'`);
+              // console.log(`[API] Stream closed during SSE event '${eventName}'`);
               isStreamClosed = true;
             } else {
               console.error(`[API] SSE event error:`, error);
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
             await localProvider.send("hardhat_stopImpersonatingAccount", [
               daoContractAddress,
             ]);
-            console.log("[API Cleanup] Impersonation stopped.");
+            // console.log("[API Cleanup] Impersonation stopped.");
           } catch (e) {
             console.error("[API Cleanup] Error stopping impersonation:", e);
           }
@@ -90,20 +90,20 @@ export async function POST(request: NextRequest) {
           });
           isStreamClosed = true;
           controller.close();
-          console.log("[API Cleanup] SSE stream explicitly ended.");
+          // console.log("[API Cleanup] SSE stream explicitly ended.");
         };
 
         const simulateActions = async () => {
           try {
             // Step 1: 로컬 노드 연결 테스트
-            console.log("[API LOG] Testing connection to local Hardhat node...");
+            // console.log("[API LOG] Testing connection to local Hardhat node...");
             sendSseEvent("log", {
               message: `Testing connection to local Hardhat node: ${localRpcUrl}...`,
             });
 
             try {
               const blockNumber = await localProvider.getBlockNumber();
-              console.log(`[API LOG] Local node connected successfully. Current block: ${blockNumber}`);
+              // console.log(`[API LOG] Local node connected successfully. Current block: ${blockNumber}`);
               sendSseEvent("log", {
                 message: `Local node connected successfully. Current block: ${blockNumber}`
               });
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Step 2: 계정 Impersonation (포킹은 이미 완료된 상태)
-            console.log("[API LOG] Attempting to impersonate account...");
+            // console.log("[API LOG] Attempting to impersonate account...");
             sendSseEvent("log", {
               message: `Impersonating account ${daoContractAddress}...`,
             });
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
               await localProvider.send("hardhat_impersonateAccount", [
                 daoContractAddress,
               ]);
-              console.log("[API LOG] Account impersonation successful.");
+              // console.log("[API LOG] Account impersonation successful.");
               sendSseEvent("log", {
                 message: `Account ${daoContractAddress} impersonated successfully.`,
               });
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
                 daoContractAddress,
                 "0x56BC75E2D63100000", // 100 ETH in Wei (100 * 10^18)
               ]);
-              console.log("[API LOG] Account balance set successfully.");
+              // console.log("[API LOG] Account balance set successfully.");
               sendSseEvent("log", {
                 message: `Account balance set to 100 ETH.`,
               });

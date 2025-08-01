@@ -60,14 +60,14 @@ export function AgendaSubmissionModal({
         } else {
           setPrStatus(PrSubmissionStatus.ERROR);
           setPrError(result.error || "Unknown error occurred");
-           console.log("❌ PR submission failed:", result.error);
+          //  console.log("❌ PR submission failed:", result.error);
         }
       } else if (shouldSaveLocally && onSaveLocally) {
         // 로컬 저장만 (서명 → 메타데이터 생성 → 다운로드)
         await onSaveLocally();
 
       } else {
-        console.log("⚠️ No action selected or handlers not provided");
+        // console.log("⚠️ No action selected or handlers not provided");
       }
     } catch (error) {
       setPrStatus(PrSubmissionStatus.ERROR);

@@ -179,7 +179,7 @@ export function ProposalImpactOverview({
 
     try {
       // Create snapshot before simulation to preserve state
-      console.log('Creating snapshot before simulation...');
+      // console.log('Creating snapshot before simulation...');
       const snapshotResponse = await fetch(localRpc!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +194,7 @@ export function ProposalImpactOverview({
       if (snapshotResponse.ok) {
         const snapshotData = await snapshotResponse.json();
         snapshotId = snapshotData.result;
-        console.log('Snapshot created:', snapshotId);
+        // console.log('Snapshot created:', snapshotId);
         setGeneralSimulationLogs(prev => [...prev, `Snapshot created: ${snapshotId}`]);
       } else {
         console.warn('Failed to create snapshot, proceeding without state preservation');
@@ -369,7 +369,7 @@ export function ProposalImpactOverview({
       // Always revert to snapshot after simulation to preserve state
       if (snapshotId && localRpc) {
         try {
-          console.log('Reverting to snapshot:', snapshotId);
+          // console.log('Reverting to snapshot:', snapshotId);
           const revertResponse = await fetch(localRpc, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -384,7 +384,7 @@ export function ProposalImpactOverview({
           if (revertResponse.ok) {
             const revertData = await revertResponse.json();
             if (revertData.result) {
-              console.log('Successfully reverted to snapshot');
+              // console.log('Successfully reverted to snapshot');
               setGeneralSimulationLogs(prev => [...prev, 'State restored to pre-simulation snapshot']);
             } else {
               console.warn('Failed to revert snapshot');
