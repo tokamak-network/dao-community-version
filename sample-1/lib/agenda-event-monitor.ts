@@ -88,7 +88,7 @@ const setupAgendaCreatedWatcher = (publicClient: any, handleAgendaCreated: Agend
       console.log('📥 AgendaCreated events received:', logs.length);
       logs.forEach((log) => {
         const {  from, id, targets, noticePeriodSeconds, votingPeriodSeconds, atomicExecute } = log.args;
-        console.log('🆕 New agenda created:', { id: id?.toString(), from });
+        // console.log('🆕 New agenda created:', { id: id?.toString(), from });
         handleAgendaCreated({
           id,
           from,
@@ -120,7 +120,7 @@ const setupAgendaVoteCastedWatcher = (publicClient: any, handleAgendaVoteCasted:
     abi: daoAgendaManagerAbi,
     eventName: 'AgendaVoteCasted',
     onLogs: (logs: any[]) => {
-      // console.log('📥 AgendaVoteCasted events received:', logs.length);
+      console.log('📥 AgendaVoteCasted events received:', logs.length);
       logs.forEach((log) => {
         const { from, id, voting, comment } = log.args;
         console.log('🗳️ Vote cast:', { id: id?.toString(), from, voting: voting?.toString() });

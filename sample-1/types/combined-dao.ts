@@ -8,7 +8,7 @@ interface AgendaContextType {
   error: string | null;
   refreshAgendas: () => Promise<void>;
   refreshAgenda: (agendaId: number) => Promise<void>;
-  refreshAgendaWithoutCache: (agendaId: number) => Promise<AgendaWithMetadata | null>;
+  refreshAgendaWithoutCache: (agendaId: number, overrideMetadataCache?: Set<number>) => Promise<AgendaWithMetadata | null>;
   getAgenda: (agendaId: number) => Promise<AgendaWithMetadata | null>;
   statusMessage: string;
   contract: {
@@ -96,11 +96,20 @@ export interface CombinedDAOContextType extends Omit<DAOContextType, keyof Overl
 
   paginationState?: any;
   paginationStatus?: string;
-  loadToPage?: (page: number) => void;
-  loadNextPage?: () => void;
+  loadNextPage?: () => Promise<AgendaWithMetadata[]>;
   hasMore?: () => boolean;
   getRemainingCount?: () => number;
   upsertAgenda?: (agenda: AgendaWithMetadata) => void;
+
+  // 메타데이터 관련
+  cachedMetadataIds?: Set<number>;
+  metadataIdListLastUpdated?: Date | null;
+  isLoadingMetadataIdList?: boolean;
+  metadataIdListError?: string | null;
+  loadMetadataIdList?: (startId?: number, endId?: number) => Promise<Set<number> | null>;
+  refreshMetadataIdList?: (startId?: number, endId?: number) => Promise<Set<number> | null>;
+  hasMetadata?: (agendaId: number) => boolean;
+  hasValidAgendaWithMetadata?: (agendaId: number) => boolean;
 }
 
 // 중복되는 필드들 정의 (AgendaContextType 것을 우선시하기 위해)

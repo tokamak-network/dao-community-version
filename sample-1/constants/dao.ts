@@ -43,3 +43,16 @@ export const AGENDA_STATUS = {
   APPROVED: "Approved",
   REJECTED: "Rejected",
 } as const;
+
+// 메타데이터 캐시 설정
+export const METADATA_CACHE_CONFIG = {
+  // 자동 업데이트 간격 (밀리초) - 기본값: 5분
+  AUTO_UPDATE_INTERVAL_MS: Number(
+    process.env.NEXT_PUBLIC_METADATA_CACHE_UPDATE_INTERVAL_MS || "300000"
+  ), // 5분 = 300,000ms
+
+  // 수동 업데이트 디바운스 시간 (밀리초) - 연속 호출 방지 - 아직 개발안됨
+  MANUAL_UPDATE_DEBOUNCE_MS: Number(
+    process.env.NEXT_PUBLIC_METADATA_CACHE_DEBOUNCE_MS || "5000"
+  ), // 5초
+} as const;

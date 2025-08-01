@@ -339,31 +339,65 @@ export interface AgendaMetadata {
   }[];
 }
 
+/**
+ * HEAD 요청으로 URL 존재 여부를 확인
+ * @param url - 확인할 URL
+ * @returns URL이 존재하면 true, 아니면 false
+ */
+export async function checkUrlExists(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      cache: 'no-cache' // 최신 상태 확인
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * URL 존재를 먼저 확인한 후 데이터를 가져오는 최적화된 fetch
+ * @param url - 가져올 URL
+ * @param options - fetch 옵션
+ * @returns Response 객체 또는 null (존재하지 않는 경우)
+ */
+export async function fetchWithExistenceCheck(url: string, options?: RequestInit): Promise<Response | null> {
+  try {
+    // 1. HEAD 요청으로 존재 확인
+    const exists = await checkUrlExists(url);
+    if (!exists) {
+      return null;
+    }
+
+    // 2. 존재하면 실제 데이터 가져오기
+    const response = await fetch(url, options);
+    return response.ok ? response : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function getAgendaMetadata(
   agendaId: number
 ): Promise<AgendaMetadata | null> {
   try {
     const networkName = getNetworkName(Number(process.env.NEXT_PUBLIC_CHAIN_ID));
     const metadataUrl = getMetadataUrl(agendaId, networkName);
-    const response = await fetch(metadataUrl);
 
-    if (!response.ok) {
-      // 404 에러 로그를 숨김 - 메타데이터가 없는 것은 정상적인 상황
-      if (response.status !== 404) {
-        console.error(`Error fetching metadata for agenda ${agendaId}:`, response.status, response.statusText);
-      }
+    // 최적화된 fetch 사용
+    const response = await fetchWithExistenceCheck(metadataUrl);
+    if (!response) {
       return null;
     }
 
     const metadata = await response.json();
     return metadata;
   } catch (error) {
-    // 404 에러가 아닌 다른 에러만 로그 출력
+    // 네트워크 에러만 로그 출력
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      // 네트워크 에러만 로그 출력
       console.error(`Network error fetching metadata for agenda ${agendaId}:`, error);
     } else if (error instanceof Error && !error.message.includes('404')) {
-      // 404가 아닌 다른 에러만 로그 출력
       console.error(`Error fetching metadata for agenda ${agendaId}:`, error);
     }
     return null;

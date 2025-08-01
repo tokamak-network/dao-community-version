@@ -121,11 +121,11 @@ const setupClaimedActivityRewardWatcher = (publicClient: any, handleActivityRewa
       logs.forEach((log, index) => {
         const { candidate, receiver, amount } = log.args;
         if (candidate && receiver && amount !== undefined) {
-          console.log('💰 Activity reward claimed:', {
-            candidate,
-            receiver,
-            amount: amount?.toString()
-          });
+          // console.log('💰 Activity reward claimed:', {
+          //   candidate,
+          //   receiver,
+          //   amount: amount?.toString()
+          // });
           handleActivityRewardClaimed({
             candidate,
             receiver,

@@ -29,6 +29,8 @@ export interface PaginationCallbacks {
   onStateChange: (state: PaginationState) => void;
   onStatusMessage: (message: string) => void;
   onBatchLoaded?: (batch: AgendaWithMetadata[]) => void;
+  onInitializedWithCount?: (totalCount: number) => void;
+  hasMetadata?: (agendaId: number) => boolean;
 }
 
 /**
@@ -173,8 +175,13 @@ export const loadAgendaPageWithAbort = async (
     if (validResults.length > 0) {
       callbacks.onStatusMessage(`Loading metadata for batch ${batchNumber}/${totalBatches} for page ${page}...`);
       try {
-        const agendaIds = validResults.map(a => a.id);
-        const metadataMap = await getAllAgendaMetadata(agendaIds);
+        // 메타데이터가 존재하는 아젠다 ID만 필터링 (캐시 활용)
+        const agendaIdsWithMetadata = callbacks.hasMetadata
+          ? validResults.filter(a => callbacks.hasMetadata!(a.id)).map(a => a.id)
+          : validResults.map(a => a.id); // fallback: 캐시가 없으면 모든 ID
+
+        // console.log(`🔍 Loading metadata for ${agendaIdsWithMetadata.length}/${validResults.length} agendas with metadata`);
+        const metadataMap = await getAllAgendaMetadata(agendaIdsWithMetadata);
         validResults.forEach((agenda) => {
           const metadata = metadataMap[agenda.id];
           if (metadata) {
@@ -194,10 +201,10 @@ export const loadAgendaPageWithAbort = async (
       } catch (error) {
         callbacks.onStatusMessage(`Failed to load metadata for batch ${batchNumber}: ${error}`);
       }
-      // 배치 단위로 콜백 호출
-      if (callbacks.onBatchLoaded) {
-        callbacks.onBatchLoaded(validResults);
-      }
+      // 배치 단위로 콜백 호출 - 중복 추가 방지를 위해 비활성화
+      // if (callbacks.onBatchLoaded) {
+      //   callbacks.onBatchLoaded(validResults);
+      // }
     }
 
     // Rate limiting을 위한 짧은 대기 (마지막 배치가 아닌 경우)
@@ -259,6 +266,11 @@ export class AgendaPagination {
       this.setState({ totalCount });
 
       this.callbacks.onStatusMessage(`Found ${totalCount} total agendas`);
+
+      // 메타데이터 캐시 로드 콜백 호출
+      if (this.callbacks.onInitializedWithCount) {
+        this.callbacks.onInitializedWithCount(totalCount);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to get total agenda count';
       this.setState({ error: errorMessage });
@@ -332,12 +344,16 @@ export class AgendaPagination {
           return;
         }
 
-        // 페이지 데이터를 상태에 추가
+        // 페이지 데이터를 상태에 추가 (중복 제거)
         const newLoadedPages = new Set(this.state.loadedPages);
         newLoadedPages.add(page);
 
+        // 중복 제거: 기존 아젠다와 새 아젠다를 합치면서 ID 기준으로 중복 제거
+        const existingAgendaIds = new Set(this.state.agendas.map(a => a.id));
+        const uniqueNewAgendas = pageAgendas.filter(agenda => !existingAgendaIds.has(agenda.id));
+
         this.setState({
-          agendas: [...this.state.agendas, ...pageAgendas],
+          agendas: [...this.state.agendas, ...uniqueNewAgendas],
           loadedPages: newLoadedPages,
         });
       }
@@ -407,33 +423,33 @@ export class AgendaPagination {
     const agendas = this.state.agendas || [];
     const exists = agendas.some((a: any) => a.id === newAgenda.id);
 
-    console.log('🔄 UpsertAgenda called:', {
-      agendaId: newAgenda.id,
-      agendaTitle: newAgenda.title,
-      exists,
-      currentAgendasCount: agendas.length,
-      currentAgendaIds: agendas.map((a: any) => a.id)
-    });
+    // console.log('🔄 UpsertAgenda called:', {
+    //   agendaId: newAgenda.id,
+    //   agendaTitle: newAgenda.title,
+    //   exists,
+    //   currentAgendasCount: agendas.length,
+    //   currentAgendaIds: agendas.map((a: any) => a.id)
+    // });
 
     this.state = {
       ...this.state,
       agendas: (() => {
         if (exists) {
           const updated = agendas.map((a: any) => a.id === newAgenda.id ? newAgenda : a);
-          console.log('✏️ Updated existing agenda:', { agendaId: newAgenda.id });
+          // console.log('✏️ Updated existing agenda:', { agendaId: newAgenda.id });
           return updated;
         } else {
           const newList = [newAgenda, ...agendas];
-          console.log('➕ Added new agenda to list:', {
-            agendaId: newAgenda.id,
-            newListLength: newList.length,
-            newListIds: newList.map((a: any) => a.id)
-          });
+          // console.log('➕ Added new agenda to list:', {
+          //   agendaId: newAgenda.id,
+          //   newListLength: newList.length,
+          //   newListIds: newList.map((a: any) => a.id)
+          // });
           return newList;
         }
       })(),
     };
     this.callbacks.onStateChange?.(this.state);
-    console.log('📤 State change callback called');
+    // console.log('📤 State change callback called');
   }
 }
