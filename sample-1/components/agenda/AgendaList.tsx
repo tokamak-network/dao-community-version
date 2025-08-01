@@ -1,16 +1,19 @@
 'use client'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAccount } from 'wagmi'
 import PageHeader from '@/components/ui/PageHeader'
 import { useCombinedDAOContext } from '@/contexts/CombinedDAOContext'
 import { formatAddress, calculateAgendaStatus, getStatusText, getStatusClass, getStatusMessage, getAgendaTimeInfo, AgendaStatus, getNetworkName, getAgendaMetadataRepoFolderUrl } from '@/lib/utils'
 import { chain } from '@/config/chain'
-import { AgendaPagination, PaginationCallbacks } from '@/lib/agenda-pagination'
+// AgendaPagination 클래스 제거됨 - Context에서 직접 페이지네이션 관리
 
 export default function AgendaList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const focusAgendaId = searchParams?.get('focus')
+  const [highlightedAgendaId, setHighlightedAgendaId] = useState<string | null>(null)
   const { isConnected } = useAccount();
   const {
     error,
@@ -19,7 +22,6 @@ export default function AgendaList() {
     quorum,
     paginationState,
     paginationStatus,
-    loadToPage,
     loadNextPage,
     hasMore,
     getRemainingCount
@@ -32,22 +34,68 @@ export default function AgendaList() {
   const hasMoreAgendas = hasMore ? hasMore() : false;
   const remainingAgendas = getRemainingCount ? getRemainingCount() : 0;
 
-  // 디버깅: 아젠다 목록 변경 감지
+  // // 더보기 버튼 디버깅
+  // console.log('🔍 [AgendaList] Load More Button Debug:', {
+  //   isLoading,
+  //   hasMoreAgendas,
+  //   remainingAgendas,
+  //   displayAgendasCount: displayAgendas.length,
+  //   hasMoreFunction: !!hasMore,
+  //   getRemainingCountFunction: !!getRemainingCount,
+  //   paginationState: paginationState ? {
+  //     totalCount: paginationState.totalCount,
+  //     currentPage: paginationState.currentPage,
+  //     agendaCount: paginationState.agendas?.length
+  //   } : null
+  // });
+
+  // // 디버깅: 아젠다 목록 변경 감지
+  // useEffect(() => {
+  //   console.log('📋 Agenda list updated:', {
+  //     totalAgendas: displayAgendas.length,
+  //     agendaIds: displayAgendas.map((a: any) => a.id),
+  //     paginationState: paginationState ? {
+  //       totalLoaded: paginationState.agendas?.length,
+  //       isLoading: paginationState.isLoading,
+  //       hasMore: hasMoreAgendas,
+  //       remaining: remainingAgendas
+  //     } : null
+  //   });
+  // }, [displayAgendas.length, paginationState?.agendas?.length]);
+
+    // 포커스된 아젠다로 스크롤
   useEffect(() => {
-    console.log('📋 Agenda list updated:', {
-      totalAgendas: displayAgendas.length,
-      agendaIds: displayAgendas.map((a: any) => a.id),
-      paginationState: paginationState ? {
-        totalLoaded: paginationState.agendas?.length,
-        isLoading: paginationState.isLoading,
-        hasMore: hasMoreAgendas,
-        remaining: remainingAgendas
-      } : null
-    });
-  }, [displayAgendas.length, paginationState?.agendas?.length]);
+    if (focusAgendaId && displayAgendas.length > 0) {
+      const targetElement = document.getElementById(`agenda-${focusAgendaId}`);
+      if (targetElement) {
+        // 하이라이트 설정
+        setHighlightedAgendaId(focusAgendaId);
+
+        setTimeout(() => {
+          targetElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+
+          // 3초 후 하이라이트만 제거 (URL은 그대로 유지)
+          setTimeout(() => {
+            setHighlightedAgendaId(null);
+          }, 3000);
+        }, 100);
+      }
+    }
+  }, [focusAgendaId, displayAgendas.length]);
 
   // "View more" 버튼 클릭 시 다음 페이지 로드
   const handleLoadMore = () => {
+    // 더보기 시 focus 파라미터 제거 (새로 로드된 아젠다로 스크롤 방지)
+    if (focusAgendaId) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('focus');
+      window.history.replaceState({}, '', url.toString());
+      setHighlightedAgendaId(null);
+    }
+
     if (loadNextPage) loadNextPage();
   };
 
@@ -147,7 +195,13 @@ export default function AgendaList() {
           </div>
         ) : (
           displayAgendasMemo.map((agenda: any) => (
-          <div key={agenda.id} className="bg-white border border-gray-200 rounded-lg p-6">
+                    <div
+            key={agenda.id}
+            id={`agenda-${agenda.id}`}
+            className={`bg-white border border-gray-200 rounded-lg p-6 transition-all duration-300 ${
+              highlightedAgendaId === agenda.id.toString() ? 'ring-2 ring-blue-500 shadow-lg' : ''
+            }`}
+          >
 
             {/* Member Header */}
             <div className="flex justify-between items-start mb-4">
@@ -207,16 +261,26 @@ export default function AgendaList() {
       )}
 
       {/* Load More Button */}
-      {!isLoading && hasMoreAgendas && (
-        <div className="flex justify-center mt-8">
-          <button
-            onClick={handleLoadMore}
-            className="text-gray-500 text-sm hover:text-gray-700 transition-colors"
-          >
-            View more agenda ({remainingAgendas})
-          </button>
-        </div>
-      )}
+      {(() => {
+        const shouldShowButton = !isLoading && hasMoreAgendas;
+        // console.log('🔍 [AgendaList] Load More Button Render Check:', {
+        //   isLoading,
+        //   hasMoreAgendas,
+        //   shouldShowButton,
+        //   condition: `!${isLoading} && ${hasMoreAgendas} = ${shouldShowButton}`
+        // });
+
+        return shouldShowButton && (
+          <div className="flex justify-center mt-8">
+            <button
+              onClick={handleLoadMore}
+              className="text-gray-500 text-sm hover:text-gray-700 transition-colors"
+            >
+              View more agenda ({remainingAgendas})
+            </button>
+          </div>
+        );
+      })()}
     </div>
   )
 }

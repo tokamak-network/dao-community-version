@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { AgendaWithMetadata } from '@/types/agenda'
@@ -28,6 +28,7 @@ import { Copy, ExternalLink, Vote, Zap, MoreVertical, PlayCircle, RefreshCw} fro
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 import { toast } from "sonner";
+import { METADATA_CACHE_CONFIG } from "@/constants/dao";
 import { getExplorerUrl } from "@/utils/explorer";
 import { TransactionModal as CommonTransactionModal } from '@/components/ui/TransactionModal';
 
@@ -46,10 +47,14 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const [isCheckingVotes, setIsCheckingVotes] = useState(false)
   const [txType, setTxType] = useState<"vote" | "execute" | null>(null)
   const [isCheckingAuth, setIsCheckingAuth] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // 수동 업데이트 디바운스를 위한 ref
+  const lastRefreshTimeRef = useRef<number>(0)
 
   const router = useRouter()
   const { address } = useAccount()
-  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, isLoadingMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda, paginationState, loadNextPage, hasMore } = useCombinedDAOContext()
+  const { isCommitteeMember, getCommitteeMemberInfo, committeeMembers, isLoadingMembers, refreshAgenda, getAgenda, refreshAgendaWithoutCache, getVoterInfos, quorum, upsertAgenda, paginationState, loadNextPage, hasMore, hasValidAgendaWithMetadata, refreshMetadataIdList } = useCombinedDAOContext()
 
     // 지갑 연결/변경 시 짧은 로딩 피드백 제공
   useEffect(() => {
@@ -222,11 +227,11 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
     const handleAgendaExecuted = async (event: Event) => {
       const customEvent = event as CustomEvent<{ agendaId: number }>;
       if (customEvent.detail.agendaId === localAgenda.id) {
+        // console.log(`🔍 [AgendaDetail] Execution event for agenda ${localAgenda.id}`);
 
-        // 컨트랙트에서 최신 아젠다 데이터 가져오기
-        const latestAgenda = await getAgenda(localAgenda.id);
+        // refreshAgendaWithoutCache 내부에서 hasValidAgendaWithMetadata 체크 수행
+        const latestAgenda = await refreshAgendaWithoutCache(localAgenda.id);
         if (latestAgenda) {
-
           setLocalAgenda(latestAgenda);
         }
       }
@@ -239,7 +244,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
       window.removeEventListener("agendaExecuted", handleAgendaExecuted);
     };
-  }, [localAgenda.id, getAgenda]);
+  }, [localAgenda.id, refreshAgendaWithoutCache]);
 
    // 투표 상태 갱신을 위한 이벤트 리스너
    useEffect(() => {
@@ -247,11 +252,11 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       const customEvent = event as CustomEvent<{ agendaId: number }>;
 
       if (customEvent.detail.agendaId === localAgenda.id) {
+        // console.log(`🔍 [AgendaDetail] Vote update event for agenda ${localAgenda.id}`);
 
-        // 컨트랙트에서 최신 아젠다 데이터 가져오기
-        const latestAgenda = await getAgenda(localAgenda.id);
+        // refreshAgendaWithoutCache 내부에서 hasValidAgendaWithMetadata 체크 수행
+        const latestAgenda = await refreshAgendaWithoutCache(localAgenda.id);
         if (latestAgenda) {
-
           setLocalAgenda(latestAgenda);
           // 투표 상태도 갱신
           await refetch();
@@ -265,7 +270,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
       window.removeEventListener("agendaVoteUpdated", handleVoteUpdate);
     };
-  }, [localAgenda.id, getAgenda, refetch]);
+  }, [localAgenda.id, refreshAgendaWithoutCache, refetch]);
 
 
       // 투표 권한 확인 중인지 상태
@@ -503,12 +508,62 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
 
 
   const handleRefresh = async () => {
-    const updatedAgenda = await refreshAgendaWithoutCache(localAgenda.id);
-    if (updatedAgenda) {
-      setLocalAgenda(updatedAgenda);
-      if (upsertAgenda) {
-        upsertAgenda(updatedAgenda);
+    // 디바운스 체크: 연속 호출 방지
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
+
+    if (timeSinceLastRefresh < METADATA_CACHE_CONFIG.MANUAL_UPDATE_DEBOUNCE_MS) {
+      const remainingTime = Math.ceil((METADATA_CACHE_CONFIG.MANUAL_UPDATE_DEBOUNCE_MS - timeSinceLastRefresh) / 1000);
+      toast.warning(`Please wait ${remainingTime} seconds before refreshing again`);
+      // console.log(`⏰ [AgendaDetail] Refresh debounced. Please wait ${remainingTime} seconds`);
+      return;
+    }
+
+    if (isRefreshing) {
+      // console.log('🔄 [AgendaDetail] Already refreshing, skipping...');
+      return;
+    }
+
+    setIsRefreshing(true);
+    lastRefreshTimeRef.current = now;
+    // console.log('🔄 [AgendaDetail] Starting manual refresh...');
+
+                try {
+      // 1. 가장 먼저 메타데이터 캐시 갱신하고 새로운 캐시 받기
+      let freshMetadataCache: Set<number> | null = null;
+      if (typeof refreshMetadataIdList === 'function') {
+        try {
+          // console.log('🔄 [AgendaDetail] Refreshing metadata cache...');
+          freshMetadataCache = await refreshMetadataIdList(); // 새로운 캐시 Set 반환
+          // console.log('✅ [AgendaDetail] Metadata cache refreshed successfully');
+        } catch (error) {
+          console.warn('⚠️ [AgendaDetail] Failed to refresh metadata cache:', error);
+          // 메타데이터 캐시 갱신 실패는 치명적이지 않으므로 계속 진행
+        }
       }
+
+      // 2. 아젠다 데이터 갱신 (새로운 캐시를 매개변수로 전달)
+      // console.log('🔄 [AgendaDetail] Refreshing agenda data with fresh cache...');
+      const updatedAgenda = await refreshAgendaWithoutCache(
+        localAgenda.id,
+        freshMetadataCache || undefined // null이면 undefined로 변환
+      );
+      if (updatedAgenda) {
+        setLocalAgenda(updatedAgenda);
+        if (upsertAgenda) {
+          upsertAgenda(updatedAgenda);
+        }
+        // console.log('✅ [AgendaDetail] Agenda data refreshed successfully');
+        toast.success('Agenda refreshed successfully!');
+      } else {
+        console.warn('⚠️ [AgendaDetail] Failed to refresh agenda data');
+        toast.error('Failed to refresh agenda data');
+      }
+    } catch (error) {
+      console.error('❌ [AgendaDetail] Refresh failed:', error);
+      toast.error('Refresh failed. Please try again.');
+    } finally {
+      setIsRefreshing(false);
     }
   }
 
@@ -521,9 +576,9 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
+        <DropdownMenuItem onClick={handleRefresh} disabled={isRefreshing}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -598,7 +653,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
       {/* Navigation */}
       <div className="flex justify-between items-center mb-4">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push(`/agenda?focus=${localAgenda.id}`)}
           className="px-3 py-1.5 bg-white border border-gray-300 text-blue-600 text-xs rounded-md hover:bg-gray-50 transition-colors"
         >
           ← BACK TO ALL AGENDAS
