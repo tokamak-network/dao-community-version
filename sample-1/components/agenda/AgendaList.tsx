@@ -117,7 +117,7 @@ export default function AgendaList() {
 
       return {
         id: agenda.id,
-        title: agenda.title && agenda.title.trim() !== '' ? agenda.title : `Agenda #${agenda.id}`,
+        title: agenda.title && agenda.title.trim() !== '' ? agenda.title : `Agenda #${agenda.id} (Unregistered Metadata)`,
         author: agenda.creator?.address ? formatAddress(agenda.creator.address) : 'Unknown',
         date: agenda.createdTimestamp ? new Date(Number(agenda.createdTimestamp) * 1000).toLocaleDateString() : 'Unknown',
         status: getStatusText(currentStatus),
@@ -211,7 +211,10 @@ export default function AgendaList() {
                   <span className="text-slate-700 text-xs font-normal font-['Inter']">{agenda.id}</span>
                 </div>
                 <div className="self-stretch justify-start text-slate-700 text-xl font-semibold font-['Inter']">{agenda.title}</div>
-                <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">This agenda was made by {agenda.author} on {agenda.date}</div>
+                <div className="self-stretch justify-start text-gray-600 text-sm font-normal font-['Inter']">
+                  {agenda.author && agenda.author !== '0x0000...0000' ? 'This agenda was made by ' + agenda.author + ' on ' + agenda.date
+                  : 'This agenda was made on ' + agenda.date}
+                </div>
               </div>
             </div>
 
