@@ -4,6 +4,8 @@ import { AgendaWithMetadata } from '@/types/agenda'
 import { formatAddress } from '@/lib/utils'
 import { useCombinedDAOContext } from "@/contexts/CombinedDAOContext"
 import { useAccount } from 'wagmi'
+import { getExplorerUrl } from '@/utils/explorer'
+import { chain } from '@/config/chain'
 
 interface AgendaCommentsProps {
   agenda: AgendaWithMetadata
@@ -17,6 +19,8 @@ interface VoteInfo {
 }
 
 export default function AgendaComments({ agenda }: AgendaCommentsProps) {
+  const chainId = chain.id
+
   // 🎯 sample-2 방식: 이중 상태 관리
   const [votes, setVotes] = useState<VoteInfo[]>([])
   const [voterInfos, setVoterInfos] = useState<any[]>([])
@@ -178,7 +182,12 @@ export default function AgendaComments({ agenda }: AgendaCommentsProps) {
           {votes.map((voteInfo, index) => (
               <div key={index} className="py-4">
                 <div className="text-sm">
-                  <a href="#" className="text-blue-600 hover:text-blue-700 font-mono">
+                  <a
+                    href={getExplorerUrl(voteInfo.address, chainId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 font-mono"
+                  >
                     {formatAddress(voteInfo.address)}
                   </a>
                   {voteInfo.hasVoted && <span className="text-gray-700 ml-1">voted</span>}
