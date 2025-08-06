@@ -107,14 +107,18 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
     <div className="space-y-2">
       <div className="flex justify-between py-2">
         <span className="text-gray-600 text-sm">Agenda Creator</span>
-        <a
-          href={getExplorerUrl(agenda.creator?.address ?? "0x0000000000000000000000000000000000000000", chainId)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all"
-        >
-          {formatAddress((agenda.creator?.address ?? "0x0000000000000000000000000000000000000000") as string)}
-        </a>
+        {agenda.creator?.address != "0x0000000000000000000000000000000000000000" ? (
+          <a
+            href={getExplorerUrl(agenda.creator.address, chainId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 text-sm font-mono break-all"
+          >
+            {formatAddress(agenda.creator.address)}
+          </a>
+        ) : (
+          <span className="text-gray-900 text-sm">-</span>
+        )}
       </div>
 
       <div className="flex justify-between py-2">

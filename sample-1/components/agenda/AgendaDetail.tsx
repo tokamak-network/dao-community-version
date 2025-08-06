@@ -694,7 +694,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             <span className="text-gray-400 text-sm">Posted {formatDateSimple(Number(localAgenda.createdTimestamp))}</span>
           </div>
           <h1 className="text-xl font-semibold text-slate-700 font-['Inter'] mb-4">
-            {localAgenda.title || `Agenda #${localAgenda.id}`}
+            {localAgenda.title || `Agenda #${localAgenda.id} (Unregistered Metadata)`}
           </h1>
         </div>
 

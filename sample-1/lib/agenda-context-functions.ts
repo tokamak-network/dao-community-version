@@ -664,7 +664,7 @@ export function createAgendaContextFunctions(
           address: metadata ? getCreatorAddress(metadata.creator) : "0x0000000000000000000000000000000000000000" as `0x${string}`,
           signature: metadata ? getCreatorSignature(metadata.creator) : undefined,
         },
-        title: metadata?.title || `Agenda #${agendaId}`,
+        title: metadata?.title || `Agenda #${agendaId} (Unregistered Metadata)`,
         description: metadata?.description || `-`,
         snapshotUrl: metadata?.snapshotUrl,
         discourseUrl: metadata?.discourseUrl,
