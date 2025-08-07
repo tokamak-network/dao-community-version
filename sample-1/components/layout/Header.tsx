@@ -15,8 +15,39 @@ export default function Header() {
 
   // 🎯 Hydration Error 방지 - 클라이언트 마운트 후에만 지갑 상태 표시
   useEffect(() => {
+    console.log('🔄 Header: Component mounting...')
     setIsMounted(true)
+    console.log('✅ Header: Component mounted, isMounted = true')
   }, [])
+
+  // 지갑 상태 변화 감지 및 로깅 (디버깅용)
+  useEffect(() => {
+    console.log('🔍 Header: Wallet state changed:', {
+      isMounted,
+      isConnected,
+      address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null,
+      isPending,
+      connectorsCount: connectors.length
+    })
+  }, [isMounted, isConnected, address, isPending, connectors])
+
+  // 로딩 상태 변화 추적
+  useEffect(() => {
+    const shouldShowLoading = !isMounted || isPending
+    const shouldShowWallet = isConnected && address
+    const shouldShowConnectButton = !shouldShowLoading && !shouldShowWallet
+
+    console.log('🎯 Header: UI State Analysis:', {
+      shouldShowLoading,
+      shouldShowWallet,
+      shouldShowConnectButton,
+      reason: shouldShowLoading
+        ? (isPending ? 'isPending=true' : '!isMounted')
+        : shouldShowWallet
+        ? 'isConnected && address'
+        : '!isConnected || !address'
+    })
+  }, [isMounted, isConnected, address, isPending])
 
   // 연결 에러 로깅 (ConnectorAlreadyConnectedError는 무시)
   useEffect(() => {
@@ -24,23 +55,14 @@ export default function Header() {
       // ConnectorAlreadyConnectedError는 완전히 무시
       if (connectError.message?.includes('ConnectorAlreadyConnectedError') ||
           connectError.name?.includes('ConnectorAlreadyConnectedError')) {
-        // console.log('ConnectorAlreadyConnectedError ignored - this is expected behavior')
+        console.log('⚠️ Header: ConnectorAlreadyConnectedError ignored - this is expected behavior')
         return
       }
 
       // 다른 실제 에러만 로깅
-      console.error('Connect error:', connectError)
+      console.error('❌ Header: Connect error:', connectError)
     }
   }, [connectError])
-
-  //     // 지갑 상태 변화 감지 및 로깅 (디버깅용)
-  // useEffect(() => {
-  //   console.log('Wallet state changed:', {
-  //     isConnected,
-  //     address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null,
-  //     isPending
-  //   })
-  // }, [isConnected, address, isPending])
 
 
   // 현재 경로에 따라 활성 메뉴 스타일 결정

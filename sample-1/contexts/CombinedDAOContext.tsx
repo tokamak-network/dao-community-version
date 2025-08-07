@@ -77,7 +77,6 @@ const CombinedDAOContext = createContext<CombinedDAOContextType | undefined>(und
 const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
 
-
   // 🔍 렌더링 원인 추적
   const renderCount = useRef(0);
   const prevProps = useRef({ address, isConnected });
@@ -88,6 +87,15 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
   const propsChanged =
     prevProps.current.address !== address ||
     prevProps.current.isConnected !== isConnected;
+
+  // 🎯 디버그 로깅
+  useEffect(() => {
+    console.log('🏛️ CombinedDAOProvider: Render #', renderCount.current, {
+      isConnected,
+      address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null,
+      propsChanged
+    })
+  }, [isConnected, address, propsChanged])
 
   // 🎯 상태 관리 - Context에서 직접 관리 (sample-2 방식)
   const [committeeStatusMessage, setCommitteeStatusMessage] = useState("");
