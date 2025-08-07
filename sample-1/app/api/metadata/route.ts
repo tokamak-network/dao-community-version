@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// 동적 라우트로 설정
+export const dynamic = 'force-dynamic';
+
 interface MetadataResponse {
   success: boolean;
   agendaId: number;
@@ -10,7 +13,7 @@ interface MetadataResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const agendaId = searchParams.get('agendaId');
     const network = searchParams.get('network') || 'sepolia';
 
