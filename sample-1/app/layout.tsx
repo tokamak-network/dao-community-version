@@ -35,24 +35,12 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <head>
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            console.log('🔧 RootLayout: Inline script executed!');
-          `
-        }} />
-      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <Providers>
-          <Header/>
-          <main>
-            {children}
-          </main>
+          <Header />
           <StatusMessage />
-          {/* 개발 모드에서만 멀티워커 상태 표시 */}
-          {process.env.NODE_ENV === 'development' && (
-            <RPCWorkerStatus showDetails={true} />
-          )}
+          <RPCWorkerStatus />
+          <main>{children}</main>
         </Providers>
       </body>
     </html>
