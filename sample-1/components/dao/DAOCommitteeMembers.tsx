@@ -608,15 +608,15 @@ export default function DAOCommitteeMembers() {
           {/* Check the challenge 버튼 - 모든 사용자에게 표시 */}
           <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
-              <button
-                onClick={handleGlobalChallengeCheck}
-                // disabled={isCheckingGlobal}
-                className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
-                {isMember ? "Analyze Challenges" : "Check the challenge"}
-                </div>
-              </button>
+            <button
+              onClick={handleGlobalChallengeCheck}
+              // disabled={isCheckingGlobal}
+              className="p-3 bg-white rounded-md outline outline-1 outline-offset-[-1px] outline-slate-200 inline-flex justify-center items-center gap-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="text-center justify-start text-slate-700 text-sm font-semibold font-['Inter'] leading-none">
+              {isMember ? "Analyze Challenges" : "Check the challenge"}
+              </div>
+            </button>
               <div
                 className="relative"
                 onMouseEnter={() => setShowChallengeTooltip(true)}

@@ -794,17 +794,17 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                       Save Locally
                     </button>
                     {this.state.activeTab === "preview" && (
-                      <button
-                        onClick={this.handlePublish}
-                        disabled={!this.state.canSubmit}
-                        className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                          this.state.canSubmit
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                        }`}
-                      >
-                        Submit DAO Agenda
-                      </button>
+                    <button
+                      onClick={this.handlePublish}
+                      disabled={!this.state.canSubmit}
+                      className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                        this.state.canSubmit
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
+                      Submit DAO Agenda
+                    </button>
                     )}
                   </div>
                 </div>
