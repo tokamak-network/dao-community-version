@@ -31,8 +31,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  console.log('🌍 RootLayout: Rendering...')
+
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            console.log('🔧 RootLayout: Inline script executed!');
+          `
+        }} />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <Providers>
           <Header/>
