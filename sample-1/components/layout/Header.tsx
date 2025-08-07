@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 
 export default function Header() {
+  console.log('🚨 Header: Component is rendering!')
+
   const pathname = usePathname()
   const { address, isConnected } = useAccount()
   const { connect, connectors, error: connectError, isPending } = useConnect()
