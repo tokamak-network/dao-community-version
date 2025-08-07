@@ -16,11 +16,15 @@ const queryClient = new QueryClient({
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    console.log('🚀 Providers: WagmiProvider initializing...')
-    console.log('🔧 Providers: Wagmi config:', {
-      chains: config.chains.map(chain => ({ id: chain.id, name: chain.name })),
-      connectors: config.connectors.map(connector => connector.type)
-    })
+    try {
+      console.log('🚀 Providers: WagmiProvider initializing...')
+      console.log('🔧 Providers: Wagmi config:', {
+        chains: config.chains.map(chain => ({ id: chain.id, name: chain.name })),
+        connectors: config.connectors.map(connector => connector.type)
+      })
+    } catch (error) {
+      console.error('❌ Providers: Wagmi initialization error:', error)
+    }
   }, [])
 
   return (
