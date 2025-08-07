@@ -1,11 +1,11 @@
 'use client'
 import Layout from '@/components/layout/Layout'
-import AgendaList from '@/components/agenda/AgendaList'
+import AgendaListWithSearchParams from '@/components/agenda/AgendaListWithSearchParams'
 
 export default function AgendaPage() {
   return (
     <Layout>
-      <AgendaList />
+      <AgendaListWithSearchParams />
     </Layout>
   )
 }
