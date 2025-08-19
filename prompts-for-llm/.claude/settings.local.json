@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(/usr/local/bin/npm run dev)",
+      "Bash(npm run build:*)",
+      "Bash(/usr/local/bin/npm run build)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin)",
+      "Bash(npx tsc:*)",
+      "Bash(/usr/local/bin/node:*)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin npm run dev)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(/usr/local/bin/npm install)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/tokamak-dao-app)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/tokamak-dao-app)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/tokamak-dao-app)",
+      "Bash(rm:*)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npx create-next-app@latest tokamak-dao-agenda-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-install)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npx create-next-app@15.4.3 /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --turbo --skip-install)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
+      "Bash(grep:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
