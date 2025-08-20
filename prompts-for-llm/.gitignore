@@ -1,2 +1,103 @@
-generated-apps/
+# Generated Apps - Node.js/Next.js applications
+generated-apps/*/node_modules/
+generated-apps/*/.next/
+generated-apps/*/dist/
+generated-apps/*/build/
+generated-apps/*/.env
+generated-apps/*/.env.local
+generated-apps/*/.env.development.local
+generated-apps/*/.env.test.local
+generated-apps/*/.env.production.local
+
+# Logs
+generated-apps/*/npm-debug.log*
+generated-apps/*/yarn-debug.log*
+generated-apps/*/yarn-error.log*
+generated-apps/*/lerna-debug.log*
+generated-apps/*/.pnpm-debug.log*
+
+# Runtime data
+generated-apps/*/pids
+generated-apps/*/*.pid
+generated-apps/*/*.seed
+generated-apps/*/*.pid.lock
+
+# Coverage directory used by tools like istanbul
+generated-apps/*/coverage/
+generated-apps/*/*.lcov
+
+# nyc test coverage
+generated-apps/*/.nyc_output
+
+# Dependency directories
+generated-apps/*/jspm_packages/
+
+# TypeScript cache
+generated-apps/*/*.tsbuildinfo
+
+# Optional npm cache directory
+generated-apps/*/.npm
+
+# Optional eslint cache
+generated-apps/*/.eslintcache
+
+# Microbundle cache
+generated-apps/*/.rpt2_cache/
+generated-apps/*/.rts2_cache_cjs/
+generated-apps/*/.rts2_cache_es/
+generated-apps/*/.rts2_cache_umd/
+
+# Optional REPL history
+generated-apps/*/.node_repl_history
+
+# Output of 'npm pack'
+generated-apps/*/*.tgz
+
+# Yarn Integrity file
+generated-apps/*/.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+generated-apps/*/.cache
+generated-apps/*/.parcel-cache
+
+# Next.js build output
+generated-apps/*/.next
+generated-apps/*/out
+
+# Nuxt.js build / generate output
+generated-apps/*/.nuxt
+generated-apps/*/dist
+
+# Gatsby files
+generated-apps/*/.cache/
+generated-apps/*/public
+
+# Storybook build outputs
+generated-apps/*/.out
+generated-apps/*/.storybook-out
+
+# Temporary folders
+generated-apps/*/tmp/
+generated-apps/*/temp/
+
+# Editor directories and files
+generated-apps/*/.vscode/
+generated-apps/*/.idea/
+generated-apps/*/*.swp
+generated-apps/*/*.swo
+generated-apps/*/*~
+
+# OS generated files
+generated-apps/*/.DS_Store
+generated-apps/*/.DS_Store?
+generated-apps/*/_*
+generated-apps/*/.Spotlight-V100
+generated-apps/*/.Trashes
+generated-apps/*/ehthumbs.db
+generated-apps/*/Thumbs.db
+
+# Package manager lock files (optional - uncomment if you want to ignore them)
+# generated-apps/*/package-lock.json
+# generated-apps/*/yarn.lock
+# generated-apps/*/pnpm-lock.yaml
 
