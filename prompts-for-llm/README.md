@@ -1,84 +1,205 @@
-# Tokamak DAO Community LLM Prompt Examples
+# Tokamak DAO Community - LLM Prompt Collection
 
-This repository provides feature-specific prompt examples that enable easy creation of various applications for the Tokamak DAO (Decentralized Autonomous Organization) community version using LLM.
+This repository provides feature-specific prompts for building Tokamak DAO (Decentralized Autonomous Organization) applications using Large Language Models. Each prompt generates complete, production-ready web applications with minimal setup.
 
-## Purpose
-- Support easy implementation of key features needed for Tokamak DAO community operations through prompts
-- Provide practical prompt examples for each feature that can be used immediately
+## 🎯 Purpose
+- **Rapid Development**: Create complete DAO applications in minutes using copy-paste prompts
+- **Production Ready**: Each prompt includes error handling, real-time updates, and professional UI
+- **Educational**: Learn Web3 development patterns through working examples
+- **Extensible**: Easily modify prompts for custom requirements
 
-## How to Use
-1. Reference the feature-specific prompt files below and input the appropriate prompt for your desired feature into an LLM (Claude, Gemini, Cursor, etc.)
-2. Feel free to modify the prompts as needed to fit your community situation
-
-## Feature-Specific Prompt File List
-- [prompt-agenda-list.md](prompts/prompt-agenda-list.md) : View agenda list
-- [prompt-agenda-detail.md](prompts/prompt-agenda-detail.md) : View agenda details
-- [prompt-agenda-create.md](prompts/prompt-agenda-create.md) : Create agenda
-- [prompt-agenda-pr.md](prompts/prompt-agenda-pr.md) : Submit PR to agenda metadata repository
-- [prompt-agenda-vote.md](prompts/prompt-agenda-vote.md) : Vote on agenda
-- [prompt-agenda-execute.md](prompts/prompt-agenda-execute.md) : Execute agenda
-
-## Extensibility
-- When new features are needed, you can add prompt files in the same format
-
----
-
-## 📄 Smart Contract Usage Guide
-
-Detailed information on how to use smart contracts for each feature (agenda list/detail inquiry, function calls, etc.) can be found in the following document:
-
-- [contract-usage.md](./contract-usage.md)
-
-## Tech Stack
-
-The applications built from these prompts typically use:
-- **Next.js 14** (App Router)
-- **TypeScript**
-- **wagmi v2** (Web3 React hooks)
-- **viem** (Ethereum library)
-- **@tanstack/react-query** (Data fetching)
-- **Tailwind CSS** (Styling)
-
-## Contract Addresses
-
-### Mainnet
-- TON: `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5`
-- Committee: `0xDD9f0cCc044B0781289Ee318e5971b0139602C26`
-- Agenda Manager: `0xcD4421d082752f363E1687544a09d5112cD4f484`
-
-### Sepolia Testnet
-- TON: `0xa30fe40285b8f5c0457dbc3b7c8a280373c40044`
-- Committee: `0xA2101482b28E3D99ff6ced517bA41EFf4971a386`
-- Agenda Manager: `0x1444f7a8bC26a3c9001a13271D56d6fF36B44f08`
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
-- MetaMask or other Web3 wallet
-- LLM access (Claude, Gemini, Cursor, etc.)
+- Node.js 18+ installed
+- MetaMask or compatible Web3 wallet
+- Access to an LLM (Claude, Gemini, ChatGPT, Cursor, etc.)
 
-### Using the Prompts
-
-1. Choose the appropriate prompt file for your needed feature
+### Quick Start (5 minutes)
+1. Choose a prompt from the list below
 2. Copy the prompt content
-3. Paste it into your preferred LLM
-4. Follow the generated code and instructions
-5. Customize as needed for your specific use case
+3. Paste into your preferred LLM
+4. Follow the generated code instructions
+5. Run the application locally
 
-## Contributing
+## 📋 Available Prompts
 
-1. Fork the repository
-2. Create a feature branch
-3. Add new prompt files following the existing format
-4. Test the prompts with actual LLM implementations
-5. Submit a pull request
+### Core DAO Functions
+- **[prompt-agenda-list.md](prompts/prompt-agenda-list.md)** - View all DAO agendas
+  - *Creates: Agenda browser with filtering and navigation*
 
-## License
+- **[prompt-agenda-view.md](prompts/prompt-agenda-view.md)** - View detailed agenda information
+  - *Creates: Detailed agenda viewer with real-time status updates*
 
-This project is licensed under the MIT License.
+- **[prompt-agenda-create.md](prompts/prompt-agenda-create.md)** - Create new agendas
+  - *Creates: Agenda creation form with transaction encoding*
 
-## Support
+- **[prompt-agenda-manage.md](prompts/prompt-agenda-manage.md)** - Complete agenda management
+  - *Creates: Full-featured app with viewing, voting, and execution*
 
-For support and questions, please open an issue in the repository.
+### Workflow & Integration
+- **[prompt-agenda-pr.md](prompts/prompt-agenda-pr.md)** - Submit agenda metadata PRs
+  - *Creates: GitHub integration for agenda documentation*
+
+## 🔧 How to Use Prompts
+
+Just tell your LLM what you want! Here are example requests:
+
+### 📋 For Agenda List Viewer
+```
+"Please create a complete DAO agenda list application in the folder 
+./generated-apps/tokamak-agenda-list using prompts/prompt-agenda-list.md. 
+Include all files needed to run immediately with npm install && npm run dev."
+```
+
+### 🔍 For Detailed Agenda Viewer
+```
+"Create a detailed agenda viewer application in ./generated-apps/tokamak-agenda-viewer 
+based on prompt-agenda-view.md. Include voting status, real-time updates, and all 
+features as a production-ready app."
+```
+
+### ⚙️ For Agenda Creator
+```
+"Build an agenda creation app in ./generated-apps/dao-agenda-creator using 
+prompt-agenda-create.md. Include transaction processing and error handling 
+to make it immediately runnable."
+```
+
+### 🏛️ For Complete Management System
+```
+"Create a complete DAO management system in ./generated-apps/tokamak-dao-manager 
+using prompt-agenda-manage.md with voting, execution, and management features. 
+Include all files and configurations for production-level operation."
+```
+
+### 🔄 For PR Submission Helper
+```
+"Create an agenda metadata PR submission tool in ./generated-apps/agenda-pr-helper 
+based on prompt-agenda-pr.md."
+```
+
+## 💬 Request Tips
+
+**What to say to your LLM:**
+- "using [prompt-name].md" (specify the prompt file)
+- "in the folder [path]" (specify target directory)
+- "completely runnable" (ensure it works immediately)
+- "include all files" (get complete project structure)
+- "ready to run with npm install && npm run dev" (specify execution requirements)
+- "production-ready" (ensure quality and error handling)
+
+## 🔍 Generated Apps Examples
+
+The `/generated-apps/` directory contains pre-built applications created using these prompts:
+- **agenda-list/**: Simple agenda listing interface
+- **agenda-detail-en/**: Detailed agenda viewer with English UI
+- **agenda-integrated-en/**: Complete management system with voting and execution
+
+## 🛠️ Tech Stack
+
+All generated applications use modern Web3 development tools:
+- **Next.js 15** with App Router
+- **TypeScript** for type safety
+- **wagmi v2** for Web3 React hooks
+- **viem v2** for Ethereum interactions
+- **@tanstack/react-query v5** for data fetching
+- **TailwindCSS** for styling
+
+## 🌐 Network Configuration
+
+### Mainnet (Production)
+- TON Token: `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5`
+- DAO Committee: `0xDD9f0cCc044B0781289Ee318e5971b0139602C26`
+- Agenda Manager: `0xcD4421d082752f363E1687544a09d5112cD4f484`
+
+### Sepolia Testnet (Development)
+- TON Token: `0xa30fe40285b8f5c0457dbc3b7c8a280373c40044`
+- DAO Committee: `0xA2101482b28E3D99ff6ced517bA41EFf4971a386`
+- Agenda Manager: `0x1444f7a8bC26a3c9001a13271D56d6fF36B44f08`
+
+## 📖 Additional Resources
+
+- **[contract-usage.md](./contract-usage.md)**: Smart contract integration guide
+- **[snippets/](./snippets/)**: Reusable code components
+- **[common/](./common/)**: Shared contract ABIs and configurations
+
+## 🛠️ Supported LLM Platforms
+
+### Claude Code (Recommended)
+```bash
+# Direct project creation
+claude-code "Create a complete DAO app in ./my-agenda-app using prompt-agenda-view.md"
+
+# Then run:
+cd my-agenda-app && npm install && npm run dev
+```
+
+### Web-based LLMs
+Simply copy-paste any English request from above:
+- **Claude 3.5 Sonnet** (claude.ai) - ✅ Tested & Working
+- **ChatGPT-4** (openai.com) - ✅ Compatible
+- **Gemini Pro** (gemini.google.com) - ✅ Compatible
+
+### VS Code with Cursor
+```
+1. Open project directory in Cursor
+2. Press Ctrl+K and paste any English request from above
+3. Cursor generates the complete project
+4. Run: npm install && npm run dev
+```
+
+## 💡 LLM Model Compatibility
+
+These prompts are designed to work with most modern LLM models:
+
+- **Claude 3.5 Sonnet** (Anthropic) - Used for prompt development
+- **ChatGPT** (OpenAI)
+- **Gemini** (Google)
+- **Other code-generation capable LLMs**
+
+**Note:** Example applications in `/generated-apps/` folder were created during actual development process.
+
+## 💡 Best Practices
+
+### Prompt Customization
+- Modify network addresses for your specific deployment
+- Adjust UI text and styling to match your brand
+- Add additional features by extending the base prompts
+
+### Development Workflow
+1. Start with a base prompt for rapid prototyping
+2. Test core functionality on Sepolia testnet
+3. Customize UI and add specific business logic
+4. Deploy to mainnet when ready
+
+### Error Handling
+All prompts include comprehensive error handling for:
+- Network connectivity issues
+- Wallet connection problems
+- Transaction failures
+- Invalid contract interactions
+
+## 🤝 Contributing
+
+### Adding New Prompts
+1. Fork this repository
+2. Create a new prompt file in `/prompts/`
+3. Follow the existing format and structure
+4. Test with multiple LLM providers
+5. Submit a pull request with examples
+
+### Improving Existing Prompts
+- Report issues via GitHub Issues
+- Suggest improvements through pull requests
+- Share generated applications in discussions
+
+## 📄 License
+
+MIT License - feel free to use these prompts for any purpose.
+
+## 🆘 Support
+
+- **Issues**: Report bugs or request features via GitHub Issues
+- **Discussions**: Share your generated applications and get help
+- **Documentation**: Refer to contract-usage.md for technical details
