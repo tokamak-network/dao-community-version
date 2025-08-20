@@ -24,7 +24,21 @@
       "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
       "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
       "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/sample-3/generated-app/tokamak-dao-agenda-app)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/agenda-manage)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/agenda-manage)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/agenda-manage)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build)",
+      "Bash(timeout 10 PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run dev)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin timeout 10s /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/agenda-manage)",
+      "Bash(npx create-next-app:*)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/dao-agenda-creator)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/dao-agenda-creator)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin timeout 10s /usr/local/bin/npm run dev --prefix /Users/zena/tokamak-projects/dao-community-version/prompts-for-llm/generated-apps/dao-agenda-creator)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npx create-next-app@15 ./generated-apps/agenda-create --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --turbo --skip-install)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm install wagmi@^2.16.0 viem@^2.33.0 @tanstack/react-query@^5.83.0 --prefix ./generated-apps/agenda-create)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/npm run build --prefix ./generated-apps/agenda-create)",
+      "Bash(PATH=/usr/local/bin:/usr/bin:/bin timeout 10s /usr/local/bin/npm run dev --prefix ./generated-apps/agenda-create)"
     ],
     "deny": [],
     "ask": []

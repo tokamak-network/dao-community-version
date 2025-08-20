@@ -15,13 +15,6 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
 - MetaMask or compatible Web3 wallet
 - Access to an LLM (Claude, Gemini, ChatGPT, Cursor, etc.)
 
-### Quick Start (5 minutes)
-1. Choose a prompt from the list below
-2. Copy the prompt content
-3. Paste into your preferred LLM
-4. Follow the generated code instructions
-5. Run the application locally
-
 ## 📋 Available Prompts
 
 ### Core DAO Functions
@@ -47,36 +40,46 @@ Just tell your LLM what you want! Here are example requests:
 
 ### 📋 For Agenda List Viewer
 ```
-"Please create a complete DAO agenda list application in the folder 
-./generated-apps/tokamak-agenda-list using prompts/prompt-agenda-list.md. 
-Include all files needed to run immediately with npm install && npm run dev."
+"Please create a complete DAO agenda list application in the folder
+./generated-apps/tokamak-agenda-list using prompts/prompt-agenda-list.md.
+Include all files needed to run immediately with npm install && npm run dev.
+
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
 ### 🔍 For Detailed Agenda Viewer
 ```
-"Create a detailed agenda viewer application in ./generated-apps/tokamak-agenda-viewer 
-based on prompt-agenda-view.md. Include voting status, real-time updates, and all 
-features as a production-ready app."
+"Create a detailed agenda viewer application in ./generated-apps/tokamak-agenda-viewer
+based on prompt-agenda-view.md. Include voting status, real-time updates, and all
+features as a production-ready app.
+
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
-### ⚙️ For Agenda Creator
+### ⚙️ For Agenda Create
 ```
-"Build an agenda creation app in ./generated-apps/dao-agenda-creator using 
-prompt-agenda-create.md. Include transaction processing and error handling 
-to make it immediately runnable."
+"Build an agenda creation app in ./generated-apps/agenda-create using
+prompt-agenda-create.md. Include transaction processing and error handling
+to make it immediately runnable.
+
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
 ### 🏛️ For Complete Management System
 ```
-"Create a complete DAO management system in ./generated-apps/tokamak-dao-manager 
-using prompt-agenda-manage.md with voting, execution, and management features. 
-Include all files and configurations for production-level operation."
+"Create a complete DAO management system in ./generated-apps/agenda-manage
+using prompt-agenda-manage.md with voting, execution, and management features.
+Include all files and configurations for production-level operation.
+
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
 ### 🔄 For PR Submission Helper
 ```
-"Create an agenda metadata PR submission tool in ./generated-apps/agenda-pr-helper 
-based on prompt-agenda-pr.md."
+"Create an agenda metadata PR submission tool in ./generated-apps/agenda-pr-helper
+based on prompt-agenda-pr.md.
+
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
 ## 💬 Request Tips
@@ -129,10 +132,13 @@ All generated applications use modern Web3 development tools:
 ### Claude Code (Recommended)
 ```bash
 # Direct project creation
-claude-code "Create a complete DAO app in ./my-agenda-app using prompt-agenda-view.md"
+claude-code "Create a complete DAO Agenda management system in ./generated-apps/agenda-manage
+using prompt-agenda-manage.md with voting, execution, and management features.
+Include all files and configurations for production-level operation using.
+After creating the app, please go through the checklist in the prompt and verify each item one by one."
 
 # Then run:
-cd my-agenda-app && npm install && npm run dev
+cd ./generated-apps/agenda-manage && npm install && npm run dev
 ```
 
 ### Web-based LLMs
