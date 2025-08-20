@@ -95,9 +95,8 @@ After creating the app, please go through the checklist in the prompt and verify
 ## 🔍 Generated Apps Examples
 
 The `/generated-apps/` directory contains pre-built applications created using these prompts:
-- **agenda-list/**: Simple agenda listing interface
-- **agenda-detail-en/**: Detailed agenda viewer with English UI
-- **agenda-integrated-en/**: Complete management system with voting and execution
+- **agenda-create/**: Agenda creation form with transaction processing and validation
+- **agenda-manage/**: Complete management system with viewing, voting, and execution features
 
 ## 🛠️ Tech Stack
 
@@ -124,8 +123,8 @@ All generated applications use modern Web3 development tools:
 ## 📖 Additional Resources
 
 - **[contract-usage.md](./contract-usage.md)**: Smart contract integration guide
-- **[snippets/](./snippets/)**: Reusable code components
-- **[common/](./common/)**: Shared contract ABIs and configurations
+- **[snippets/react/](./snippets/react/)**: Reusable React components for agenda operations
+- **[common/](./common/)**: Shared contract ABIs and network configurations
 
 ## 🛠️ Supported LLM Platforms
 
@@ -134,7 +133,7 @@ All generated applications use modern Web3 development tools:
 # Direct project creation
 claude-code "Create a complete DAO Agenda management system in ./generated-apps/agenda-manage
 using prompt-agenda-manage.md with voting, execution, and management features.
-Include all files and configurations for production-level operation using.
+Include all files and configurations for production-level operation.
 After creating the app, please go through the checklist in the prompt and verify each item one by one."
 
 # Then run:
