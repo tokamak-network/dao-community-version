@@ -60,8 +60,34 @@ function approveAndCall(
 // Get total number of agendas
 function numAgendas() view returns (uint256)
 
-// Get complete agenda data structure
-function agendas(uint256 _index) view returns (LibAgenda.Agenda memory)
+// Get complete agenda data structure by agenda ID
+function agendas(uint256 _agendaID) view returns (LibAgenda.Agenda memory)
+```
+
+**Return Value - LibAgenda.Agenda Structure:**
+```solidity
+struct Agenda {
+    uint256 createdTimestamp;        // When agenda was created
+    uint256 noticeEndTimestamp;      // When notice period ends
+    uint256 votingPeriodInSeconds;   // Duration of voting period
+    uint256 votingStartedTimestamp;  // When voting started
+    uint256 votingEndTimestamp;      // When voting ends
+    uint256 executableLimitTimestamp; // Execution deadline
+    uint256 executedTimestamp;       // When executed (0 if not executed)
+    uint256 countingYes;             // Number of YES votes
+    uint256 countingNo;              // Number of NO votes
+    uint256 countingAbstain;         // Number of ABSTAIN votes
+    AgendaStatus status;             // Current status (enum)
+    AgendaResult result;             // Current result (enum)
+    address[] voters;                // List of all voters
+    bool executed;                   // Whether agenda was executed
+}
+```
+
+**Usage Example:**
+```typescript
+const agenda = await agendaManager.read.agendas([BigInt(agendaId)])
+// Returns LibAgenda.Agenda structure as defined above
 ```
 
 #### Agenda Creation
@@ -90,8 +116,9 @@ function minimumVotingPeriodSeconds() view returns (uint256)
 // CRITICAL: Always use this function to check voting status
 function getVoteStatus(
     uint256 _agendaID,
-    address _user
+    address _memberAddress
 ) view returns (bool hasVoted, uint256 vote)
+```
 
 // Get voting counts
 function getVotingCount(uint256 _agendaID) view returns (
@@ -142,18 +169,31 @@ function getAgendaVotingEndTimeSeconds(uint256 _agendaID) view returns (uint256)
 
 ### DAOCommittee Contract
 
-#### Agenda Status and Results
+#### Version Detection
 ```solidity
-// Get current agenda status and result
+// Check DAO Committee version
+function version() pure returns (string memory)
+```
+**Version Detection:**
+- Returns "2.0.0" for DAO Committee v2
+
+#### Agenda Status and Results
+**DAO Committee v2 only:**
+```solidity
+// Get current agenda status and result (v2 only)
 function currentAgendaStatus(uint256 _agendaID) view returns (
     uint256 agendaResult,
     uint256 agendaStatus
 )
 ```
 
-**Status and Result Enums:**
+**Status and Result Enums (v2 only):**
 - **AgendaResult**: 0=PENDING, 1=ACCEPT, 2=REJECT, 3=DISMISS, 4=NO_CONSENSUS, 5=NO_AGENDA
 - **AgendaStatus**: 0=NONE, 1=NOTICE, 2=VOTING, 3=WAITING_EXEC, 4=EXECUTED, 5=ENDED, 6=NO_AGENDA
+
+**DAO Committee v1:**
+- `currentAgendaStatus()` 함수가 없음
+- `AgendaManager.agendas()`의 status 필드만 사용
 
 #### Committee Management
 ```solidity
@@ -176,11 +216,23 @@ function candidateInfos(address candidate) view returns (
 #### Agenda Execution
 ```solidity
 // Execute approved agenda (open to anyone)
-function executeAgenda(uint256 agendaId)
+function executeAgenda(uint256 _agendaID)
 
 // Check execution permission (for debugging only)
 function canExecute(address user) view returns (bool)
 ```
+
+**Execution Logic by Version:**
+
+**DAO Committee v2:**
+- `Committee.currentAgendaStatus()` 함수 사용 가능
+- `agendaStatus`=3 (WAITING_EXEC) 확인 가능
+- `agendaResult`= 4 (NO_CONSENSUS) prevents execution
+
+**DAO Committee v1:**
+- `Committee.currentAgendaStatus()` 함수 없음
+- `AgendaManager.agendas()`의 status=3 (WAITING_EXEC) 확인
+- `AgendaManager.agendas()`의 result=1 (ACCEPT) 확인
 
 ---
 
@@ -206,24 +258,47 @@ function hasVoted(uint256 _agendaID, address _user) view returns (bool)
 
 ## 📖 LibAgenda.Agenda Structure
 
+The `LibAgenda.Agenda` structure is the core data structure returned by the `agendas(uint256 _agendaID)` function. It contains all information about a specific agenda.
+
 ```solidity
 struct Agenda {
-    uint256 createdTimestamp;        // When agenda was created
-    uint256 noticeEndTimestamp;      // When notice period ends
-    uint256 votingPeriodInSeconds;   // Duration of voting period
-    uint256 votingStartedTimestamp;  // When voting started
-    uint256 votingEndTimestamp;      // When voting ends
-    uint256 executableLimitTimestamp; // Execution deadline
-    uint256 executedTimestamp;       // When executed (0 if not executed)
+    uint256 createdTimestamp;        // When agenda was created (Unix timestamp)
+    uint256 noticeEndTimestamp;      // When notice period ends (Unix timestamp)
+    uint256 votingPeriodInSeconds;   // Duration of voting period in seconds
+    uint256 votingStartedTimestamp;  // When voting started (Unix timestamp)
+    uint256 votingEndTimestamp;      // When voting ends (Unix timestamp)
+    uint256 executableLimitTimestamp; // Execution deadline (Unix timestamp)
+    uint256 executedTimestamp;       // When executed (0 if not executed, Unix timestamp)
     uint256 countingYes;             // Number of YES votes
     uint256 countingNo;              // Number of NO votes
     uint256 countingAbstain;         // Number of ABSTAIN votes
     AgendaStatus status;             // Current status (enum)
     AgendaResult result;             // Current result (enum)
-    address[] voters;                // List of all voters
+    address[] voters;                // List of all voter addresses
     bool executed;                   // Whether agenda was executed
 }
 ```
+
+**Field Descriptions:**
+- **Timestamps**: All timestamps are Unix timestamps (seconds since epoch)
+- **Vote Counts**: Raw numbers of each vote type
+- **Status & Result**: Enum values representing current state
+- **Voters Array**: Complete list of addresses that have voted
+- **Executed Flag**: Boolean indicating if agenda has been executed
+
+**AgendaStatus Enum Values:**
+- `0`: NONE - Agenda doesn't exist
+- `1`: NOTICE - Agenda is in notice period (waiting for voting to start)
+- `2`: VOTING - Agenda is currently being voted on
+- `3`: WAITING_EXEC - Voting ended, agenda approved, waiting for execution
+- `4`: EXECUTED - Agenda has been executed successfully
+- `5`: ENDED - Agenda lifecycle has ended (rejected, dismissed, or executed)
+
+**AgendaResult Enum Values:**
+- `0`: PENDING - Agenda is waiting for voting to start or in progress
+- `1`: ACCEPT - Agenda was approved by majority vote
+- `2`: REJECT - Agenda was rejected by majority vote
+- `3`: DISMISS - Agenda was dismissed (insufficient votes, etc.)
 
 ---
 
@@ -236,29 +311,35 @@ const totalAgendas = await agendaManager.read.numAgendas()
 
 // Generate agenda IDs (newest first)
 const agendaIds = Array.from(
-  { length: Number(totalAgendas) }, 
+  { length: Number(totalAgendas) },
   (_, i) => Number(totalAgendas) - 1 - i
 )
 
-// Fetch each agenda
+// Fetch each agenda by ID
 for (const id of agendaIds) {
   const agenda = await agendaManager.read.agendas([BigInt(id)])
   // Process agenda data...
 }
 ```
 
-### 2. **Getting Detailed Agenda Information**
+### 2. **Getting Specific Agenda by ID**
 ```typescript
-// Basic agenda data
+// Get a specific agenda by its ID
+const agenda = await agendaManager.read.agendas([BigInt(agendaId)])
+```
+
+### 3. **Getting Detailed Agenda Information**
+```typescript
+// Basic agenda data by ID
 const agenda = await agendaManager.read.agendas([BigInt(agendaId)])
 
 // Current status and result
 const [result, status] = await committee.read.currentAgendaStatus([BigInt(agendaId)])
 
-// Voting information for specific user
+// Voting information for specific committee member
 const [hasVoted, vote] = await agendaManager.read.getVoteStatus([
-  BigInt(agendaId), 
-  userAddress
+  BigInt(agendaId),
+  memberAddress
 ])
 
 // Execution details
@@ -267,7 +348,7 @@ const [targets, bytecodes, atomic, startFrom] = await agendaManager.read.getExec
 ])
 ```
 
-### 3. **Creating New Agenda**
+### 4. **Creating New Agenda**
 ```typescript
 // Check requirements
 const fee = await agendaManager.read.createAgendaFees()
@@ -283,7 +364,7 @@ await tonToken.write.approveAndCall([
 ])
 ```
 
-### 4. **Committee Voting**
+### 5. **Committee Voting**
 ```typescript
 // Get committee member's candidate contract
 const candidateContract = await committee.read.candidateInfos([memberAddress])
@@ -296,7 +377,7 @@ await candidateContract.write.castVote([
 ])
 ```
 
-### 5. **Agenda Execution**
+### 6. **Agenda Execution**
 ```typescript
 // Anyone can execute approved agendas
 await committee.write.executeAgenda([BigInt(agendaId)])
@@ -313,7 +394,7 @@ await committee.write.executeAgenda([BigInt(agendaId)])
 
 ### Vote Types
 - `1`: YES (approve agenda)
-- `2`: NO (reject agenda)  
+- `2`: NO (reject agenda)
 - `3`: ABSTAIN (neutral vote)
 
 ### Permission Model
@@ -324,50 +405,6 @@ await committee.write.executeAgenda([BigInt(agendaId)])
 ### Gas Optimization
 - Batch multiple read calls when possible
 - Use multicall patterns for fetching multiple agendas
-- Cache static data like contract addresses and minimum periods
-
----
-
-## 📂 Code Examples
-
-- **React Examples**: [snippets/react/](./snippets/react/)
-  - `agenda-list.tsx`: Agenda listing with pagination
-  - `agenda-detail.tsx`: Detailed agenda viewer
-  - `agenda-create.tsx`: Agenda creation form
-  - `agenda-vote.tsx`: Committee voting interface
-  - `agenda-execute.tsx`: Agenda execution handler
-  - `agenda-pr.tsx`: GitHub PR submission helper
-
-- **Generated Apps**: [generated-apps/](./generated-apps/)
-  - `agenda-create/`: Complete agenda creation application
-  - `agenda-manage/`: Full-featured management system
-
----
-
-## 🔧 Development Setup
-
-### Required Dependencies
-```json
-{
-  "wagmi": "^2.16.0",
-  "viem": "^2.33.0",
-  "@tanstack/react-query": "^5.83.0"
-}
-```
-
-### Configuration Example
-```typescript
-import { createConfig, http } from 'wagmi'
-import { mainnet, sepolia } from 'wagmi/chains'
-
-export const config = createConfig({
-  chains: [mainnet, sepolia],
-  transports: {
-    [mainnet.id]: http(),
-    [sepolia.id]: http(),
-  },
-})
-```
 
 ---
 

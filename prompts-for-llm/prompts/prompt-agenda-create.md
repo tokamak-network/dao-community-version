@@ -11,6 +11,29 @@ cd dao-agenda-creator
 npm install wagmi@^2.16.0 viem@^2.33.0 @tanstack/react-query@^5.83.0
 ```
 
+## ⚠️ **CRITICAL: RPC Configuration (MANDATORY)**
+```typescript
+// lib/wagmi.ts - Use MetaMask's built-in RPC to avoid rate limits
+export const config = createConfig({
+  chains: [mainnet, sepolia],
+  connectors: [metaMask()],
+  transports: {
+    [mainnet.id]: http(), // No URL = uses MetaMask RPC
+    [sepolia.id]: http(), // No URL = uses MetaMask RPC
+  },
+})
+```
+
+**Performance Requirements:**
+- ❌ NEVER use `refetchInterval` in useReadContract
+- ✅ Use manual refetch() only after user actions
+- ❌ Avoid automatic polling to prevent RPC rate limits
+
+**UI Requirements (MANDATORY):**
+- 🔄 Add manual refresh button for user-controlled updates
+- ⏱️ Show loading states during refresh operations
+- 📱 Ensure responsive design for all screen sizes
+
 ### 2. **Essential Files**
 Create these files exactly as shown:
 
@@ -674,7 +697,7 @@ useEffect(() => {
 'use client'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAccount, useChainId, useWriteContract, useReadContract, useWaitForTransactionReceipt, useEstimateGas } from 'wagmi'
-import { encodeAbiParameters, decodeEventLog, formatEther } from 'viem'
+import { encodeAbiParameters, decodeEventLog, formatEther, encodeFunctionData } from 'viem'
 import { safe, validate, ux } from '@/lib/safe-utils'
 import { getContracts, isChainSupported, getEtherscanUrl } from '@/lib/wagmi'
 import { TON_ABI, COMMITTEE_ABI, AGENDA_MANAGER_ABI } from '@/lib/abis'
@@ -806,7 +829,17 @@ export function AgendaForm() {
         throw new Error(`Transaction ${index + 1}: Expected ${inputs.length} parameters, got ${parameters.length}`)
       }
 
-      return encodeAbiParameters(inputs, parameters)
+      // 함수 시그니처를 포함한 callData 생성
+      try {
+        const abiFunction = abi as { name: string; inputs: unknown[] }
+        return encodeFunctionData({
+          abi: [abiFunction as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+          functionName: abiFunction.name,
+          args: parameters as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        })
+      } catch (error) {
+        throw new Error(`Transaction ${index + 1}: Failed to encode function data - ${error}`)
+      }
     })
 
     return encodeAbiParameters([

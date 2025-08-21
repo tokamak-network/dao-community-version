@@ -41,7 +41,7 @@ Just tell your LLM what you want! Here are example requests:
 ### 📋 For Agenda List Viewer
 ```
 "Please create a complete DAO agenda list application in the folder
-./generated-apps/tokamak-agenda-list using prompts/prompt-agenda-list.md.
+./generated-apps/agenda-list using prompts/prompt-agenda-list.md.
 Include all files needed to run immediately with npm install && npm run dev.
 
 After creating the app, please go through the checklist in the prompt and verify each item one by one."
@@ -49,7 +49,7 @@ After creating the app, please go through the checklist in the prompt and verify
 
 ### 🔍 For Detailed Agenda Viewer
 ```
-"Create a detailed agenda viewer application in ./generated-apps/tokamak-agenda-viewer
+"Create a detailed agenda viewer application in ./generated-apps/agenda-viewer
 based on prompt-agenda-view.md. Include voting status, real-time updates, and all
 features as a production-ready app.
 
@@ -66,15 +66,18 @@ After creating the app, please go through the checklist in the prompt and verify
 ```
 
 ### 🏛️ For Complete Management System
+
+
 ```
 "Create a complete DAO management system in ./generated-apps/agenda-manage
 using prompt-agenda-manage.md with voting, execution, and management features.
 Include all files and configurations for production-level operation.
-
+한번에 오류없이 클린한 앱을 만들목적이기 때문에 프롬프트 문서를 아주 꼼꼼하게 확인하고 구현하고, 다시 점검해야해.
 After creating the app, please go through the checklist in the prompt and verify each item one by one."
 ```
 
 ### 🔄 For PR Submission Helper
+
 ```
 "Create an agenda metadata PR submission tool in ./generated-apps/agenda-pr-helper
 based on prompt-agenda-pr.md.
