@@ -17,6 +17,7 @@ import {
   Italic,
   Type,
   Underline,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,8 @@ import LinkExtension from "@tiptap/extension-link";
 import ImageExtension from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import MDEditor, { commands } from "@uiw/react-md-editor";
+import { BrowserProvider, ethers } from "ethers";
+import { DAO_COMMITTEE_PROXY_ADDRESS } from "@/config/contracts";
 
 interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
@@ -41,16 +44,45 @@ interface ProposalAddInfoProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function RequiredString({ value, name }: { value: string; name: string }) {
-  if (value === null || value.length == 0) {
+  if (value === null || value.length === 0) {
     return (
       <div className="flex items-center gap-1 text-red-500 mt-1">
         <AlertCircle className="w-4 h-4" />
         <span className="text-sm">{name} is required</span>
       </div>
     );
-  } else {
-    return;
   }
+  return null;
+}
+
+function ValidationError({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-1 text-red-500 mt-1">
+      <AlertCircle className="w-4 h-4" />
+      <span className="text-sm">{message}</span>
+    </div>
+  );
+}
+
+function ContractVersionInfo({ version }: { version: string | null }) {
+  if (version === "2.0.0") {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">Enhanced Storage (v2.0.0)</p>
+            <p>
+              These reference URLs will be stored on-chain as memo data,
+              providing permanent and transparent access to proposal
+              documentation.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 export function ProposalAddInfo({
@@ -65,7 +97,82 @@ export function ProposalAddInfo({
   setDiscourseUrl,
   ...props
 }: ProposalAddInfoProps) {
-  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(true);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [snapshotUrlError, setSnapshotUrlError] = useState<string | null>(null);
+  const [discourseUrlError, setDiscourseUrlError] = useState<string | null>(
+    null
+  );
+  const [contractVersion, setContractVersion] = useState<string | null>(null);
+
+  // Check contract version
+  useEffect(() => {
+    const checkContractVersion = async () => {
+      try {
+        if (typeof window !== "undefined" && window.ethereum) {
+          const provider = new BrowserProvider(window.ethereum as any);
+          const daoContract = new ethers.Contract(
+            DAO_COMMITTEE_PROXY_ADDRESS,
+            ["function version() view returns (string)"],
+            provider
+          );
+
+          try {
+            const version = await daoContract.version();
+            setContractVersion(version);
+            console.log("✅ Contract version detected:", version);
+          } catch (versionError) {
+            console.log("❌ version() function not found - legacy contract");
+            setContractVersion("legacy");
+          }
+        }
+      } catch (error) {
+        console.error("Error checking contract version:", error);
+        setContractVersion("error");
+      }
+    };
+
+    checkContractVersion();
+  }, []);
+
+  const validateUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    if (newTitle.length <= 100) {
+      setTitle(newTitle);
+      setTitleError(null);
+    } else {
+      setTitleError("Title cannot exceed 100 characters");
+    }
+  };
+
+  const handleSnapshotUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setSnapshotUrl(url);
+    if (url && !validateUrl(url)) {
+      setSnapshotUrlError("Please enter a valid URL");
+    } else {
+      setSnapshotUrlError(null);
+    }
+  };
+
+  const handleDiscourseUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setDiscourseUrl(url);
+    if (url && !validateUrl(url)) {
+      setDiscourseUrlError("Please enter a valid URL");
+    } else {
+      setDiscourseUrlError(null);
+    }
+  };
 
   const editor = useEditor({
     extensions: [
@@ -80,6 +187,7 @@ export function ProposalAddInfo({
       }),
     ],
     content: description,
+    immediatelyRender: false, // SSR hydration mismatch 방지
     onUpdate: ({ editor }) => {
       setDescription(editor.getHTML());
     },
@@ -108,16 +216,25 @@ export function ProposalAddInfo({
           >
             Title
           </label>
-          <Input
-            placeholder="Enter the title of your proposal"
-            className={`${
-              title === null || title.length === 0
-                ? "border-red-300 focus-visible:ring-red-300"
-                : "w-full border-gray-300"
-            }`}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <div className="relative">
+            <Input
+              placeholder="Enter the title of your proposal"
+              className={`${
+                title === null || title.length === 0
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : titleError
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : "w-full border-gray-300"
+              }`}
+              value={title}
+              onChange={handleTitleChange}
+              maxLength={100}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+              {title.length}/100
+            </div>
+          </div>
+          {titleError && <ValidationError message={titleError} />}
           <RequiredString value={title} name="Title" />
         </div>
 
@@ -127,19 +244,10 @@ export function ProposalAddInfo({
             <label className="block text-lg font-semibold text-gray-900">
               Description
             </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsMarkdownMode(!isMarkdownMode)}
-              className="text-sm"
-            >
-              {isMarkdownMode ? "Rich Text" : "Markdown"}
-            </Button>
           </div>
 
           {isMarkdownMode ? (
             <div
-              data-color-mode="light"
               className={`${
                 description === null || description.length === 0
                   ? "border border-red-300 rounded-md"
@@ -292,36 +400,74 @@ export function ProposalAddInfo({
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="snapshot-url"
-            className="block text-lg font-semibold text-gray-900 mb-2"
-          >
-            Snapshot URL
-          </label>
-          <Input
-            id="snapshot-url"
-            defaultValue={snapshotUrl}
-            className="w-full border-gray-300"
-            onChange={(e) => setSnapshotUrl(e.target.value)}
-          />
-          <RequiredString value={snapshotUrl} name="Snapshot URL" />
-        </div>
+        {/* Reference URLs Section */}
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              Reference URLs
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Provide links to related documentation, voting platforms, or
+              official announcements.
+            </p>
+            <ContractVersionInfo version={contractVersion} />
+          </div>
 
-        <div>
-          <label
-            htmlFor="discourse-url"
-            className="block text-lg font-semibold text-gray-900 mb-2"
-          >
-            Discourse URL
-          </label>
-          <Input
-            id="discourse-url"
-            defaultValue={discourseUrl}
-            className="w-full border-gray-300"
-            onChange={(e) => setDiscourseUrl(e.target.value)}
-          />
-          <RequiredString value={discourseUrl} name="Discourse URL" />
+          {/* Snapshot URL */}
+          <div>
+            <label
+              htmlFor="snapshot-url"
+              className="block text-md font-medium text-gray-900 mb-2"
+            >
+              Snapshot URL
+            </label>
+            <p className="text-sm text-gray-500 mb-2">
+              Snapshot voting link, or alternative primary reference (official
+              announcement, documentation, etc.)
+            </p>
+            <Input
+              id="snapshot-url"
+              value={snapshotUrl}
+              className={`w-full ${
+                snapshotUrlError
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : "border-gray-300"
+              }`}
+              onChange={handleSnapshotUrlChange}
+              placeholder="https://snapshot.org/... or https://blog.example.com/..."
+            />
+            {snapshotUrlError && <ValidationError message={snapshotUrlError} />}
+            <RequiredString value={snapshotUrl} name="Snapshot URL" />
+          </div>
+
+          {/* Discourse URL */}
+          <div>
+            <label
+              htmlFor="discourse-url"
+              className="block text-md font-medium text-gray-900 mb-2"
+            >
+              Discourse URL{" "}
+              <span className="text-gray-400 font-normal">(Optional)</span>
+            </label>
+            <p className="text-sm text-gray-500 mb-2">
+              Forum discussion, Discourse thread, or additional reference
+              documentation
+            </p>
+            <Input
+              id="discourse-url"
+              value={discourseUrl}
+              className={`w-full ${
+                discourseUrlError
+                  ? "border-red-300 focus-visible:ring-red-300"
+                  : "border-gray-300"
+              }`}
+              onChange={handleDiscourseUrlChange}
+              placeholder="https://forum.example.com/... or https://discourse.example.com/..."
+            />
+            {discourseUrlError && (
+              <ValidationError message={discourseUrlError} />
+            )}
+          </div>
         </div>
       </div>
     </div>

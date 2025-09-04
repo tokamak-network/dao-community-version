@@ -1,0 +1,107 @@
+name: 🐛 Sample-1 Internal Test
+description: Report issues found during internal testing of Sample-1
+title: "[INTERNAL TEST] "
+labels: ["sample-1", "internal-test", "needs-review"]
+assignees:
+  - Zena-park
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for reporting issues found during internal testing of Sample-1.
+
+        Please provide detailed information about the test environment and reproduction steps.
+
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: Bug Type
+      description: What type of functionality is affected?
+      options:
+        - DAO Candidates - Committee Member List
+        - DAO Candidates - Member Details
+        - DAO Candidates - Activity Reward Claim
+        - DAO Candidates - Challenge Analysis/Challenge
+        - DAO Candidates - Member Retirement
+        - Agenda - List
+        - Agenda - Details
+        - Agenda - Creation
+        - Agenda - Simulation
+        - Agenda - Metadata Submission
+        - Agenda - Save A Metadata Locally
+        - Agenda - Voting
+        - Agenda - Execution
+        - UI/UX (interface, design, usability, responsive design, etc)
+        - Wallet (connection, transactions, signature generation, etc)
+        - Network  (connection, etc)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: A clear and concise description of what the issue is.
+      placeholder: Describe the issue...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: What should have happened?
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: A clear and concise description of what actually happened.
+      placeholder: What actually happened?
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Information about your testing environment
+      placeholder: |
+        - OS: [e.g. Windows 10, macOS 12.0, Ubuntu 20.04]
+        - Browser: [e.g. Chrome 96, Firefox 95, Safari 15]
+        - Node.js version: [e.g. 18.0.0]
+        - Wallet: [e.g. MetaMask 10.0.0, WalletConnect]
+        - Network: [e.g. Mainnet, Sepolia, Local]
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots/Error Messages
+      description: If applicable, add screenshots or error messages to help explain your problem.
+      placeholder: Paste screenshots or error messages here...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here.
+      placeholder: Any additional information...

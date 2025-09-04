@@ -1,0 +1,98 @@
+name: 🧪 Sample-2 User Report
+description: Report a bug or issue in Sample-2 as an user
+title: "[BUG/ISSUE] "
+labels: ["sample-2", "user-report", "needs-review"]
+assignees:
+  - Zena-park
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug in Sample-2!
+
+        Please provide as much detail as possible to help us understand and fix the issue.
+
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: Bug Type
+      description: What type of functionality is affected?
+      options:
+        - Proposal Management (creation, contract version support, multi-action, etc.)
+        - Advanced UI (dual-mode editor, interactive guide, impact overview, etc.)
+        - Voting System (committee voting, real-time updates, voting history, etc.)
+        - Execution Process (status tracking, transaction monitoring, expiration, etc.)
+        - Data Management (event updates, contract storage, metadata integration, etc.)
+        - Simulation (transaction simulation, gas estimation, etc.)
+        - UI/UX (interface, design, usability, responsive design)
+        - Wallet (connection, transactions, validation)
+        - Network/Blockchain (connection, data loading, multi-network support)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of what the bug is.
+      placeholder: Describe what you were trying to do and what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce?
+      description: Steps to reproduce the issue
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: What you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: A clear and concise description of what actually happened.
+      placeholder: What actually happened?
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Your system information
+      placeholder: |
+        - Operating System: [e.g. Windows 10, macOS, Ubuntu]
+        - Browser: [e.g. Chrome, Firefox, Safari]
+        - Wallet: [e.g. MetaMask, WalletConnect]
+        - Network: [e.g. Mainnet, Sepolia]
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain the problem
+      placeholder: Paste screenshots here...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional information
+      description: Any other information that might help
+      placeholder: Any other details...

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Code,
   Eye,
+  EyeOff,
   FileEdit,
   Home,
   ImageIcon,
@@ -26,6 +27,7 @@ import {
   Loader2,
   ChevronUp,
   Save,
+  FileUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProposalInfoButton } from "@/components/ui/proposal-info-button";
@@ -46,6 +48,8 @@ import { cn } from "@/lib/utils";
 import { ProposalPreview } from "@/components/ui/proposal-preview";
 import { useRouter } from "next/navigation";
 import { ProposalImpactOverview } from "@/components/ui/proposal-impact-overview";
+import { ProposalGuide } from "@/components/ui/proposal-guide";
+import { ProposalTips } from "@/components/ui/proposal-tips";
 
 interface Action {
   id: string;
@@ -86,11 +90,21 @@ interface ProposalFormState {
   activeEditSection: string;
   selectedActionId: string | null;
   currentSection: string;
+  activeSidebar: "guide" | "tips" | null;
+  transactionSuccess: boolean;
 }
+
+const styles = `
+@keyframes eye-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+`;
 
 export default class ProposalForm extends Component<{}, ProposalFormState> {
   private pendingAnimationInterval: NodeJS.Timeout | null = null;
   private router: any;
+  private fileInputRef = React.createRef<HTMLInputElement>();
 
   constructor(props: {}) {
     super(props);
@@ -117,6 +131,8 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       activeEditSection: "",
       selectedActionId: null,
       currentSection: "actions",
+      activeSidebar: "guide",
+      transactionSuccess: false,
     };
     this.handleValidBaseInput = this.handleValidBaseInput.bind(this);
     this.handleAddActionClick = this.handleAddActionClick.bind(this);
@@ -133,6 +149,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     this.handleActionCardClick = this.handleActionCardClick.bind(this);
     this.handleSaveLocally = this.handleSaveLocally.bind(this);
     this.handleLoadFromFile = this.handleLoadFromFile.bind(this);
+    this.handleTransactionSuccess = this.handleTransactionSuccess.bind(this);
   }
 
   componentDidMount() {
@@ -179,7 +196,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       type: "Custom",
     };
 
-    console.log("handleAddAction", newAction);
+    console.log("Adding new action:", newAction);
     this.setState((prevState) => ({
       actions: [...prevState.actions, newAction],
       showSelectAction: false,
@@ -275,7 +292,7 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
       expandedActionLogs: {},
     });
 
-    const daoAddress = process.env.NEXT_PUBLIC_DAO_CONTRACT_ADDRESS;
+    const daoAddress = process.env.NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS;
     const forkRpc = process.env.NEXT_PUBLIC_RPC_URL;
     const localRpc = process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL;
 
@@ -620,14 +637,48 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     reader.onload = (e) => {
       try {
         const proposalData = JSON.parse(e.target?.result as string);
-        this.setState({
-          title: proposalData.title || "",
-          description: proposalData.description || " ",
-          snapshotUrl: proposalData.snapshotUrl || "",
-          discourseUrl: proposalData.discourseUrl || "",
-          actions: proposalData.actions || [],
-        });
+        const { title, description, snapshotUrl, discourseUrl, actions } =
+          proposalData;
+
+        // Check if basic info is complete
+        const isBasicInfoComplete =
+          title?.trim() !== "" &&
+          description?.trim() !== "" &&
+          snapshotUrl?.trim() !== "";
+
+        // Reset all states first
+        this.setState(
+          {
+            title: "",
+            description: "",
+            snapshotUrl: "",
+            discourseUrl: "",
+            actions: [],
+            isValidIBaseInput: false,
+            showSelectAction: false,
+            showEditAction: false,
+            editingAction: null,
+            showImpactOverview: false,
+            simulationStep: "initial",
+            activeTab: "edit",
+            isEditMode: false,
+            activeEditSection: "",
+            showSimulation: false,
+          },
+          () => {
+            // Then set the loaded data
+            this.setState({
+              title: title || "",
+              description: description || "",
+              snapshotUrl: snapshotUrl || "",
+              discourseUrl: discourseUrl || "",
+              actions: actions || [],
+              isValidIBaseInput: isBasicInfoComplete,
+            });
+          }
+        );
       } catch (error) {
+        console.error("Error loading proposal file:", error);
         alert(
           "Error loading proposal file. Please make sure it's a valid proposal JSON file."
         );
@@ -636,190 +687,343 @@ export default class ProposalForm extends Component<{}, ProposalFormState> {
     reader.readAsText(file);
   };
 
+  handleTransactionSuccess = () => {
+    this.setState({
+      transactionSuccess: true,
+    });
+  };
+
   render() {
+    const {
+      title,
+      description,
+      snapshotUrl,
+      discourseUrl,
+      activeTab,
+      showSelectAction,
+      actions,
+      editingAction,
+      showEditAction,
+      showImpactOverview,
+      simulationStep,
+      simulatedActions,
+      generalSimulationLogs,
+      pendingText,
+      expandedActionLogs,
+      showSimulation,
+      isEditMode,
+      activeEditSection,
+      selectedActionId,
+      currentSection,
+      activeSidebar,
+    } = this.state;
+
+    const guideSteps = [
+      {
+        number: 1,
+        title: "Basic Information",
+        description: "Enter the basic details of your proposal",
+        tips: [
+          "Title and Description are required fields",
+          "Snapshot URL is required (can be Snapshot voting link, official announcement, etc.)",
+          "Discourse URL is optional (forum discussion, additional documentation)",
+          "v2.0.0 contracts store reference URLs on-chain for transparency",
+        ],
+      },
+      {
+        number: 2,
+        title: "Actions",
+        description:
+          "Define the actions that will be executed if your proposal is approved",
+        tips: [
+          "Add one or more actions that your proposal will execute",
+          "Ensure all contract addresses and methods are correct",
+          "Use the simulation feature to test your actions",
+        ],
+      },
+      {
+        number: 3,
+        title: "Preview & Submit",
+        description:
+          "Switch to the Preview tab to review your proposal and submit it to the DAO",
+        tips: [
+          "Double-check all information and actions in the preview",
+          "Review the impact overview",
+          "Make sure all required fields are filled",
+          "After submission, save the proposal metadata locally using the 'Save Locally' button",
+          "Keep the saved metadata file for future reference and tracking",
+        ],
+      },
+      {
+        number: 4,
+        title: "PR Submission",
+        description:
+          "After successful transaction, submit a PR to register your proposal",
+        tips: [
+          "Click the PR submission button that appears after successful transaction",
+          "This will register your proposal in the metadata repository",
+          "Once the PR is merged, your proposal will be publicly available",
+          "If your proposal details don't appear in the front service after PR merge, use the refresh button in the detail view to update the data",
+          "Save your proposal metadata locally using the 'Save Locally' button for future reference",
+        ],
+      },
+    ];
+
+    const getCurrentStep = () => {
+      // Check if all required fields in Basic Information are filled
+      const isBasicInfoComplete =
+        title.trim() !== "" &&
+        description.trim() !== "" &&
+        snapshotUrl.trim() !== "";
+
+      if (!isBasicInfoComplete) return 1;
+      if (actions.length === 0) return 2;
+      if (this.state.transactionSuccess) return 4;
+      return 3;
+    };
+
     return (
-      <div className="flex min-h-screen flex-col bg-gray-50">
-        <main className="flex-1 container mx-auto px-4 py-6">
-          <div className="flex justify-between mb-6">
-            <Tabs
-              value={this.state.activeTab}
-              onValueChange={(value) => this.setState({ activeTab: value })}
-              className="w-auto"
-            >
-              <TabsList className="bg-transparent p-0 h-auto">
-                <TabsTrigger
-                  value="edit"
-                  className={`px-4 py-2 border-b-2 ${
-                    this.state.activeTab === "edit"
-                      ? "border-gray-900 text-gray-900"
-                      : "border-transparent text-gray-500"
-                  }`}
-                >
-                  <FileEdit className="w-4 h-4 mr-2" />
-                  Edit
-                </TabsTrigger>
-                <TabsTrigger
-                  value="preview"
-                  className={`px-4 py-2 border-b-2 ${
-                    this.state.activeTab === "preview"
-                      ? "border-gray-900 text-gray-900"
-                      : "border-transparent text-gray-500"
-                  }`}
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Proposal Preview
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={this.handleLoadFromFile}
-                  className="hidden"
-                  id="proposal-file-input"
-                />
-                <Button
-                  size="sm"
-                  className="bg-gray-800 hover:bg-gray-700 text-white text-sm rounded-md"
-                  onClick={() =>
-                    document.getElementById("proposal-file-input")?.click()
-                  }
-                >
-                  <Import className="w-4 h-4 mr-2" />
-                  Load from File
-                </Button>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-sm rounded-md"
-                onClick={this.handleSaveLocally}
+      <>
+        <style>{styles}</style>
+        <div className="flex flex-col min-h-screen">
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col items-center">
+              <div
+                className={cn(
+                  "w-full max-w-7xl px-4 py-8 transition-all duration-300 mx-auto"
+                )}
               >
-                <Save className="w-4 h-4 mr-2" />
-                Save Locally
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-4">
-              <ProposalInfoButton
-                title={this.state.title}
-                description={this.state.description}
-                snapshotUrl={this.state.snapshotUrl}
-                discourseUrl={this.state.discourseUrl}
-                onClick={this.resetToDefaultView}
-              />
-              {this.state.actions.map((action, index) => (
-                <div
-                  key={action.id}
-                  className="border rounded-md p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-150 border-gray-200"
-                  onClick={() => this.handleActionCardClick(action)}
-                >
-                  <div className="font-medium truncate text-gray-900">
-                    Action #{index + 1}. {action.title}
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold text-gray-900">
+                      Create New Proposal
+                    </h1>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={this.handleSaveLocally}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Locally
+                      </button>
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={this.handleLoadFromFile}
+                        className="hidden"
+                        ref={this.fileInputRef}
+                      />
+                      <button
+                        onClick={() => this.fileInputRef.current?.click()}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <FileUp className="w-4 h-4 mr-2" />
+                        Load from File
+                      </button>
+                    </div>
                   </div>
-                  <div
-                    className="text-sm mt-1 truncate text-gray-500"
-                    title={action.method}
+                  <Tabs
+                    value={this.state.activeTab}
+                    onValueChange={(value) =>
+                      this.setState({ activeTab: value })
+                    }
+                    className="w-auto"
                   >
-                    {action.method.length > 30
-                      ? `${action.method.substring(0, 27)}...`
-                      : action.method}
+                    <TabsList className="bg-transparent p-0 h-auto">
+                      <TabsTrigger
+                        value="edit"
+                        className={`px-4 py-2 border-b-2 ${
+                          this.state.activeTab === "edit"
+                            ? "border-gray-900 text-gray-900"
+                            : "border-transparent text-gray-500"
+                        }`}
+                      >
+                        <FileEdit className="w-4 h-4 mr-2" />
+                        Edit
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="preview"
+                        className={cn(
+                          "px-4 py-2 border-b-2 relative",
+                          this.state.activeTab === "preview"
+                            ? "border-gray-900 text-gray-900"
+                            : "border-transparent text-gray-500",
+                          getCurrentStep() === 3 &&
+                            this.state.activeTab !== "preview" &&
+                            "animate-pulse"
+                        )}
+                      >
+                        {getCurrentStep() === 3 &&
+                        this.state.activeTab !== "preview" ? (
+                          <div className="relative w-4 h-4 mr-2">
+                            <Eye className="w-4 h-4 absolute animate-[bounce_1s_ease-in-out_infinite]" />
+                          </div>
+                        ) : (
+                          <Eye className="w-4 h-4 mr-2" />
+                        )}
+                        Proposal Preview
+                        {getCurrentStep() === 3 &&
+                          this.state.activeTab !== "preview" && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                          )}
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <div className="space-y-4">
+                      <ProposalInfoButton
+                        title={this.state.title}
+                        description={this.state.description}
+                        snapshotUrl={this.state.snapshotUrl}
+                        discourseUrl={this.state.discourseUrl}
+                        onClick={this.resetToDefaultView}
+                        buttonText="Basic Information"
+                      />
+                      {this.state.actions.map((action, index) => (
+                        <div
+                          key={action.id}
+                          className="border rounded-md p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-150 border-gray-200"
+                          onClick={() => this.handleActionCardClick(action)}
+                        >
+                          <div className="font-medium truncate text-gray-900">
+                            Action #{index + 1}. {action.title}
+                          </div>
+                          <div
+                            className="text-sm mt-1 truncate text-gray-500"
+                            title={action.method}
+                          >
+                            {action.method.length > 30
+                              ? `${action.method.substring(0, 27)}...`
+                              : action.method}
+                          </div>
+                        </div>
+                      ))}
+                      <ProposalAddActionButton
+                        onClick={this.handleAddActionClick}
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                        onClick={this.handleImpactOverviewClick}
+                        disabled={this.state.actions.length === 0}
+                      >
+                        <BarChart2 className="mr-2 h-4 w-4" />
+                        Impact overview
+                      </Button>
+                    </div>
+
+                    <div className="lg:col-span-4">
+                      {this.state.activeTab === "preview" ? (
+                        <ProposalPreview
+                          title={this.state.title}
+                          description={this.state.description}
+                          snapshotUrl={this.state.snapshotUrl}
+                          discourseUrl={this.state.discourseUrl}
+                          actions={this.state.actions}
+                          onModeChange={(mode, section) => {
+                            this.setState({
+                              activeTab: mode,
+                              currentSection: section || "actions",
+                            });
+                          }}
+                          onActionSelect={(actionId) => {
+                            const action = this.state.actions.find(
+                              (a) => a.id === actionId
+                            );
+                            if (action) {
+                              this.handleActionCardClick(action);
+                            }
+                          }}
+                          selectedActionId={this.state.selectedActionId}
+                          onEditButtonActivate={(section) => {
+                            this.setState({ activeEditSection: section });
+                          }}
+                          isEditMode={this.state.isEditMode}
+                          onImpactOverviewClick={this.handleImpactOverviewClick}
+                          showSimulation={this.state.showSimulation}
+                          onTransactionSuccess={this.handleTransactionSuccess}
+                        />
+                      ) : this.state.showImpactOverview ? (
+                        <ProposalImpactOverview
+                          simulationStep={this.state.simulationStep}
+                          generalSimulationLogs={
+                            this.state.generalSimulationLogs
+                          }
+                          simulatedActions={this.state.simulatedActions}
+                          pendingText={this.state.pendingText}
+                          expandedActionLogs={this.state.expandedActionLogs}
+                          onSimulateExecution={
+                            this.handleSimulateExecutionClick
+                          }
+                          onToggleActionLogs={this.toggleActionLogs}
+                        />
+                      ) : this.state.showEditAction &&
+                        this.state.editingAction ? (
+                        <div>
+                          <ProposalEditAction
+                            actionToEdit={this.state.editingAction}
+                            onSaveChanges={this.handleSaveChanges}
+                            onCancel={this.handleCancelEdit}
+                            onRemoveAction={this.handleRemoveAction}
+                            actionNumber={
+                              this.state.actions.findIndex(
+                                (a) => a.id === this.state.editingAction?.id
+                              ) + 1
+                            }
+                          />
+                        </div>
+                      ) : this.state.showSelectAction ? (
+                        <ProposalSelectAction
+                          onAddAction={this.handleAddAction}
+                        />
+                      ) : (
+                        <ProposalAddInfo
+                          title={this.state.title}
+                          description={this.state.description}
+                          snapshotUrl={this.state.snapshotUrl}
+                          discourseUrl={this.state.discourseUrl}
+                          setTitle={(title: string) => this.setState({ title })}
+                          setDescription={(description: string) =>
+                            this.setState({ description })
+                          }
+                          setSnapshotUrl={(snapshotUrl: string) =>
+                            this.setState({ snapshotUrl })
+                          }
+                          setDiscourseUrl={(discourseUrl: string) =>
+                            this.setState({ discourseUrl })
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
-              <ProposalAddActionButton onClick={this.handleAddActionClick} />
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-                onClick={this.handleImpactOverviewClick}
-                disabled={this.state.actions.length === 0}
-              >
-                <BarChart2 className="mr-2 h-4 w-4" />
-                Impact overview
-              </Button>
-            </div>
-
-            <div className="md:col-span-2">
-              {this.state.activeTab === "preview" ? (
-                <ProposalPreview
-                  title={this.state.title}
-                  description={this.state.description}
-                  actions={this.state.actions}
-                  onModeChange={(mode, section) => {
-                    this.setState({
-                      activeTab: mode,
-                      currentSection: section || "actions",
-                    });
-                  }}
-                  onActionSelect={(actionId) => {
-                    const action = this.state.actions.find(
-                      (a) => a.id === actionId
-                    );
-                    if (action) {
-                      this.handleActionCardClick(action);
-                    }
-                  }}
-                  selectedActionId={this.state.selectedActionId}
-                  onEditButtonActivate={(section) => {
-                    this.setState({ activeEditSection: section });
-                  }}
-                  isEditMode={this.state.isEditMode}
-                  onImpactOverviewClick={this.handleImpactOverviewClick}
-                  showSimulation={this.state.showSimulation}
-                />
-              ) : this.state.showImpactOverview ? (
-                <ProposalImpactOverview
-                  simulationStep={this.state.simulationStep}
-                  generalSimulationLogs={this.state.generalSimulationLogs}
-                  simulatedActions={this.state.simulatedActions}
-                  pendingText={this.state.pendingText}
-                  expandedActionLogs={this.state.expandedActionLogs}
-                  onSimulateExecution={this.handleSimulateExecutionClick}
-                  onToggleActionLogs={this.toggleActionLogs}
-                />
-              ) : this.state.showEditAction && this.state.editingAction ? (
-                <div>
-                  <ProposalEditAction
-                    actionToEdit={this.state.editingAction}
-                    onSaveChanges={this.handleSaveChanges}
-                    onCancel={this.handleCancelEdit}
-                    onRemoveAction={this.handleRemoveAction}
-                    actionNumber={
-                      this.state.actions.findIndex(
-                        (a) => a.id === this.state.editingAction?.id
-                      ) + 1
-                    }
-                  />
-                </div>
-              ) : this.state.showSelectAction ? (
-                <ProposalSelectAction onAddAction={this.handleAddAction} />
-              ) : (
-                <ProposalAddInfo
-                  title={this.state.title}
-                  setTitle={(title) => this.setState({ title })}
-                  description={this.state.description}
-                  setDescription={(description) =>
-                    this.setState({ description })
-                  }
-                  snapshotUrl={this.state.snapshotUrl}
-                  setSnapshotUrl={(snapshotUrl) =>
-                    this.setState({ snapshotUrl })
-                  }
-                  discourseUrl={this.state.discourseUrl}
-                  setDiscourseUrl={(discourseUrl) =>
-                    this.setState({ discourseUrl })
-                  }
-                />
-              )}
+              </div>
             </div>
           </div>
-        </main>
-      </div>
+          <div className="flex-1 flex flex-col items-center">
+            <ProposalGuide
+              currentStep={getCurrentStep()}
+              steps={guideSteps}
+              isVisible={activeSidebar === "guide"}
+              onToggle={() =>
+                this.setState({
+                  activeSidebar: activeSidebar === "guide" ? null : "guide",
+                })
+              }
+            />
+            <ProposalTips
+              currentStep={getCurrentStep()}
+              isVisible={activeSidebar === "tips"}
+              onToggle={() =>
+                this.setState({
+                  activeSidebar: activeSidebar === "tips" ? null : "tips",
+                })
+              }
+            />
+          </div>
+        </div>
+      </>
     );
   }
 }

@@ -51,11 +51,9 @@ export default function Navbar() {
 
         <nav className="hidden md:flex items-center space-x-6">
           <Link
-            href="/governance"
+            href="/"
             className={`flex items-center text-sm ${
-              pathname === "/governance"
-                ? "text-purple-600 font-medium"
-                : "text-gray-600"
+              pathname === "/" ? "text-purple-600 font-medium" : "text-gray-600"
             }`}
           >
             <Home className="w-4 h-4 mr-2" />
@@ -71,38 +69,6 @@ export default function Navbar() {
           >
             <FileEdit className="w-4 h-4 mr-2" />
             Proposals
-          </Link>
-          <Link
-            href="/community"
-            className={`flex items-center text-sm ${
-              pathname === "/community"
-                ? "text-purple-600 font-medium"
-                : "text-gray-600"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" className="mr-2">
-              <path
-                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                fill="currentColor"
-              />
-            </svg>
-            Community
-          </Link>
-          <Link
-            href="/treasury"
-            className={`flex items-center text-sm ${
-              pathname === "/treasury"
-                ? "text-purple-600 font-medium"
-                : "text-gray-600"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" className="mr-2">
-              <path
-                d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"
-                fill="currentColor"
-              />
-            </svg>
-            Treasury
           </Link>
         </nav>
 

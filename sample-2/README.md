@@ -1,253 +1,121 @@
-# DAO Community Version
+# DAO Community Version (Sample-2)
 
-## System Architecture
+A modern decentralized governance platform for managing community proposals, voting, and execution with enhanced user experience and transaction transparency.
 
-```mermaid
-graph TB
-    subgraph Frontend["Frontend<br/>Next.js/React"]
-        style Frontend fill:#e1f5fe,stroke:#01579b
-        DAO[DAO Proposal Website]
-        style DAO fill:#fff3e0,stroke:#e65100
-    end
+> **Note**: This is the `sample-2` implementation from the [tokamak-network/dao-community-version](https://github.com/tokamak-network/dao-community-version) repository, featuring the latest UI/UX improvements and advanced functionality.
 
-    subgraph Backend["Backend<br/>Next.js API Routes"]
-        style Backend fill:#f3e5f5,stroke:#4a148c
-        API[Simulation API]
-        style API fill:#fff3e0,stroke:#e65100
-    end
+## Table of Contents
 
-    subgraph Blockchain["Blockchain Nodes"]
-        style Blockchain fill:#e8f5e9,stroke:#1b5e20
-        HF[Hardforked Node<br/>API Communication]
-        BC[Blockchain Node<br/>Frontend Communication]
-    end
-
-    %% Core Communication
-    DAO --> |HTTP/WS| API
-    API --> |RPC| HF
-    DAO --> |RPC| BC
-
-    %% Component Details
-    subgraph Features["Implemented Features"]
-        style Features fill:#fff3e0,stroke:#e65100
-        DAO --> |Proposal List| BC
-        DAO --> |Proposal Creation| BC
-        DAO --> |Simulation Request| API
-        API --> |Simulation| HF
-        DAO --> |Transaction| BC
-    end
-```
-
-## Overview
-This project implements a DAO (Decentralized Autonomous Organization) system with proposal management, voting, and execution capabilities. The system allows community members to create proposals, simulate their execution, and vote on them.
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Development](#development)
+- [Recent Improvements](#recent-improvements)
+- [Documentation](#documentation)
+- [License](#license)
 
 ## Features
 
-### 1. Proposal Management ✅
-- **Proposal Creation** ✅
-  - Create on-chain proposals
-  - Support for different proposal types
-  - Rich text editor for proposal description
-  - Attachment support for additional documents
+### Proposal Management
+- **Enhanced Proposal Creation**: Interactive form with real-time preview and step-by-step guidance
+- **Contract Version Support**: Dynamic detection and support for v2.0.0 contracts with memo fields
+- **Multi-Action Support**: Create proposals with multiple contract actions
+- **Transaction Simulation**: Test proposal execution before submission using Hardhat fork
+- **Local Save/Load**: Save proposal drafts locally and reload for editing
+- **Repository Integration**: Automatic PR submission for proposal metadata registration
 
-- **Proposal Simulation** 🚧
-  - Pre-execution simulation of proposal effects
-  - Gas cost estimation
-  - State change preview
-  - Impact analysis on system parameters
+### Advanced User Interface
+- **Dual-Mode Editor**: Switch between edit and preview modes seamlessly
+- **Interactive Guide**: Step-by-step guidance with progress tracking
+- **Impact Overview**: Comprehensive simulation results and gas estimation using local fork
+- **Real-time Validation**: Form validation with clear error messages
+- **Responsive Design**: Optimized for desktop and mobile devices
 
-- **Proposal Submission** ✅
-  - Multi-step submission process
-  - Validation of proposal parameters
-  - Preview before final submission
-  - Transaction confirmation and status tracking
+### Voting System
+- **Committee-Based Voting**: Secure voting for committee members
+- **Real-time Updates**: Live vote counting and status updates
+- **Voting History**: Complete transaction history and vote tracking
+- **Multiple Vote Types**: Support for Yes/No/Abstain voting
+- **Wallet Connection Validation**: Comprehensive checks before voting
 
-## Development Details
+### Execution Process
+- **Anyone Can Execute**: Permissionless execution for approved proposals
+- **Status Tracking**: Clear execution status with color-coded indicators
+- **Transaction Monitoring**: Real-time transaction status updates
+- **Expiration Handling**: Automatic status updates for expired proposals
+- **Execution Validation**: Pre-execution checks and error handling
 
-### Tech Stack ✅
-- Frontend: Next.js, React, TypeScript
-- Smart Contracts: Solidity
-- Web3: wagmi, viem
-- UI: Tailwind CSS, shadcn/ui
+### Enhanced Data Management
+- **Event-Based Updates**: Real-time agenda updates via blockchain events
+- **Contract Storage Display**: View on-chain agenda data and execution status
+- **Metadata Integration**: Seamless integration of on-chain and off-chain data
+- **Network Support**: Multi-network support (Mainnet/Sepolia)
+- **Data Refresh**: Manual refresh capabilities for latest data
 
-### Smart Contract Architecture ✅
-1. **DAO Committee Proxy**
-   - Main governance contract
-   - Proposal creation and management
-   - Voting mechanism
-   - Execution control
+## Getting Started
 
-2. **Agenda Manager**
-   - Agenda tracking
-   - Status management
-   - Voting period control
-   - Execution scheduling
+### Prerequisites
+- Node.js v18 or higher
+- MetaMask or compatible Web3 wallet
+- Access to Ethereum network (Mainnet/Sepolia)
+- Git repository access for metadata registration
 
-### Key Components ✅
-1. **Proposal Creation Flow**
-   ```typescript
-   // Example of proposal creation process
-   const createProposal = async (proposalData) => {
-     // 1. Validate proposal data
-     // 2. Simulate execution
-     // 3. Submit to blockchain
-     // 4. Track status
-   };
-   ```
-
-## Testing
-
-### Local Development Setup ✅
+### Installation
 1. Clone the repository
    ```bash
-   git clone [repository-url]
-   cd dao-community-version
-   cd sample-2
+   git clone https://github.com/tokamak-network/dao-community-version.git
+   cd dao-community-version/sample-2
    ```
 
 2. Install dependencies
    ```bash
-   npm install
+   npm install --legacy-peer-deps
    ```
 
-3. Set up environment variables
+3. Configure environment
    ```bash
-   cp .env.example .env.local
+   # For Mainnet
+   cp .env.example.mainnet .env.local
+
+   # For Sepolia
+   cp .env.example.sepolia .env.local
    ```
 
-   Required environment variables:
-   ```
-   # Blockchain
-   NEXT_PUBLIC_RPC_URL=your_rpc_url
-   NEXT_PUBLIC_CHAIN_ID=your_chain_id
-
-   # Contract Addresses
-   NEXT_PUBLIC_DAO_COMMITTEE_PROXY=your_proxy_address
-   NEXT_PUBLIC_AGENDA_MANAGER=your_manager_address
-
-   # GitHub (for metadata)
-   GITHUB_TOKEN=your_github_token
-   GITHUB_REPO=your_repo_name
-   GITHUB_OWNER=your_username
-   ```
-
-4. Start local development server
+4. Start the development server
    ```bash
    npm run dev
    ```
 
-### Testing Proposals ✅
+For detailed setup instructions and configuration, please refer to [Environment Setup Guide](docs/environment-setup.md).
 
-1. **Creating a Proposal**
-   - Navigate to "New Proposal" page
-   - Fill in proposal details:
-     - Title
-     - Description
-     - Type (on-chain/off-chain)
-     - Parameters
-   - Click "Simulate" to preview effects
-   - Review simulation results
-   - Submit proposal
+## Development
 
-2. **Simulating Proposal Effects** 🚧
-   - Use the simulation panel to:
-     - Preview parameter changes
-     - Estimate gas costs
-     - Check state changes
-     - Verify execution conditions
+### Tech Stack
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Blockchain**: ethers.js v6, wagmi v2, viem
+- **UI Components**: Radix UI, Tailwind CSS, Lucide Icons
+- **State Management**: React Context with event-based updates
+- **Simulation**: Hardhat fork for proposal execution testing
+- **Code Quality**: ESLint, TypeScript strict mode
 
-### Contract Testing ✅
-```bash
-npm run test
-```
+### Key Components
+- **ProposalForm**: Advanced proposal creation with preview
+- **AgendaDetail**: Comprehensive agenda information display
+- **ProposalPreview**: Real-time preview with transaction preparation
+- **AgendaContext**: Centralized state management with event monitoring
+- **ProposalGuide**: Interactive user guidance system
 
-## Deployment
+### Available Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run linting
 
-### Prerequisites ✅
-- Node.js v16+
-- MetaMask or compatible Web3 wallet
-- Access to Ethereum network (Mainnet/Testnet)
-- GitHub account for metadata management
+## Documentation
 
-### Deployment Steps ✅
-1. Build the project
-   ```bash
-   npm run build
-   ```
-
-2. Run on local
-   ```bash
-   npm run dev
-   ```
-
-## Contributing
-1. Fork the repository
-2. Create feature branch
-3. Commit changes
-4. Push to branch
-5. Create Pull Request
+- [Environment Setup](docs/environment-setup.md) - Detailed configuration guide
+- [Features](docs/features.md) - Complete feature documentation
+- [Architecture](docs/architecture.md) - System design and components
 
 ## License
-[License Type] - See LICENSE file for details
 
-# Agenda Metadata Registration Guide
-
-## Repository Structure
-```
-agendas/
-  ├── 123.json  # Metadata for agenda ID 123
-  ├── 124.json
-  └── README.md  # PR guidelines
-```
-
-## PR Title Format
-[Agenda #{id}] Add metadata
-
-## Metadata File Format
-- Filename: `{agendaId}.json`
-- Location: `agendas/` directory
-- Format:
-```json
-{
-  "title": "Agenda Title",
-  "description": "Detailed description of the agenda",
-  "creator": "0x...", // Agenda creator's address
-  "createdAt": 1746973116, // Agenda creation timestamp
-  "targets": ["0x...", "0x..."], // Target contract addresses
-  "atomicExecute": true // Whether to execute atomically
-}
-```
-
-## Important Notes
-- Only the agenda creator can create a PR.
-- Include the agenda creation transaction hash in the PR description.
-- The creator address in the metadata must match the agenda creator's address.
-
-## GitHub Action for Validation
-```yaml
-name: Validate Agenda Metadata PR
-
-on:
-  pull_request:
-    paths:
-      - 'agendas/*.json'
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Validate JSON format
-        run: |
-          for file in agendas/*.json; do
-            if ! jq . "$file" > /dev/null 2>&1; then
-              echo "Invalid JSON format in $file"
-              exit 1
-            fi
-          done
-
-      - name: Validate creator address
-        run: |
-          # Verify PR author's email matches agenda creator's email
-          # Or verify using transaction hash in PR description
+ISC

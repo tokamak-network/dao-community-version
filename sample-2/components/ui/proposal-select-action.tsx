@@ -37,6 +37,7 @@ import {
   predefinedMethods,
   PredefinedMethod,
 } from "@/config/predefined-methods";
+import { findMethodAbi } from "@/lib/utils";
 
 // Action 타입 정의 (ProposalForm.tsx와 일치해야 함)
 interface Action {
@@ -169,7 +170,10 @@ function RequiredContractAddress({
           }
         } else {
           console.log("No proxy ABI found");
-          setError(proxyData.message || "Failed to fetch contract ABI");
+          const errorMessage =
+            proxyData.message || "Failed to fetch contract ABI";
+          const errorResult = proxyData.result ? ` - ${proxyData.result}` : "";
+          setError(`${errorMessage}, ${errorResult}`);
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
@@ -706,7 +710,7 @@ export function ProposalSelectAction({
         contractAddress,
         method,
         calldata,
-        abi: currentAbi,
+        abi: [findMethodAbi(currentAbi, method)],
         sendEth,
       };
       onAddAction(newActionData);

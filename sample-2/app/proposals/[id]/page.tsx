@@ -1,50 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import { useAgenda } from "@/contexts/AgendaContext";
 import { AgendaWithMetadata } from "@/types/agenda";
-import { useContractRead } from "wagmi";
-import { DAO_AGENDA_MANAGER_ADDRESS } from "@/config/contracts";
-import { DAO_AGENDA_MANAGER_ABI } from "@/abis/dao-agenda-manager";
-import { chain } from "@/config/chain";
 import AgendaDetail from "@/components/agenda/AgendaDetail";
 
 export default function ProposalDetail() {
   const params = useParams();
-  if (!params?.id) return null;
-  const agendaId = BigInt(params.id as string);
-  const [agenda, setAgenda] = useState<AgendaWithMetadata | null>(null);
+  const agendaId = Number(params?.id);
+  const { getAgenda } = useAgenda();
+  const [localAgenda, setLocalAgenda] = useState<AgendaWithMetadata | null>(
+    null
+  );
+  const [isLoadingLocal, setIsLoadingLocal] = useState(true);
+  const [localStatusMessage, setLocalStatusMessage] = useState("");
+  const isFirstRender = useRef(true);
 
-  // 아젠다 데이터 가져오기
-  const { data: agendaData } = useContractRead({
-    address: DAO_AGENDA_MANAGER_ADDRESS,
-    abi: DAO_AGENDA_MANAGER_ABI,
-    functionName: "agendas",
-    args: [agendaId],
-    chainId: chain.id,
-  });
+  if (!params?.id) return null;
+
+  const fetchAgendaFromContract = async () => {
+    setIsLoadingLocal(true);
+    setLocalStatusMessage("Loading agenda details...");
+    try {
+      const agenda = await getAgenda(agendaId);
+      if (agenda) {
+        console.log("Agenda from context:", agenda);
+        setLocalAgenda(agenda);
+      }
+    } catch (err) {
+      console.error("Error fetching agenda:", err);
+      setLocalStatusMessage("Error loading agenda details");
+    } finally {
+      setIsLoadingLocal(false);
+      setLocalStatusMessage("");
+    }
+  };
 
   useEffect(() => {
-    if (agendaData) {
-      const result = agendaData as unknown as AgendaWithMetadata;
-      setAgenda({
-        ...result,
-        id: Number(agendaId),
-      });
-    }
-  }, [agendaData, agendaId]);
+    if (!isFirstRender.current) return;
+    isFirstRender.current = false;
 
-  if (!agenda) {
+    fetchAgendaFromContract();
+  }, [agendaId]);
+
+  if (isLoadingLocal) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">Loading...</div>
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <div className="text-gray-600">
+            {localStatusMessage || "Loading agenda details..."}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!localAgenda) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <p className="text-xl font-semibold text-gray-800">
+            Agenda Not Found
+          </p>
+          <p className="text-gray-600 mt-2">
+            The requested agenda (ID: {agendaId}) could not be found.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <main className="container mx-auto px-4 py-4">
-      <AgendaDetail agenda={agenda} />
+      <AgendaDetail agenda={localAgenda} />
     </main>
   );
 }
