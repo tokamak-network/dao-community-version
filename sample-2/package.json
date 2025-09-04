@@ -37,7 +37,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ethers": "^6.11.1",
-    "lucide-react": "^0.331.0",
+    "lucide-react": "^0.511.0",
     "next": "^15.3.1",
     "pino-pretty": "^13.0.0",
     "postcss": "^8.5.3",
