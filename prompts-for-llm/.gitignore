@@ -1,4 +1,5 @@
 # Generated Apps - Node.js/Next.js applications
+generated-apps/
 generated-apps/*/node_modules/
 generated-apps/*/.next/
 generated-apps/*/dist/
@@ -101,3 +102,10 @@ generated-apps/*/Thumbs.db
 # generated-apps/*/yarn.lock
 # generated-apps/*/pnpm-lock.yaml
 
+prompts/backup
+
+# Workspace-level ignores
+node_modules/
+package-lock.json
+.DS_Store
+.claude/settings.local.json
