@@ -108,4 +108,5 @@ prompts/backup
 node_modules/
 package-lock.json
 .DS_Store
+.claude/
 .claude/settings.local.json
