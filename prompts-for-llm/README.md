@@ -2,11 +2,73 @@
 
 This repository provides feature-specific prompts for building Tokamak DAO (Decentralized Autonomous Organization) applications using Large Language Models. Each prompt generates complete, production-ready web applications with minimal setup.
 
-## 🎯 Purpose
-- **Rapid Development**: Create complete DAO applications in minutes using copy-paste prompts
-- **Production Ready**: Each prompt includes error handling, real-time updates, and professional UI
-- **Educational**: Learn Web3 development patterns through working examples
-- **Extensible**: Easily modify prompts for custom requirements
+## 🎯 Purpose & How to Use (at a glance)
+- **Goal**: Generate complete Tokamak DAO apps per feature using ready-made prompts.
+- **Usage**: Copy the example command under each prompt and run it in your LLM.
+- **Output**: Runnable Next.js apps under `generated-apps/*` with production-ready defaults.
+- **Supported LLMs**: Claude, ChatGPT, Gemini, Cursor (any code-capable LLM).
+- **Common App Specs**: Next.js 15, TypeScript, Tailwind v3, wagmi/viem, React Query.
+
+## 📦 Prompts by Feature (what each prompt builds)
+- **Agenda Viewer**: View detailed agenda info with real-time status
+  - Prompt: `prompts/prompt-agenda-view.md`
+  - Example request:
+    ```
+   "Create a detailed agenda viewer application in ./generated-apps/agenda-viewer
+    based on prompt-agenda-view.md. Include voting status, real-time updates, and all
+    features as a production-ready app.
+    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+
+    ```
+
+- **Agenda Create**: Create agendas with transaction encoding
+  - Prompt: `prompts/prompt-agenda-create.md`
+  - Example request:
+    ```
+    "Build an agenda creation app in ./generated-apps/agenda-create using
+    prompt-agenda-create.md. Include transaction processing and error handling
+    to make it immediately runnable.
+    Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
+    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+
+    ```
+
+- **Agenda Manage**: Full viewing/voting/execution management
+  - Prompt: `prompts/prompt-agenda-manage.md`
+  - Example request:
+    ```
+    "Create a complete DAO management system in ./generated-apps/agenda-manage
+    using
+    prompts/prompt-agenda-manage.md with voting, execution, and management features.
+    Include all files and configurations for production-level operation.
+    Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
+    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+
+    ```
+
+- **Agenda Metadata PR**: Submit agenda metadata via GitHub PR
+  - Prompt: `prompts/prompt-agenda-metadata-pr.md` (uses `specs/*` and `dao-common-requirements.md`)
+  - Example request:
+    ```
+    "
+    specs/agenda-calldata-structure.md
+    specs/transaction-parser-requirements.md
+    specs/agenda-metadata.md
+    specs/agenda-realtime-status.md
+    specs/signature-system-requirements.md
+    specs/shared-validation-rules.md
+    specs/github-integration-requirements.md
+    dao-common-requirements.md
+    prompt-agenda-metadata-pr.md
+
+    Create a complete Agenda PR system in ./generated-apps/agenda-metadata-pr using above files.
+    Include all files and configurations for production-level operation.
+    Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
+    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+
+    **After receiving a response confirming the app is complete, please ask one more question:**
+    "Have you checked the developed app to ensure it meets all requirements without any errors?"
+    ```
 
 ## 🚀 Getting Started
 
@@ -15,74 +77,13 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
 - MetaMask or compatible Web3 wallet
 - Access to an LLM (Claude, Gemini, ChatGPT, Cursor, etc.)
 
-## 📋 Available Prompts
-
-### Core DAO Functions
-- **[prompt-agenda-list.md](prompts/prompt-agenda-list.md)** - View all DAO agendas
-  - *Creates: Agenda browser with filtering and navigation*
-
-- **[prompt-agenda-view.md](prompts/prompt-agenda-view.md)** - View detailed agenda information
-  - *Creates: Detailed agenda viewer with real-time status updates*
-
-- **[prompt-agenda-create.md](prompts/prompt-agenda-create.md)** - Create new agendas
-  - *Creates: Agenda creation form with transaction encoding*
-
-- **[prompt-agenda-manage.md](prompts/prompt-agenda-manage.md)** - Complete agenda management
-  - *Creates: Full-featured app with viewing, voting, and execution*
-
-### Workflow & Integration
-- **[prompt-agenda-pr.md](prompts/prompt-agenda-pr.md)** - Submit agenda metadata PRs
-  - *Creates: GitHub integration for agenda documentation*
-
-## 🔧 How to Use Prompts
-
-Just tell your LLM what you want! Here are example requests:
-
-### 📋 For Agenda List Viewer
+### Run generated apps
 ```
-"Please create a complete DAO agenda list application in the folder
-./generated-apps/agenda-list using prompts/prompt-agenda-list.md.
-Include all files needed to run immediately with npm install && npm run dev.
+# 1) Move into the generated app folder
+cd ./generated-apps/<your-app>
 
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
-```
-
-### 🔍 For Detailed Agenda Viewer
-```
-"Create a detailed agenda viewer application in ./generated-apps/agenda-viewer
-based on prompt-agenda-view.md. Include voting status, real-time updates, and all
-features as a production-ready app.
-
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
-```
-
-### ⚙️ For Agenda Create
-```
-"Build an agenda creation app in ./generated-apps/agenda-create using
-prompt-agenda-create.md. Include transaction processing and error handling
-to make it immediately runnable.
-
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
-```
-
-### 🏛️ For Complete Management System
-
-
-```
-"Create a complete DAO management system in ./generated-apps/agenda-manage
-using prompt-agenda-manage.md with voting, execution, and management features.
-Include all files and configurations for production-level operation.
-한번에 오류없이 클린한 앱을 만들목적이기 때문에 프롬프트 문서를 아주 꼼꼼하게 확인하고 구현하고, 다시 점검해야해.
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
-```
-
-### 🔄 For PR Submission Helper
-
-```
-"Create an agenda metadata PR submission tool in ./generated-apps/agenda-pr-helper
-based on prompt-agenda-pr.md.
-
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
+# 2) Install and run
+npm install && npm run dev
 ```
 
 ## 💬 Request Tips
@@ -95,11 +96,6 @@ After creating the app, please go through the checklist in the prompt and verify
 - "ready to run with npm install && npm run dev" (specify execution requirements)
 - "production-ready" (ensure quality and error handling)
 
-## 🔍 Generated Apps Examples
-
-The `/generated-apps/` directory contains pre-built applications created using these prompts:
-- **agenda-create/**: Agenda creation form with transaction processing and validation
-- **agenda-manage/**: Complete management system with viewing, voting, and execution features
 
 ## 🛠️ Tech Stack
 
@@ -129,44 +125,31 @@ All generated applications use modern Web3 development tools:
 - **[snippets/react/](./snippets/react/)**: Reusable React components for agenda operations
 - **[common/](./common/)**: Shared contract ABIs and network configurations
 
-## 🛠️ Supported LLM Platforms
+### Specs (detailed requirements)
+- **[transaction-parser-requirements.md](./prompts/specs/transaction-parser-requirements.md)**
+- **[agenda-calldata-structure.md](./prompts/specs/agenda-calldata-structure.md)**
+- **[signature-system-requirements.md](./prompts/specs/signature-system-requirements.md)**
+- **[github-integration-requirements.md](./prompts/specs/github-integration-requirements.md)**
+- **[shared-config.md](./prompts/specs/shared-config.md)**
+- **[shared-validation-rules.md](./prompts/specs/shared-validation-rules.md)**
+- **[shared-types.md](./prompts/specs/shared-types.md)**
+- **[agenda-detail.md](./prompts/specs/agenda-detail.md)**
+- **[agenda-metadata.md](./prompts/specs/agenda-metadata.md)**
+- **[agenda-realtime-status.md](./prompts/specs/agenda-realtime-status.md)**
 
-### Claude Code (Recommended)
-```bash
-# Direct project creation
-claude-code "Create a complete DAO Agenda management system in ./generated-apps/agenda-manage
-using prompt-agenda-manage.md with voting, execution, and management features.
-Include all files and configurations for production-level operation.
-After creating the app, please go through the checklist in the prompt and verify each item one by one."
+## 🤖 Supported LLMs
 
-# Then run:
-cd ./generated-apps/agenda-manage && npm install && npm run dev
-```
+- Claude (Opus/Code), ChatGPT, Gemini, Cursor — any code-capable LLM works.
+- Usage examples:
+  - Web: paste the example request under each prompt into your LLM.
+  - CLI (Claude Code):
+    ```bash
+    claude-code "Create a complete DAO Agenda management system in ./generated-apps/agenda-manage using prompt-agenda-manage.md. Include all files and configurations; production-ready."
+    cd ./generated-apps/agenda-manage && npm install && npm run dev
+    ```
+  - Editor (Cursor): open the repo, paste the example request, then run `npm install && npm run dev` in the generated app folder.
 
-### Web-based LLMs
-Simply copy-paste any English request from above:
-- **Claude 3.5 Sonnet** (claude.ai) - ✅ Tested & Working
-- **ChatGPT-4** (openai.com) - ✅ Compatible
-- **Gemini Pro** (gemini.google.com) - ✅ Compatible
-
-### VS Code with Cursor
-```
-1. Open project directory in Cursor
-2. Press Ctrl+K and paste any English request from above
-3. Cursor generates the complete project
-4. Run: npm install && npm run dev
-```
-
-## 💡 LLM Model Compatibility
-
-These prompts are designed to work with most modern LLM models:
-
-- **Claude 3.5 Sonnet** (Anthropic) - Used for prompt development
-- **ChatGPT** (OpenAI)
-- **Gemini** (Google)
-- **Other code-generation capable LLMs**
-
-**Note:** Example applications in `/generated-apps/` folder were created during actual development process.
+Note: Example apps in `/generated-apps/` were produced during actual development.
 
 ## 💡 Best Practices
 
@@ -188,26 +171,7 @@ All prompts include comprehensive error handling for:
 - Transaction failures
 - Invalid contract interactions
 
-## 🤝 Contributing
-
-### Adding New Prompts
-1. Fork this repository
-2. Create a new prompt file in `/prompts/`
-3. Follow the existing format and structure
-4. Test with multiple LLM providers
-5. Submit a pull request with examples
-
-### Improving Existing Prompts
-- Report issues via GitHub Issues
-- Suggest improvements through pull requests
-- Share generated applications in discussions
 
 ## 📄 License
 
 MIT License - feel free to use these prompts for any purpose.
-
-## 🆘 Support
-
-- **Issues**: Report bugs or request features via GitHub Issues
-- **Discussions**: Share your generated applications and get help
-- **Documentation**: Refer to contract-usage.md for technical details
