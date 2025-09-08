@@ -137,15 +137,6 @@ All generated applications use modern Web3 development tools:
 - **[agenda-metadata.md](./prompts/specs/agenda-metadata.md)**
 - **[agenda-realtime-status.md](./prompts/specs/agenda-realtime-status.md)**
 
-### Specs (KR)
-- **[transaction-parser-requirements.md](./prompts/specs-kr/transaction-parser-requirements.md)**
-- **[agenda-calldata-structure.md](./prompts/specs-kr/agenda-calldata-structure.md)**
-- **[signature-system-requirements.md](./prompts/specs-kr/signature-system-requirements.md)**
-- **[github-integration-requirements.md](./prompts/specs-kr/github-integration-requirements.md)**
-- **[agenda-detail.md](./prompts/specs-kr/agenda-detail.md)**
-- **[agenda-metadata.md](./prompts/specs-kr/agenda-metadata.md)**
-- **[agenda-realtime-status.md](./prompts/specs-kr/agenda-realtime-status.md)**
-
 ## 🤖 Supported LLMs
 
 - Claude (Opus/Code), ChatGPT, Gemini, Cursor — any code-capable LLM works.
