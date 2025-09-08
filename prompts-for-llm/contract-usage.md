@@ -82,6 +82,10 @@ struct Agenda {
     address[] voters;                // List of all voters
     bool executed;                   // Whether agenda was executed
 }
+
+///  AgendaStatus: 0=NONE, 1=NOTICE, 2=VOTING, 3=WAITING_EXEC, 4=EXECUTED, 5=ENDED
+/// AgendaResult: 0=PENDING, 1=ACCEPT, 2=REJECT, 3=DISMISS
+
 ```
 
 **Usage Example:**
@@ -247,11 +251,18 @@ function castVote(
     string memory _comment
 )
 
+// DEPRECATED: Use AgendaManager.getVoteStatus instead
+function hasVoted(uint256 _agendaID, address _user) view returns (bool)
+```
+
+### OperatorManager Contract
+
+#### Voting Operations
+```solidity
+
 // Get manager address (AgendaManager contract)
 function manager() view returns (address)
 
-// DEPRECATED: Use AgendaManager.getVoteStatus instead
-function hasVoted(uint256 _agendaID, address _user) view returns (bool)
 ```
 
 ---
