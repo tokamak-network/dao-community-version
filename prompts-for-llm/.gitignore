@@ -1,5 +1,4 @@
 # Generated Apps - Node.js/Next.js applications
-generated-apps/
 generated-apps/*/node_modules/
 generated-apps/*/.next/
 generated-apps/*/dist/
@@ -111,3 +110,14 @@ package-lock.json
 .claude/
 .claude/settings.local.json
 claude/
+
+# Hosting/build tools
+.vercel/
+.turbo/
+
+# Root env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
