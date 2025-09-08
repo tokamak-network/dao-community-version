@@ -15,9 +15,9 @@ This repository is a **monorepo for the Tokamak DAO Community Version applicatio
   - Uses modern frontend stack: Next.js, React, Tailwind CSS, and more.
 
 - **[sample-3/](./sample-3/)** 🚀✨가 ㅇ
-  - **Build your own DAO community apps and tools using only Claude.ai prompts!**
+  - **Build your own DAO community apps and tools using LLM(Claude.ai) prompts!**
   - 📝 *No coding required—just write prompts to extend community features.*
-  - 📚 Example prompts, usage guides, and practical tutorials will be continuously added.
+  - 📚 Example prompts, usage guides, and practical tutorials are provided in this repository.
 
 - **[simulation-node/](./simulation-node/)**
   - A Hardhat-based project for smart contract simulation and deployment.
