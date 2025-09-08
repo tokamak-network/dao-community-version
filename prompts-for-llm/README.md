@@ -9,15 +9,15 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
 - **Supported LLMs**: Claude, ChatGPT, Gemini, Cursor (any code-capable LLM).
 - **Common App Specs**: Next.js 15, TypeScript, Tailwind v3, wagmi/viem, React Query.
 
-## 📦 Prompts by Feature (what each prompt builds)
+## 📦 Example prompts by function
 - **Agenda Viewer**: View detailed agenda info with real-time status
   - Prompt: `prompts/prompt-agenda-view.md`
   - Example request:
     ```
-   "Create a detailed agenda viewer application in ./generated-apps/agenda-viewer
+    Create a detailed agenda viewer application in ./generated-apps/agenda-viewer
     based on prompt-agenda-view.md. Include voting status, real-time updates, and all
     features as a production-ready app.
-    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+    After creating the app, please go through the checklist in the prompt and verify each item one by one.
 
     ```
 
@@ -25,11 +25,11 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
   - Prompt: `prompts/prompt-agenda-create.md`
   - Example request:
     ```
-    "Build an agenda creation app in ./generated-apps/agenda-create using
+    Build an agenda creation app in ./generated-apps/agenda-create using
     prompt-agenda-create.md. Include transaction processing and error handling
     to make it immediately runnable.
     Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
-    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+    After creating the app, please go through the checklist in the prompt and verify each item one by one.
 
     ```
 
@@ -37,12 +37,12 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
   - Prompt: `prompts/prompt-agenda-manage.md`
   - Example request:
     ```
-    "Create a complete DAO management system in ./generated-apps/agenda-manage
+    Create a complete DAO management system in ./generated-apps/agenda-manage
     using
     prompts/prompt-agenda-manage.md with voting, execution, and management features.
     Include all files and configurations for production-level operation.
     Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
-    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+    After creating the app, please go through the checklist in the prompt and verify each item one by one.
 
     ```
 
@@ -50,7 +50,6 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
   - Prompt: `prompts/prompt-agenda-metadata-pr.md` (uses `specs/*` and `dao-common-requirements.md`)
   - Example request:
     ```
-    "
     specs/agenda-calldata-structure.md
     specs/transaction-parser-requirements.md
     specs/agenda-metadata.md
@@ -64,11 +63,12 @@ This repository provides feature-specific prompts for building Tokamak DAO (Dece
     Create a complete Agenda PR system in ./generated-apps/agenda-metadata-pr using above files.
     Include all files and configurations for production-level operation.
     Since the goal is to create a clean app without errors the first time, you need to carefully check the prompt document, implement it, and check it again.
-    After creating the app, please go through the checklist in the prompt and verify each item one by one."
+    After creating the app, please go through the checklist in the prompt and verify each item one by one.
 
+    ```
     **After receiving a response confirming the app is complete, please ask one more question:**
     "Have you checked the developed app to ensure it meets all requirements without any errors?"
-    ```
+
 
 ## 🚀 Getting Started
 
@@ -136,20 +136,6 @@ All generated applications use modern Web3 development tools:
 - **[agenda-detail.md](./prompts/specs/agenda-detail.md)**
 - **[agenda-metadata.md](./prompts/specs/agenda-metadata.md)**
 - **[agenda-realtime-status.md](./prompts/specs/agenda-realtime-status.md)**
-
-## 🤖 Supported LLMs
-
-- Claude (Opus/Code), ChatGPT, Gemini, Cursor — any code-capable LLM works.
-- Usage examples:
-  - Web: paste the example request under each prompt into your LLM.
-  - CLI (Claude Code):
-    ```bash
-    claude-code "Create a complete DAO Agenda management system in ./generated-apps/agenda-manage using prompt-agenda-manage.md. Include all files and configurations; production-ready."
-    cd ./generated-apps/agenda-manage && npm install && npm run dev
-    ```
-  - Editor (Cursor): open the repo, paste the example request, then run `npm install && npm run dev` in the generated app folder.
-
-Note: Example apps in `/generated-apps/` were produced during actual development.
 
 ## 💡 Best Practices
 
