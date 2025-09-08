@@ -316,6 +316,60 @@ export const COMMITTEE_ABI = [
 }
 ```
 
+### ⚠️ CRITICAL: CSS & TailwindCSS Configuration (MANDATORY)
+
+#### PostCSS Configuration (postcss.config.mjs)
+```javascript
+// postcss.config.mjs - MUST use this exact configuration for v3
+const config = {
+  plugins: {
+    tailwindcss: {},    // Direct plugin reference for v3
+    autoprefixer: {},
+  },
+}
+export default config
+// ❌ WRONG for v3: plugins: ["@tailwindcss/postcss"]  // This is for v4 only
+```
+
+#### Global CSS Configuration (src/app/globals.css)
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  
+  body {
+    @apply min-h-screen bg-white text-gray-900;
+  }
+}
+```
+
+#### Tailwind Configuration (tailwind.config.ts)
+```typescript
+import type { Config } from "tailwindcss";
+export default {
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  theme: { extend: {} },
+  plugins: [],
+} satisfies Config;
+```
+
+#### Troubleshooting CSS Issues
+If TailwindCSS classes are not working:
+1. Check TailwindCSS version in package.json (must be v3: "^3.4.1")
+2. Verify postcss.config.mjs uses direct plugin reference
+3. Clear Next.js cache: `rm -rf .next`
+4. Restart development server
+
+**Common Error Messages and Solutions:**
+- `Error: It looks like you're trying to use tailwindcss directly as a PostCSS plugin` → Using v4 syntax with v3, fix postcss.config.mjs
+- `Cannot apply unknown utility class` → TailwindCSS v4 installed or wrong PostCSS config
+- `@tailwindcss/postcss` error → This package is for v4 only, don't use with v3
+
 Provide **complete code** for all files and make it immediately executable without TypeScript errors.
 
 ## 🔄 Execution Test Method

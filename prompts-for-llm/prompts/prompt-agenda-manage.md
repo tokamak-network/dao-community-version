@@ -19,10 +19,10 @@ Please implement a complete Tokamak DAO agenda management application that combi
 - TailwindCSS (with inline styles)
 
 ### Wallet Configuration
-**지갑 연결은 MetaMask만 지원:**
-- MetaMask 전용 connector 사용
-- 다른 지갑 연결 옵션 제공하지 않음
-- MetaMask 설치 및 연결 안내 메시지 포함
+**Wallet connection supports MetaMask only:**
+- Use MetaMask-only connector
+- Do not provide other wallet connection options
+- Include MetaMask installation and connection guide messages
 
 ### Performance Requirements
 1. **NEVER use `refetchInterval`** in useReadContract - causes excessive RPC calls
@@ -58,18 +58,18 @@ Please implement a complete Tokamak DAO agenda management application that combi
 - Committee member list and information
 - Real-time status and results viewing
 - All contract data queries and multicalls
-- **Network selection and switching**: 지갑 연결 없이도 네트워크 선택 가능
+- **Network selection and switching**: Network selection possible even without wallet connection
 
 **🔐 WALLET CONNECTION REQUIRED (Write Operations):**
 - Voting transactions
 - Agenda execution
 - All state-changing contract interactions
 
-**🔗 MetaMask 전용 지갑 연결:**
-- **지갑 연결은 MetaMask만 지원**
-- MetaMask가 설치되지 않은 경우 설치 안내 메시지 표시
-- MetaMask가 설치되었지만 연결되지 않은 경우 연결 버튼 표시
-- 다른 지갑 연결 옵션은 제공하지 않음
+**🔗 MetaMask-only wallet connection:**
+- **Wallet connection supports MetaMask only**
+- Display installation guide message if MetaMask is not installed
+- Display connection button if MetaMask is installed but not connected
+- Do not provide other wallet connection options
 
 ## 📋 Functional Specifications
 
@@ -103,8 +103,8 @@ Please implement a complete Tokamak DAO agenda management application that combi
   - Creation date (createdTimestamp → readable date)
   - Notice end date (noticeEndTimestamp)
   - Voting period duration (votingPeriodInSeconds → human readable)
-  - Voting start/end dates (calculated from notice end + voting period) 투표시작을 했을때만 표시된다. 공지종료시간뒤에는 이시간들이 없어도 투표가 가능하다.
-  - Executable deadline (executableLimitTimestamp) 실행가능 종료시간이 지나면 실행이 불가하다.
+  - Voting start/end dates (calculated from notice end + voting period) Only displayed when voting has started. After notice end time, voting is possible even without these times.
+  - Executable deadline (executableLimitTimestamp) Execution becomes impossible after the executable deadline has passed.
   - Execution date (executedTimestamp, executed boolean)
 
 - **Voting Results:**
@@ -124,15 +124,15 @@ Please implement a complete Tokamak DAO agenda management application that combi
   - Individual vote status for each voter
 
 #### 1.3 Real-time Status Updates
-**DAO Committee Version별 상태 확인:**
+**DAO Committee Version-specific status checking:**
 
 **DAO Committee v2:**
-- `Committee.currentAgendaStatus(id)` 함수 사용 가능
-- 실시간 상태와 결과 반환: `[agendaResult, agendaStatus]`
+- `Committee.currentAgendaStatus(id)` function available
+- Returns real-time status and result: `[agendaResult, agendaStatus]`
 
 **DAO Committee v1:**
-- `Committee.currentAgendaStatus(id)` 함수 없음
-- `AgendaManager.agendas(id)`의 status 필드만 사용
+- `Committee.currentAgendaStatus(id)` function not available
+- Only use `AgendaManager.agendas(id)` status field
 
 **Committee.currentAgendaStatus(id)'s Status Mapping (v2 only):**
 - **Committee.currentAgendaStatus(id)'s AgendaStatus → English Text:**
@@ -168,28 +168,28 @@ Please implement a complete Tokamak DAO agenda management application that combi
 - User membership detection (member address or manager address)
 
 #### 2.2 Membership Detection
-**투표 시점별 투표 가능 여부 확인:**
+**Voting eligibility checking by voting phase:**
 
-**투표가 아직 시작되지 않았을 때 (공지기간 종료 후, 투표시작시간 = 0):**
-- `Committee.members(index)` 배열을 보고
-- 각 member의 `OperatorManager(member address).manager()` 주소를 확인
-- 연결된 지갑 주소가 member 주소 또는 manager 주소와 일치하는지 확인
+**When voting has not started yet (after notice period ends, voting start time = 0):**
+- Check `Committee.members(index)` array
+- Verify each member's `OperatorManager(member address).manager()` address
+- Check if connected wallet address matches member address or manager address
 
-**투표가 이미 시작되었을 때 (투표시작시간 > 0, Voting Period):**
-- `AgendaManager.agendas().voters` 배열을 보고
-- 각 voter의 `OperatorManager(voter address).manager()` 주소를 확인
-- 연결된 지갑 주소가 voter 주소 또는 manager 주소와 일치하는지 확인
+**When voting has already started (voting start time > 0, Voting Period):**
+- Check `AgendaManager.agendas().voters` array
+- Verify each voter's `OperatorManager(voter address).manager()` address
+- Check if connected wallet address matches voter address or manager address
 
-**투표 자격 조건:**
-1. **Committee Member 직접 투표**: 사용자의 지갑 주소가 Committee member 주소와 일치
-2. **Manager를 통한 투표**: 사용자의 지갑 주소가 Committee member의 manager 주소와 일치 (단, manager 주소가 `0x0000000000000000000000000000000000000000`이 아닌 경우)
+**Voting eligibility conditions:**
+1. **Committee Member direct voting**: User's wallet address matches Committee member address
+2. **Voting through Manager**: User's wallet address matches Committee member's manager address (only if manager address is not `0x0000000000000000000000000000000000000000`)
 
-**투표 가능한 시점 조건:**
-1. **공지 기간 종료**: `noticeEndTimestamp` 이후
-2. **아직 실행되지 않음**: `executed`가 `false`
-3. **버전별 투표 상태 확인**:
-   - **DAO Committee v2**: `Committee.currentAgendaStatus(id)`의 `agendaStatus`가 2 (Voting)일 때
-   - **DAO Committee v1**: `AgendaManager.agendas(id)`의 `status`가 2 (Voting)일 때
+**Voting timing conditions:**
+1. **Notice period ended**: After `noticeEndTimestamp`
+2. **Not yet executed**: `executed` is `false`
+3. **Version-specific voting status check**:
+   - **DAO Committee v2**: When `Committee.currentAgendaStatus(id)`'s `agendaStatus` is 2 (Voting)
+   - **DAO Committee v1**: When `AgendaManager.agendas(id)`'s `status` is 2 (Voting)
 
 **Logic:**
 - Check if connected wallet address is in members array (before voting) or voters array (during voting)
@@ -217,11 +217,11 @@ const { data: voteStatus } = useReadContract({
 - 3 = ABSTAIN (Abstain)
 
 #### 3.2 Voting Function Execution
-**CRITICAL: 투표 함수는 member의 candidateContract를 통해 호출해야 함**
+**CRITICAL: Voting function must be called through member's candidateContract**
 
-**올바른 투표 함수 호출 방법:**
+**Correct voting function call method:**
 ```typescript
-// ✅ CORRECT: candidateContract 주소를 사용하여 castVote 함수 호출
+// ✅ CORRECT: Use candidateContract address to call castVote function
 const handleVote = () => {
   if (!selectedMember || !agendaData) return
 
@@ -236,7 +236,7 @@ const handleVote = () => {
   }
 
   writeContract({
-    address: selectedMemberInfo.candidateContract as `0x${string}`,  // ✅ candidateContract 주소 사용
+    address: selectedMemberInfo.candidateContract as `0x${string}`,  // ✅ Use candidateContract address
     abi: CANDIDATE_ABI,
     functionName: 'castVote',
     args: [BigInt(agendaId), BigInt(voteType), comment],
@@ -244,31 +244,31 @@ const handleVote = () => {
 }
 ```
 
-**❌ 잘못된 구현 (피해야 할 방법):**
+**❌ Wrong implementation (avoid this method):**
 ```typescript
-// ❌ WRONG: member 주소를 직접 사용
+// ❌ WRONG: Use member address directly
 writeContract({
-  address: selectedMember as `0x${string}`,  // ❌ member 주소 직접 사용
+      address: selectedMember as `0x${string}`,  // ❌ Use member address directly
   abi: CANDIDATE_ABI,
   functionName: 'castVote',
   args: [BigInt(agendaId), BigInt(voteType), comment],
 })
 ```
 
-**투표 함수 호출 흐름:**
-1. **사용자가 멤버 선택** → `selectedMember` (member 주소)
-2. **`members.find()`** → 해당 멤버의 `candidateContract` 주소 찾기
-3. **`writeContract()`** → `candidateContract` 주소로 `castVote` 함수 호출
-4. **올바른 투표 실행** → 매니저가 아닌 **멤버의 candidateContract**를 통해 투표
+**Voting function call flow:**
+1. **User selects member** → `selectedMember` (member address)
+2. **`members.find()`** → Find the member's `candidateContract` address
+3. **`writeContract()`** → Call `castVote` function with `candidateContract` address
+4. **Correct voting execution** → Vote through **member's candidateContract**, not manager
 
-**필요한 데이터 구조:**
+**Required data structure:**
 ```typescript
 interface MemberInfo {
-  address: `0x${string}`           // member 주소
-  candidateContract: `0x${string}` // candidateContract 주소 (투표 함수 호출용)
+  address: `0x${string}`           // member address
+  candidateContract: `0x${string}` // candidateContract address (for voting function calls)
   hasVoted: boolean
   vote: number
-  managerAddress?: `0x${string}`   // manager 주소
+  managerAddress?: `0x${string}`   // manager address
 }
 ```
 
@@ -281,9 +281,9 @@ interface MemberInfo {
 - Wallet connection required message before voting options
 
 **Voting Restrictions:**
-- **이미 투표한 멤버는 다시 투표 불가**: `AgendaManager.getVoteStatus()`로 확인된 이미 투표한 멤버는 선택 드롭다운에서 제외
-- **투표 상태 표시**: 각 멤버별로 "Voted" 또는 "Not voted" 상태를 명확히 표시
-- **중복 투표 방지**: 동일한 멤버에 대해 중복 투표 시도 시 적절한 에러 메시지 표시
+- **Members who have already voted cannot vote again**: Exclude members who have already voted (confirmed by `AgendaManager.getVoteStatus()`) from the selection dropdown
+- **Vote status display**: Clearly display "Voted" or "Not voted" status for each member
+- **Duplicate voting prevention**: Display appropriate error message when attempting duplicate voting for the same member
 
 **Voting Flow:**
 1. Check wallet connection
@@ -296,74 +296,74 @@ interface MemberInfo {
 8. Update vote status after completion
 
 **CRITICAL VOTING UI REQUIREMENTS:**
-- **투표 화면은 항상 표시되어야 함**: 투표 조건이 맞지 않아도 투표 섹션은 항상 보여줘야 함
-- **투표 가능한 사람들을 항상 표시**: 누가 투표할 수 있는지 항상 보여줘야 함
-- **지갑 연결과 투표 권한 확인**:
-  - **지갑 연결 없이도 투표자 정보 조회 가능**: 모든 투표자 정보는 지갑 연결과 관계없이 항상 표시
-  - **지갑 연결 시 투표 권한 확인**: 지갑이 연결되면 해당 지갑의 투표 권한을 확인하여 "Direct", "You", "No permission" 등으로 표시
-  - **투표 권한 표시 로직**:
-    - 지갑 주소가 member 주소와 일치하면 "Direct" 표시
-    - 지갑 주소가 manager 주소와 일치하면 "You" 표시
-    - 그 외의 경우 "No permission" 표시
-- **투표자 정보 표시 레이아웃**:
-  - **투표자 주소와 매니저 주소를 가로로 표시**: 각 투표자 카드에서 member 주소와 manager 주소를 가로로 배치
-  - **투표자 주소**: 상단에 큰 글씨로 표시 (Etherscan 링크 포함)
-  - **매니저 주소**: 하단에 작은 글씨로 표시 (Etherscan 링크 포함, 없으면 "No manager" 표시)
-  - **투표 권한 표시**: 오른쪽에 "Direct", "You", "No permission" 등으로 표시
-- **투표 조건에 따른 메시지 표시**:
-  - 공지 기간이 끝나지 않았을 때: "Notice period not ended yet"
-  - 이미 실행된 경우: "Agenda already executed"
-  - 지갑이 연결되지 않은 경우: "Wallet connection required"
-  - 투표 권한이 없는 경우: "No voting permission"
-  - 모든 멤버가 투표한 경우: "All members voted"
-- **투표 가능한 시점 확인**:
-  - `noticeEndTimestamp` 이후부터 투표 가능
-  - `executed`가 false인 경우에만 투표 가능
-  - 투표 조건이 맞으면 투표 폼 표시, 아니면 적절한 메시지 표시
+- **Voting screen must always be displayed**: Voting section must always be shown even if voting conditions are not met
+- **Always display who can vote**: Always show who can vote
+- **Wallet connection and voting permission verification**:
+  - **Voter information viewable without wallet connection**: All voter information must always be displayed regardless of wallet connection
+  - **Voting permission verification when wallet is connected**: When wallet is connected, verify the wallet's voting permissions and display as "Direct", "You", "No permission", etc.
+  - **Voting permission display logic**:
+    - Display "Direct" if wallet address matches member address
+    - Display "You" if wallet address matches manager address
+    - Display "No permission" for other cases
+- **Voter information display layout**:
+  - **Display voter address and manager address horizontally**: Arrange member address and manager address horizontally in each voter card
+  - **Voter address**: Display in large font at the top (including Etherscan link)
+  - **Manager address**: Display in small font at the bottom (including Etherscan link, display "No manager" if not present)
+  - **Voting permission display**: Display "Direct", "You", "No permission", etc. on the right
+- **Message display based on voting conditions**:
+  - When notice period has not ended: "Notice period not ended yet"
+  - When already executed: "Agenda already executed"
+  - When wallet is not connected: "Wallet connection required"
+  - When no voting permission: "No voting permission"
+  - When all members have voted: "All members voted"
+- **Voting timing verification**:
+  - Voting possible after `noticeEndTimestamp`
+  - Voting only possible when `executed` is false
+  - Display voting form if voting conditions are met, otherwise display appropriate message
 
 ### 4. Execution System
 
 #### 4.1 Execution Conditions
 **CRITICAL: Execution is open to ANYONE, not just committee members**
 
-**Execution Condition Check Priority (순서대로 확인):**
-1. **투표 진행 중 확인** (highest priority)
+**Execution Condition Check Priority (check in order):**
+1. **Check if voting is in progress** (highest priority)
    - DAO v2: `Committee.currentAgendaStatus(id)'s agendaStatus=2` (Voting)
    - DAO v1: `AgendaManager.agendas(id)'s status=2` (Voting)
-   - → "⏳ Waiting for voting to complete" 메시지 표시
+   - → Display "⏳ Waiting for voting to complete" message
 
-2. **이미 실행되었는지 확인**
+2. **Check if already executed**
    - `AgendaManager.agendas(id)'s executed=true`
-   - → "✅ Executed" 메시지 표시
+   - → Display "✅ Executed" message
 
-3. **실행 기간 만료 확인**
+3. **Check execution period expiration**
    - `executableLimitTimestamp > 0 && currentTime > executableLimitTimestamp`
-   - → "⏰ Execution period has expired" 메시지 표시
+   - → Display "⏰ Execution period has expired" message
 
-4. **DAO 버전별 실행 조건 확인**
-   - **DAO v2**: `Committee.currentAgendaStatus(id)'s agendaStatus=3` (WAITING_EXEC) 확인
-   - **DAO v1**: `AgendaManager.agendas(id)'s status=3` (WAITING_EXEC) 확인
-   - → 조건 만족 시 실행 버튼 표시
+4. **Check execution conditions by DAO version**
+   - **DAO v2**: Check `Committee.currentAgendaStatus(id)'s agendaStatus=3` (WAITING_EXEC)
+   - **DAO v1**: Check `AgendaManager.agendas(id)'s status=3` (WAITING_EXEC)
+   - → Display execution button when conditions are met
 
 #### 4.2 Execution Function Implementation
-**CRITICAL: 아젠다 실행은 Committee.executeAgenda(agendaId) 함수를 호출해야 함**
+**CRITICAL: Agenda execution must call Committee.executeAgenda(agendaId) function**
 
-**✅ 올바른 실행 함수 호출 방법:**
+**✅ Correct execution function call method:**
 ```typescript
-// ✅ CORRECT: Committee 주소를 사용하여 executeAgenda 함수 호출
+// ✅ CORRECT: Use Committee address to call executeAgenda function
 writeContract({
-  address: contracts.committee as `0x${string}`,  // ✅ Committee 주소 사용
+      address: contracts.committee as `0x${string}`,  // ✅ Use Committee address
   abi: COMMITTEE_ABI,
   functionName: 'executeAgenda',
   args: [BigInt(agendaId)],
 })
 ```
 
-**실행 함수 호출 흐름:**
-1. **실행 조건 확인** → 위의 Execution Condition Check Priority 참조
-2. **지갑 연결 확인** → MetaMask 연결 필요
-3. **`writeContract()`** → `Committee` 주소로 `executeAgenda` 함수 호출
-4. **아젠다 실행 완료** → 트랜잭션 성공 시 아젠다 상태 업데이트
+**Execution function call flow:**
+1. **Check execution conditions** → Refer to Execution Condition Check Priority above
+2. **Check wallet connection** → MetaMask connection required
+3. **`writeContract()`** → Call `executeAgenda` function with `Committee` address
+4. **Agenda execution completed** → Update agenda status when transaction succeeds
 
 #### 4.3 Execution Interface
 **User Interface:**
@@ -395,7 +395,7 @@ writeContract({
 - **Sepolia Testnet (chainId: 11155111)**
 
 **Network Switching:**
-- **지갑 연결 없이도 네트워크 선택 가능**: 네트워크 선택은 지갑 연결과 독립적으로 작동
+- **Network selection possible even without wallet connection**: Network selection works independently of wallet connection
 - Automatic network detection
 - Manual network selector
 - Contract address updates based on network
@@ -405,8 +405,8 @@ writeContract({
 **Contract Functions Used:**
 - **AgendaManager:** numAgendas, agendas, getVoteStatus
 - **Committee:** maxMember, members, candidateInfos, currentAgendaStatus, executeAgenda
-- **AgendaManager:** numAgendas, agendas, getVoteStatus
-- **Candidate:** manager, castVote
+- **Candidate:** castVote
+- **OperatorManager:** manager
 
 **Multicall Optimization:**
 - Batch multiple contract calls into single RPC request
@@ -429,97 +429,231 @@ writeContract({
 - Notice end date (noticeEndTimestamp)
 - Voting period (votingPeriodInSeconds → duration conversion)
 - Voting start (votingStartedTimestamp)
-  - 투표시작일 : 안건 공지가 끝나고, 투표가능한 사람이 투표를 시작하면 그때가 투표시작일입니다.
-  - 투표종료일: 투표시작일 + voting period
-  - 아직 아무도 투표한사람이 없을때 초기값 0 입니다.
-  - 투표는 안건공지가 끝나면 투표가능한 사람은 투표를 할 수 있습니다.
+  - Voting start date: When agenda notice ends and a person who can vote starts voting, that becomes the voting start date.
+  - Voting end date: Voting start date + voting period
+  - Initial value is 0 when no one has voted yet.
+  - Voting is possible for eligible voters after agenda notice ends.
 - Voting end dates (votingEndTimestamp)
-  - 아직 아무도 투표한사람이 없을때 초기값 0 입니다.
+  - Initial value is 0 when no one has voted yet.
 - Executable deadline (executableLimitTimestamp)
-  - 아직 아무도 투표한사람이 없을때 초기값 0 입니다.
+  - Initial value is 0 when no one has voted yet.
 - Execution date (executedTimestamp, executed boolean)
-  - 아직 아무도 투표한사람이 없을때 초기값 0 입니다.
+  - Initial value is 0 when no one has voted yet.
 - Voting results (countingYes, countingNo, countingAbstain) with progress bars
 - AgendaStatus status; 0:NONE, 1:NOTICE, 2:VOTING, 3:WAITING_EXEC, 4:EXECUTED, 5:ENDED
 - AgendaResult result; 0:PENDING, 1:ACCEPT, 2:REJECT, 4:DISMISS
 - Voter list (voters array) with Etherscan links
 
 **DAO Committee v2 Agenda Memo Display:**
-- `Committee.agendaMemo(agendaId)` 함수로 메모 정보 조회
-- 아젠다 상세 내용에 "Agenda Memo" 섹션으로 표시
-- **URL 링크 기능**: 메모 내용에 http/https URL이 포함된 경우 자동으로 클릭 가능한 링크로 변환
-- 링크 클릭 시 새창에서 열림 (`target="_blank"`, `rel="noopener noreferrer"`)
-- 링크 스타일: 파란색 텍스트, 호버 시 진한 파란색, 밑줄 표시
+- Query memo information using `Committee.agendaMemo(agendaId)` function
+- Display as "Agenda Memo" section in agenda details
+- **URL link functionality**: Automatically convert http/https URLs in memo content to clickable links
+- Links open in new window when clicked (`target="_blank"`, `rel="noopener noreferrer"`)
+- Link style: Blue text, darker blue on hover, underlined
 
 ### 3. Real-time Status Information
 **Committee.currentAgendaStatus(id) call results:**
-- 이 함수는 다오버전 2에서만 제공되는 함수입니다.
+- This function is only available in DAO version 2.
 - Current agenda status (agendaStatus) → English text conversion : 0=Pending, 1=Notice Period, 2=Voting, 3=WAITING_EXEC, 4=EXECUTED, 5=ENDED, 6=NO_AGENDA
 - Current agenda result (agendaResult) → English text conversion : 0=Pending, 1=Approved, 2=Rejected, 3=Invalid, 4=NO_CONSENSUS, 5=NO_AGENDA
 
 **DAO Committee v2 Agenda Memo Information:**
-- `Committee.agendaMemo(agendaId)` 함수 사용 (DAO v2에서만 제공)
-- Returns (string) - 아젠다 메모 정보
-- 아젠다 상세 내용에 메모 정보 표시
-- **URL 링크 기능**: 메모 내용에 URL이 포함된 경우 클릭 가능한 링크로 표시 (새창에서 열림)
+- Use `Committee.agendaMemo(agendaId)` function (only available in DAO v2)
+- Returns (string) - Agenda memo information
+- Display memo information in agenda details
+- **URL link functionality**: Display as clickable links when URLs are included in memo content (opens in new window)
 
 ### 4. Committee Member Management System
 - Get total number of committee members (maxMember)
 - Get individual member addresses (members function)
 - Get member info for each address (candidateInfos)
-- Get manager address from member CA contract (manager function)
+- Get manager address from OperatorManager contract (manager function)
 - User membership detection (member address or manager address)
 
 ### 5. Voting Functionality
 **CRITICAL: Vote status must be checked using AgendaManager.getVoteStatus, NOT Candidate.hasVoted:**
 
-#### 5.1 투표 가능한 투표자/멤버 표시
-**투표 화면에 투표 가능한 투표자(또는 멤버) 목록과 매니저 주소를 표시:**
+#### 5.1 Display available voters/members
+**Display list of available voters (or members) and manager addresses in voting screen:**
 
-**표시 정보:**
-- 투표자/멤버 주소 (Etherscan 링크)
-- 매니저 주소 (Etherscan 링크, 없으면 "None" 표시)
-- 현재 연결된 지갑의 투표 권한 표시
-  - "Direct": 직접 투표 가능
-  - "You": 매니저로 투표 가능
-- 투표 가능 여부 설명 텍스트
+**Display information:**
+- Voter/member address (Etherscan link)
+- Manager address (Etherscan link, display "None" if not present)
+- Display voting permissions for currently connected wallet
+  - "Direct": Can vote directly
+  - "You": Can vote as manager
+- Voting eligibility explanation text
 
-**UI 레이아웃:**
-- 각 투표자/멤버를 표시
+**UI Layout:**
+- Display each voter/member
 
-**투표 상태 표시:**
-- **이미 투표한 멤버**: "✓ Voted" 표시와 함께 투표 타입 (For/Against/Abstain) 표시
-- **아직 투표하지 않은 멤버**: "Not voted yet" 표시
-- **투표 불가능한 멤버**: "❌ No voting permission" 표시
+**Vote status display:**
+- **Members who have already voted**: Display "✓ Voted" along with vote type (For/Against/Abstain)
+- **Members who have not voted yet**: Display "Not voted yet"
+- **Members who cannot vote**: Display "❌ No voting permission"
 
-**시점별 구분:**
-- 투표 시작 전: "Available Voters (Committee Members)"
-- 투표 시작 후: "Available Voters (Current Voters)"
+**Phase distinction:**
+- Before voting starts: "Available Voters (Committee Members)"
+- After voting starts: "Available Voters (Current Voters)"
 
+#### 5.2 Voter list query method (Implementation guide)
+
+**Available Voters query method based on voting phase:**
+
+**Method 1: Before voting starts (votingStartedTimestamp = 0)**
+```typescript
+// Condition: agendaData.votingStartedTimestamp === BigInt(0)
+// Use Committee member list (batch query with multicall)
+const { data } = useReadContracts({
+  contracts: [
+    // Step 1: Query Committee member addresses
+    ...Array.from({ length: maxMember }, (_, i) => ({
+      address: contracts.committee,
+      abi: COMMITTEE_ABI,
+      functionName: 'members' as const,
+      args: [BigInt(i)],
+    })),
+    // Step 2: Query each member's manager address (OperatorManager.manager() call)
+    ...memberAddresses.map(memberAddress => ({
+              address: memberAddress, // memberAddress is OperatorManager contract
+      abi: OPERATOR_MANAGER_ABI,
+      functionName: 'manager' as const,
+    })),
+  ],
+  query: { enabled: !!contracts && maxMember > 0 },
+})
+// Permission check: Check if connected wallet matches member address or manager address
+```
+
+**Method 2: After voting starts (votingStartedTimestamp > 0)**
+```typescript
+// Condition: agendaData.votingStartedTimestamp > BigInt(0)
+// Use Agenda's voters array
+const availableVoters = agendaData.voters
+
+// Implementation:
+1. AgendaManager.agendas(agendaId).voters - Query voting participant address array
+2. OperatorManager(voterAddress).manager() for each voter - Query manager address
+3. Permission check: Check if connected wallet matches voter address or manager address
+```
+
+**Actual implementation example:**
+```typescript
+const getAvailableVoters = (agendaData: AgendaData, committeeMembers: MemberInfo[]) => {
+  const isVotingStarted = agendaData.votingStartedTimestamp > BigInt(0)
+
+  if (isVotingStarted) {
+    // After voting starts: use voters array
+    return agendaData.voters.map(voterAddress => ({
+      address: voterAddress,
+      type: 'voter' as const
+    }))
+  } else {
+    // Before voting starts: use committee members
+    return committeeMembers.map(member => ({
+      address: member.address,
+      type: 'member' as const
+    }))
+  }
+}
+```
+
+**Manager query method:**
+- **Correct method**: Use `OperatorManager(memberAddress).manager()`
+
+#### 5.3 Voter query and manager verification (Implementation guide)
+
+**Step 1: Query available voting addresses**
+```typescript
+// Before voting starts: Use Committee members (multicall optimization)
+const { data: memberResults } = useReadContracts({
+  contracts: [
+    { address: committee, abi: COMMITTEE_ABI, functionName: 'members', args: [0] },
+    { address: committee, abi: COMMITTEE_ABI, functionName: 'members', args: [1] },
+    { address: committee, abi: COMMITTEE_ABI, functionName: 'members', args: [2] }
+  ]
+})
+const voters = memberResults?.map(result => result.result).filter(Boolean)
+// Result: ['0xOperatorManager1', '0xOperatorManager2', '0xOperatorManager3']
+
+// After voting starts: Use agendas().voters array
+const voters = agendaData.voters
+// Result: ['0xOperatorManager1', '0xOperatorManager2'] (only actual participants)
+```
+
+**Step 2: Query each OperatorManager's manager**
+```typescript
+// Direct manager() call to each OperatorManager contract (multicall optimization)
+const { data: managerResults } = useReadContracts({
+  contracts: voters.map(operatorManagerAddress => ({
+    address: operatorManagerAddress,
+    abi: OPERATOR_MANAGER_ABI,
+    functionName: 'manager'
+  }))
+})
+const managers = managerResults?.map(result => result.result)
+// Result: ['0xManager1', '0x0000...000', '0xManager3'] (only return addresses that have managers)
+```
+
+#### 5.4 Important: Committee Members always loading
+Committee members must **always be loaded once when the app starts** regardless of voting status.
+
+**Implementation principle:**
+- ✅ Always call Committee.members(0,1,2)
+- ✅ Load regardless of voting start status
+- ❌ Prevent empty array due to conditional loading
+
+**Reason:**
+Use different address arrays before and after voting starts, but Committee members are always needed as basic data
+
+#### 5.5 maxMember setting
+Use **fixed value 3** instead of Committee.maxMember() query
+
+**Implementation:**
+```typescript
+const maxMember = 3 // Use fixed value
+// const maxMember = await Committee.maxMember() ← Not used
+
+// Query Committee members (use multicall)
+const { data: memberResults } = useReadContracts({
+  contracts: Array.from({ length: maxMember }, (_, i) => ({
+    address: committee,
+    abi: COMMITTEE_ABI,
+    functionName: 'members',
+    args: [i]
+  }))
+})
+const members = memberResults?.map(result => result.result).filter(Boolean)
+```
+
+**Reason:**
+- Remove risk of contract call failure
+- Reduce loading time
+- Reduce implementation complexity
 
 ### 6. Execution Functionality
 **CRITICAL: Execution is open to ANYONE, not just committee members**
 
-**DAO Committee Version별 실행 가능 여부 확인:**
+**Check execution availability by DAO Committee Version:**
 
 **DAO Committee v2:**
-- `Committee.currentAgendaStatus()` 함수 사용 가능
-- `agendaStatus`=3 (WAITING_EXEC) 이여야 함.
-- `agendaResult`= 4 (NO_CONSENSUS) 이면 실행안됨
-- **실행 조건 확인 순서**: 위의 Execution Condition Check Priority 참조
+- `Committee.currentAgendaStatus()` function available
+- `agendaStatus` must be 3 (WAITING_EXEC).
+- Execution not possible if `agendaResult`= 4 (NO_CONSENSUS)
+- **Execution condition check order**: Refer to Execution Condition Check Priority above
 
 **DAO Committee v1:**
-- `Committee.currentAgendaStatus()` 함수 없음
-- `AgendaManager.agendas()`의 status=3 (WAITING_EXEC) 이어야 함.
-- `AgendaManager.agendas()`의 result=1 (ACCEPT) 이어야 함.
-- **실행 조건 확인 순서**: 위의 Execution Condition Check Priority 참조
+- `Committee.currentAgendaStatus()` function not available
+- `AgendaManager.agendas()` status must be 3 (WAITING_EXEC).
+- `AgendaManager.agendas()` result must be 1 (ACCEPT).
+- **Execution condition check order**: Refer to Execution Condition Check Priority above
 
 **Execution Conditions and Validation:**
-- **우선순위 순서대로 확인** (위의 Execution Condition Check Priority 참조)
+- **Check in priority order** (Refer to Execution Condition Check Priority above)
 - Check execution period: `executableLimitTimestamp` vs current time (executableLimitTimestamp!=0)
 - Verify agenda not already executed: `executed` boolean must be false
 - Ensure voting completed and approved: `countingYes > countingNo`
-- **DAO v2 추가 조건**: `agendaResult=4` (NO_CONSENSUS)이면 실행 불가
+- **DAO v2 additional condition**: Execution not possible if `agendaResult=4` (NO_CONSENSUS)
 
 
 ### 7. Manual Refresh Functionality
@@ -595,13 +729,6 @@ export const COMMITTEE_ABI = [
 ```typescript
 export const CANDIDATE_ABI = [
   {
-    "inputs": [],
-    "name": "manager",
-    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       { "internalType": "uint256", "name": "_agendaID", "type": "uint256" },
       { "internalType": "uint256", "name": "_vote", "type": "uint256" },
@@ -610,6 +737,19 @@ export const CANDIDATE_ABI = [
     "name": "castVote",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  }
+] as const;
+```
+
+### OperatorManager Contract Functions
+```typescript
+export const OPERATOR_MANAGER_ABI = [
+  {
+    "inputs": [{ "internalType": "address", "name": "memberAddress", "type": "address" }],
+    "name": "manager",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const;
@@ -678,7 +818,7 @@ export const AGENDA_MANAGER_ABI = [
 ## 🎨 UI/UX Requirements
 
 ### Header Section
-- **MetaMask 전용 지갑 연결** (Connect/Disconnect buttons)
+- **MetaMask-only wallet connection** (Connect/Disconnect buttons)
 - Network selector (Mainnet/Sepolia) with automatic switching
 - Current contract addresses display (chain-aware)
 - Total agenda count and current viewing ID
@@ -758,11 +898,79 @@ export const MESSAGES = {
     "eslint": "^8",
     "eslint-config-next": "15.4.3",
     "postcss": "^8",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^3.4.1",  // ⚠️ CRITICAL: Use v3, NOT v4
     "typescript": "^5"
   }
 }
 ```
+
+## 🔧 Critical Configuration Fix
+
+**⚠️ CRITICAL: TailwindCSS Version and Configuration Requirements**
+
+### 1. TailwindCSS Version
+**MUST use TailwindCSS v3 (^3.4.1), NOT v4**
+- TailwindCSS v4 has breaking changes with PostCSS plugin system
+- If v4 is accidentally installed, uninstall and reinstall v3:
+```bash
+npm uninstall tailwindcss @tailwindcss/postcss
+npm install tailwindcss@^3.4.1 --save-dev
+```
+
+### 2. PostCSS Configuration
+```javascript
+// postcss.config.mjs - MUST use this exact configuration for v3
+const config = {
+  plugins: {
+    tailwindcss: {},    // Direct plugin reference for v3
+    autoprefixer: {},
+  },
+}
+export default config
+
+// ❌ WRONG for v3: plugins: ["@tailwindcss/postcss"]  // This is for v4 only
+```
+
+### 3. Global CSS Configuration
+```css
+/* src/app/globals.css - Complete file content */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  
+  body {
+    @apply min-h-screen bg-white text-gray-900;
+  }
+}
+```
+
+### 4. Tailwind Configuration
+```typescript
+// tailwind.config.ts - Create if missing
+import type { Config } from "tailwindcss";
+export default {
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  theme: { extend: {} },
+  plugins: [],
+} satisfies Config;
+```
+
+### 5. Troubleshooting Steps
+If TailwindCSS classes are not working:
+1. Check TailwindCSS version in package.json (must be v3)
+2. Verify postcss.config.mjs uses direct plugin reference
+3. Clear Next.js cache: `rm -rf .next`
+4. Restart development server
+
+**⚠️ Common Error Messages and Solutions:**
+- `Error: It looks like you're trying to use tailwindcss directly as a PostCSS plugin` → Using v4 syntax with v3, fix postcss.config.mjs
+- `Cannot apply unknown utility class` → TailwindCSS v4 installed or wrong PostCSS config
+- `@tailwindcss/postcss` error → This package is for v4 only, don't use with v3
 
 ## 🚀 Development Time Optimization & Error Prevention Tips
 
@@ -1019,7 +1227,7 @@ const QuickTest = () => {
 - [ ] Centralized hooks in src/hooks/ directory
 
 ### 🔗 Web3 Integration
-- [ ] **MetaMask 전용 wagmi v2 configuration** (metaMask connector만 사용)
+- [ ] **MetaMask-only wagmi v2 configuration** (use metaMask connector only)
 - [ ] wagmi v2 configuration with mainnet & sepolia
 - [ ] Contract addresses properly defined for both networks
 - [ ] All contract ABIs correctly implemented
@@ -1042,7 +1250,7 @@ const QuickTest = () => {
 ### 🗳️ Voting System
 - [ ] Committee member detection using contract multi-calls
 - [ ] Vote status checked via AgendaManager.getVoteStatus
-- [ ] **투표 함수는 candidateContract 주소를 통해 호출** (member 주소 직접 사용 금지)
+- [ ] **Voting function must be called through candidateContract address** (prohibit direct use of member address)
 - [ ] FOR/AGAINST/ABSTAIN voting options
 - [ ] Vote status display for each member
 - [ ] Wallet connection required message shown before voting options
@@ -1061,7 +1269,7 @@ const QuickTest = () => {
 - [ ] Executed status properly displayed
 
 ### 🎨 UI/UX Requirements
-- [ ] **MetaMask 전용 지갑 연결** (Connect/Disconnect buttons)
+- [ ] **MetaMask-only wallet connection** (Connect/Disconnect buttons)
 - [ ] Network selector (Mainnet/Sepolia) with automatic switching
 - [ ] Current contract addresses display (chain-aware)
 - [ ] Loading states for all async operations
@@ -1263,22 +1471,22 @@ npm install --save-dev @testing-library/react @testing-library/jest-dom jest jes
 }
 ```
 
-## 체크리스트 점검
-앱을 완성한 후, 반드시 다음 체크리스트를 하나씩 점검해주세요:
+## Checklist Verification
+After completing the app, be sure to check each item in the following checklist:
 
-- [ ] 모든 파일이 올바르게 생성되었는지 확인
-- [ ] package.json에 필요한 의존성이 모두 포함되었는지 확인
-- [ ] npm install && npm run dev로 앱이 오류 없이 실행되는지 확인
-- [ ] **MetaMask 전용 지갑 연결이 정상적으로 작동하는지 확인**
-- [ ] 아젠다 검색과 네비게이션이 작동하는지 확인
-- [ ] 아젠다 상세 정보가 정확히 표시되는지 확인
-- [ ] 실시간 상태 업데이트가 작동하는지 확인
-- [ ] 투표 기능이 정상적으로 작동하는지 확인
-- [ ] 실행 기능이 정상적으로 작동하는지 확인
-- [ ] 실행 조건 검증이 올바르게 작동하는지 확인 (실행 기간, NO_CONSENSUS 상태 등)
-- [ ] 실행 조건 확인 순서가 올바르게 구현되었는지 확인 (투표 중 > 실행 기간 만료 > 기타 조건)
-- [ ] 투표 중일 때 실행 버튼이 숨겨지고 적절한 메시지가 표시되는지 확인
-- [ ] 실행 불가능한 상황에서 적절한 에러 메시지가 표시되는지 확인
-- [ ] 수동 새로고침 버튼이 작동하는지 확인
-- [ ] 에러 처리와 로딩 상태가 적절히 구현되었는지 확인
-- [ ] UI가 반응형이고 사용자 친화적인지 확인
+- [ ] Verify that all files are created correctly
+- [ ] Verify that all required dependencies are included in package.json
+- [ ] Verify that the app runs without errors with npm install && npm run dev
+- [ ] **Verify that MetaMask-only wallet connection works properly**
+- [ ] Verify that agenda search and navigation works
+- [ ] Verify that agenda details are displayed accurately
+- [ ] Verify that real-time status updates work
+- [ ] Verify that voting functionality works properly
+- [ ] Verify that execution functionality works properly
+- [ ] Verify that execution condition validation works correctly (execution period, NO_CONSENSUS status, etc.)
+- [ ] Verify that execution condition check order is implemented correctly (voting in progress > execution period expired > other conditions)
+- [ ] Verify that execution button is hidden and appropriate message is displayed when voting is in progress
+- [ ] Verify that appropriate error messages are displayed in impossible execution situations
+- [ ] Verify that manual refresh button works
+- [ ] Verify that error handling and loading states are implemented appropriately
+- [ ] Verify that UI is responsive and user-friendly

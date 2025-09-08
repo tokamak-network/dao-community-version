@@ -17,9 +17,13 @@ export const useAgendaVoting = () => {
 
   // Get committee member's candidate contract address
   const getCandidateContract = async (memberAddress: `0x${string}`) => {
-    // This would typically come from reading candidateInfos from committee contract
-    // For demo purposes, we'll assume you have this information
-    return memberAddress // In reality, you'd call committee.candidateInfos(memberAddress)
+    if (!contracts?.committee) {
+      throw new Error('Committee contract not available')
+    }
+
+    // Get candidate information from committee contract
+    const candidateInfo = await contracts.committee.read.candidateInfos([memberAddress])
+    return candidateInfo.candidateContract
   }
 
   // Check if user has already voted
@@ -29,6 +33,20 @@ export const useAgendaVoting = () => {
     functionName: 'getVoteStatus',
     args: [BigInt(0), '0x' as `0x${string}`], // Will be updated dynamically
   })
+
+  // Helper function to check vote status for specific agenda and member
+  const checkVoteStatus = async (agendaId: number, memberAddress: `0x${string}`) => {
+    if (!contracts?.agendaManager) {
+      throw new Error('Agenda manager contract not available')
+    }
+
+    const [hasVoted, vote] = await contracts.agendaManager.read.getVoteStatus([
+      BigInt(agendaId),
+      memberAddress
+    ])
+
+    return { hasVoted, vote: Number(vote) }
+  }
 
   // Check if agenda is in voting status
   const { data: agendaData } = useReadContract({
@@ -70,43 +88,7 @@ export const useAgendaVoting = () => {
     voteOnAgenda,
     voteStatus,
     refetchVoteStatus,
-    agendaData
+    agendaData,
+    checkVoteStatus
   }
 }
-
-// Usage example in a React component:
-/*
-import { useAgendaVoting } from './agenda-vote'
-
-const VotingComponent = ({ agendaId, memberAddress }) => {
-  const { voteOnAgenda } = useAgendaVoting()
-  
-  const handleVote = async (voteType: 1 | 2 | 3) => {
-    try {
-      await voteOnAgenda({
-        agendaId,
-        voteType,
-        comment: 'My vote comment',
-        memberAddress
-      })
-      alert('Vote submitted successfully!')
-    } catch (error) {
-      alert('Failed to vote: ' + error.message)
-    }
-  }
-
-  return (
-    <div className="space-x-2">
-      <button onClick={() => handleVote(1)} className="bg-green-500 text-white px-4 py-2 rounded">
-        Vote YES
-      </button>
-      <button onClick={() => handleVote(2)} className="bg-red-500 text-white px-4 py-2 rounded">
-        Vote NO
-      </button>
-      <button onClick={() => handleVote(3)} className="bg-gray-500 text-white px-4 py-2 rounded">
-        Abstain
-      </button>
-    </div>
-  )
-}
-*/

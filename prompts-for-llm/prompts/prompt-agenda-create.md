@@ -6,9 +6,61 @@ Build a bulletproof Next.js 15 + Web3 app with comprehensive error handling, gas
 
 ### 1. **Copy-Paste Setup**
 ```bash
-npx create-next-app@15 dao-agenda-creator --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --turbo --skip-install
+npx create-next-app@15 dao-agenda-creator --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --skip-install
 cd dao-agenda-creator
 npm install wagmi@^2.16.0 viem@^2.33.0 @tanstack/react-query@^5.83.0
+npm install tailwindcss@^3.4.1 autoprefixer@^10.4.16 postcss@^8 --save-dev
+```
+
+## ⚠️ **CRITICAL: CSS & TailwindCSS Configuration (MANDATORY)**
+
+### ⚠️ TailwindCSS Version Requirements
+**MUST use TailwindCSS v3 (^3.4.1), NOT v4**
+- TailwindCSS v4 has breaking changes with PostCSS plugin system
+- If v4 is accidentally installed, uninstall and reinstall v3:
+```bash
+npm uninstall tailwindcss @tailwindcss/postcss
+npm install tailwindcss@^3.4.1 --save-dev
+```
+
+### PostCSS Configuration (postcss.config.mjs)
+```javascript
+// postcss.config.mjs - MUST use this exact configuration for v3
+const config = {
+  plugins: {
+    tailwindcss: {},    // Direct plugin reference for v3
+    autoprefixer: {},
+  },
+}
+export default config
+// ❌ WRONG for v3: plugins: ["@tailwindcss/postcss"]  // This is for v4 only
+```
+
+### Global CSS Configuration (src/app/globals.css)
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  
+  body {
+    @apply min-h-screen bg-white text-gray-900;
+  }
+}
+```
+
+### Tailwind Configuration (tailwind.config.ts)
+```typescript
+import type { Config } from "tailwindcss";
+export default {
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  theme: { extend: {} },
+  plugins: [],
+} satisfies Config;
 ```
 
 ## ⚠️ **CRITICAL: RPC Configuration (MANDATORY)**
@@ -829,7 +881,7 @@ export function AgendaForm() {
         throw new Error(`Transaction ${index + 1}: Expected ${inputs.length} parameters, got ${parameters.length}`)
       }
 
-      // 함수 시그니처를 포함한 callData 생성
+      // Generate callData including function signature
       try {
         const abiFunction = abi as { name: string; inputs: unknown[] }
         return encodeFunctionData({
