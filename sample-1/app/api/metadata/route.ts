@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const agendaId = searchParams.get('agendaId');
-    const network = searchParams.get('network') || 'sepolia';
+    let network = searchParams.get('network') || 'sepolia';
 
     // 파라미터 검증
     if (!agendaId) {
@@ -38,7 +38,11 @@ export async function GET(request: NextRequest) {
     }
 
     // console.log(`🔍 [API] Fetching metadata for agenda ${id} on ${network}`);
-
+    if (network == 'ethereum' || network == 'Ethereum') {
+      network = 'mainnet'
+    } else if(network == 'Sepolia') {
+      network = 'sepolia'
+    }
     // GitHub raw content에서 메타데이터 가져오기
     const metadataUrl = `https://raw.githubusercontent.com/tokamak-network/dao-agenda-metadata-repository/main/data/agendas/${network}/agenda-${id}.json`;
 
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       if (response.status === 404) {
-        // console.log(`📋 [API] Metadata not found for agenda ${id}`);
+        console.log(`📋 [API] Metadata not found for agenda ${id}`);
         return NextResponse.json({
           success: false,
           agendaId: id,
@@ -70,7 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     const metadata = await response.json();
-    // console.log(`✅ [API] Successfully fetched metadata for agenda ${id}`);
+    console.log(`✅ [API] Successfully fetched metadata for agenda ${id}`);
 
     return NextResponse.json({
       success: true,

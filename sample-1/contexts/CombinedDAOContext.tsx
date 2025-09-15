@@ -264,6 +264,13 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
 
   // 이벤트 모니터링 useEffect: deps 최소화
   useEffect(() => {
+    // 개발 모드 Fast Refresh로 인한 중복 구독 방지 (최소 변경)
+    if (typeof window !== 'undefined') {
+      if ((window as any).__agendaWatcherInited) {
+        return;
+      }
+      (window as any).__agendaWatcherInited = true;
+    }
 
     const updateAgendaData = agendaFunctions.updateAgendaData || (async () => {});
     const getAgenda = agendaFunctions.getAgenda || (async () => null);
@@ -295,7 +302,12 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
       handleAgendaVoteCasted,
       handleAgendaExecuted
     );
-    return cleanupAgenda;
+    return () => {
+      cleanupAgenda?.();
+      if (typeof window !== 'undefined') {
+        (window as any).__agendaWatcherInited = false;
+      }
+    };
   }, [chain.id, CONTRACTS.daoAgendaManager.address, contextUpsertAgenda]);
 
   // DAO 이벤트 모니터링 설정
@@ -327,9 +339,14 @@ const CombinedDAOProvider = memo(function CombinedDAOProvider({ children }: { ch
     setMetadataIdListError(null);
 
     try {
-      const networkName = getNetworkName(chain.id);
+      let networkName = getNetworkName(chain.id);
+      if (networkName == 'ethereum' || networkName == 'Ethereum') {
+        networkName = 'mainnet'
+      } else if(networkName == 'Sepolia') {
+        networkName = 'sepolia'
+      }
 
-      // console.log(`🔍 Loading metadata cache for ${networkName}, range: ${startId} ~ ${endId}`);
+      console.log(`🔍 Loading metadata cache for ${networkName}, range: ${startId} ~ ${endId}`);
 
       // metadata-range API를 사용해서 지정된 범위 가져오기
       const response = await fetch(`/api/metadata-range?network=${networkName}&start=${startId}&end=${endId}`);

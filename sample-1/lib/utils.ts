@@ -263,7 +263,7 @@ export function calculateAgendaStatus(
 export function getNetworkName(chainId: number): string {
   switch (chainId) {
     case 1:
-      return "ethereum";
+      return "mainnet";
     case 137:
       return "polygon";
     case 56:
@@ -279,7 +279,7 @@ export function getNetworkName(chainId: number): string {
     case 11155111:
       return "sepolia";
     default:
-      return "ethereum";
+      return "mainnet";
   }
 }
 
@@ -622,6 +622,11 @@ export function normalizeParameterValue(value: string, type: string): string {
 }
 
 export function getAgendaMetadataRepoFolderUrl(network: string = "mainnet"): string {
+  if (network == 'ethereum' || network == 'Ethereum') {
+    network = 'mainnet'
+  } else if(network == 'Sepolia') {
+    network = 'sepolia'
+  }
   return `https://github.com/tokamak-network/dao-agenda-metadata-repository/tree/main/data/agendas/${network}`;
 }
 

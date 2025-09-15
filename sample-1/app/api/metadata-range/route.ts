@@ -18,10 +18,14 @@ interface MetadataRangeResponse {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const network = searchParams.get('network') || 'sepolia';
+    let network = searchParams.get('network') || 'sepolia';
     const start = searchParams.get('start');
     const end = searchParams.get('end');
-
+    if (network == 'ethereum' || network == 'Ethereum') {
+      network = 'mainnet'
+    } else if(network == 'Sepolia') {
+      network = 'sepolia'
+    }
     // 파라미터 검증
     if (!start || !end) {
       return NextResponse.json({

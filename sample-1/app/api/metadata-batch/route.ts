@@ -17,8 +17,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
     const agendaIdsParam = searchParams.get('agendaIds');
-    const network = searchParams.get('network') || 'sepolia';
-
+    let network = searchParams.get('network') || 'sepolia';
+    if (network == 'ethereum' || network == 'Ethereum') {
+      network = 'mainnet'
+    } else if(network == 'Sepolia') {
+      network = 'sepolia'
+    }
     // 파라미터 검증
     if (!agendaIdsParam) {
       return NextResponse.json({
