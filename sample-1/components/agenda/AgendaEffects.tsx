@@ -67,7 +67,9 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
     if (!action.abi || !action.calldata) return null
 
     try {
-      const func = action.abi.find((item: any) => {
+      // Find all functions with the same name (for overloaded functions)
+      // First try exact match, then try case-insensitive match
+      let matchingFunctions = action.abi.filter((item: any) => {
         if (!item || !item.inputs) return false
         const paramTypes = item.inputs
           .map((input: any) => input.type)
@@ -75,23 +77,56 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
         return `${item.name}(${paramTypes})` === action.method
       })
 
-      if (func) {
-        const iface = new Interface([func])
-        const decodedParams = iface.decodeFunctionData(
-          func.name,
-          action.calldata
-        )
+      // If no exact match found, try case-insensitive matching
+      if (matchingFunctions.length === 0) {
+        const methodName = action.method.split('(')[0] // Extract function name
+        const methodParams = action.method.split('(')[1]?.replace(')', '') || '' // Extract parameters
 
-        return func.inputs.map(
-          (input: any, index: number): DecodedParam => ({
-            name: input.name,
-            type: input.type,
-            value: decodedParams[index],
-          })
-        )
+        matchingFunctions = action.abi.filter((item: any) => {
+          if (!item || !item.inputs) return false
+          const paramTypes = item.inputs
+            .map((input: any) => input.type)
+            .join(',')
+          // Case-insensitive function name comparison
+          return item.name.toLowerCase() === methodName.toLowerCase() &&
+                 paramTypes === methodParams
+        })
       }
+
+      // Try each matching function until one works
+      for (const func of matchingFunctions) {
+        try {
+          const iface = new Interface([func])
+          const decodedParams = iface.decodeFunctionData(
+            func.name,
+            action.calldata
+          )
+
+          return func.inputs.map(
+            (input: any, index: number): DecodedParam => ({
+              name: input.name,
+              type: input.type,
+              value: decodedParams[index],
+            })
+          )
+        } catch (decodeError) {
+          // Continue to next function if this one fails
+          console.warn(`Failed to decode with function ${func.name}:`, decodeError)
+          continue
+        }
+      }
+
+      console.warn('No matching function found in ABI:', {
+        method: action.method,
+        availableFunctions: action.abi?.map((item: any) => item.name) || []
+      })
     } catch (error) {
-      console.error('Error decoding calldata:', error)
+      console.error('Error decoding calldata:', {
+        error: error,
+        method: action.method,
+        calldata: action.calldata,
+        abi: action.abi
+      })
     }
     return null
   }
