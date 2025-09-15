@@ -174,7 +174,55 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
 
-            <table className="w-full">
+            {/* Responsive list (mobile) / table (md+) */}
+            <div className="md:hidden space-y-4">
+              {displayActions.length > 0 ? displayActions.map((action, index) => {
+                const decodedParams = decodeCalldata(action)
+                const expanded = !!expandedParams[`action-${index}`]
+                return (
+                  <div key={action.id || index} className="border border-gray-200 rounded-md p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-900">Action #{index + 1}</span>
+                      <button
+                        onClick={() => setExpandedParams(prev => ({ ...prev, [`action-${index}`]: !expanded }))}
+                        className="text-blue-600 text-sm hover:text-blue-700"
+                      >
+                        {expanded ? 'Hide params' : `${decodedParams?.length || 'View'} params`}
+                      </button>
+                    </div>
+                    <div className="text-sm text-gray-700 space-y-1">
+                      <div>
+                        <span className="text-gray-500">Contract</span>:
+                        <a
+                          href="#"
+                          className="ml-1 text-blue-600 hover:text-blue-700 font-mono break-all"
+                          onClick={(e) => { e.preventDefault(); if (action.contractAddress.startsWith('0x')) openEtherscan(action.contractAddress) }}
+                        >
+                          {action.contractAddress.startsWith('0x') ? formatAddress(action.contractAddress) : action.contractAddress} ↗
+                        </a>
+                      </div>
+                      <div className="break-words"><span className="text-gray-500">Method</span>: 📋 {action.method}</div>
+                    </div>
+                    {expanded && (
+                      <div className="mt-2 space-y-1 text-gray-700">
+                        {decodedParams?.map((p, i) => (
+                          <div key={`${p.name}-${i}`} className="text-sm break-all">
+                            <span className="text-gray-500">{p.name}</span>: <span className="font-mono">{String(p.value)}</span>
+                          </div>
+                        ))}
+                        {!decodedParams && (
+                          <div className="text-sm text-gray-500">No decodable params</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              }) : (
+                <div className="text-sm text-gray-500">No actions available</div>
+              )}
+            </div>
+
+            <table className="hidden md:table w-full">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 text-sm font-medium text-gray-600">Action</th>
@@ -194,86 +242,38 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                           <a
                             href="#"
                             className="text-blue-600 hover:text-blue-700 font-mono"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              if (action.contractAddress.startsWith('0x') && action.contractAddress.length > 10) {
-                                openEtherscan(action.contractAddress)
-                              }
-                            }}
+                            onClick={(e) => { e.preventDefault(); if (action.contractAddress.startsWith('0x') && action.contractAddress.length > 10) { openEtherscan(action.contractAddress) } }}
                           >
-                            {action.contractAddress.startsWith('0x')
-                              ? formatAddress(action.contractAddress)
-                              : action.contractAddress} ↗
+                            {action.contractAddress.startsWith('0x') ? formatAddress(action.contractAddress) : action.contractAddress} ↗
                           </a>
                         </td>
-                        <td className="py-3 text-sm text-gray-900">
-                          📋 {action.method}
-                        </td>
+                        <td className="py-3 text-sm text-gray-900">📋 {action.method}</td>
                         <td className="py-3 text-sm text-blue-600">
                           <button
-                            onClick={() => setExpandedParams(prev => ({
-                              ...prev,
-                              [`action-${index}`]: !prev[`action-${index}`]
-                            }))}
+                            onClick={() => setExpandedParams(prev => ({ ...prev, [`action-${index}`]: !prev[`action-${index}`] }))}
                             className="hover:text-blue-700"
                           >
                             {decodedParams?.length || 'View'} params
-                            <span className="ml-1">
-                              {expandedParams[`action-${index}`] ? '⌃' : '⌄'}
-                            </span>
                           </button>
+                          {expandedParams[`action-${index}`] && (
+                            <div className="mt-2 space-y-1 text-gray-700">
+                              {decodedParams?.map((p, i) => (
+                                <div key={`${p.name}-${i}`} className="text-sm break-all">
+                                  <span className="text-gray-500">{p.name}</span>: <span className="font-mono">{String(p.value)}</span>
+                                </div>
+                              ))}
+                              {!decodedParams && (
+                                <div className="text-sm text-gray-500">No decodable params</div>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
-                      {expandedParams[`action-${index}`] && (
-                        <tr>
-                          <td colSpan={4} className="px-0 py-0">
-                            <div className="bg-gray-50 p-4 border-t border-gray-200">
-                              <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                                <div className="p-4">
-                                  <h4 className="text-sm font-medium text-gray-900 mb-3">
-                                    Function Parameters
-                                  </h4>
-                                  {decodedParams && decodedParams.length > 0 ? (
-                                    <div className="space-y-3">
-                                      {decodedParams.map((param: DecodedParam, paramIndex: number) => (
-                                        <div key={paramIndex} className="flex items-start space-x-3">
-                                          <div className="w-32 flex-shrink-0">
-                                            <span className="text-sm font-medium text-gray-700">
-                                              {param.name || `Parameter ${paramIndex + 1}`}
-                                            </span>
-                                            <div className="text-xs text-gray-500">
-                                              {param.type}
-                                            </div>
-                                          </div>
-                                          <div className="flex-1">
-                                            <div className="font-mono text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200 break-all">
-                                              {param.value.toString()}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      <h5 className="text-sm font-medium text-gray-700 mb-2">Raw Calldata</h5>
-                                      <div className="font-mono text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded border border-gray-200 break-all whitespace-pre-wrap">
-                                        {action.calldata || 'No calldata available'}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </React.Fragment>
                   )
                 }) : (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-gray-500 text-sm">
-                      No actions available
-                    </td>
+                    <td className="py-3 text-sm text-gray-500" colSpan={4}>No actions available</td>
                   </tr>
                 )}
               </tbody>
@@ -304,7 +304,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                     <div className="bg-gray-50 p-3 rounded-md">
                       <a
                         href="#"
-                        className="text-sm font-mono text-gray-700 hover:text-blue-600"
+                        className="text-sm font-mono text-gray-700 hover:text-blue-600 break-all"
                         onClick={(e) => {
                           e.preventDefault()
                           if (submissionData.contract) {
@@ -321,7 +321,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                   <div>
                     <h4 className="text-sm font-medium text-gray-900 mb-2">Function</h4>
                     <div className="bg-gray-50 p-3 rounded-md">
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-gray-700 break-words">
                         {submissionData.function} ↗
                       </span>
                     </div>
@@ -338,7 +338,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                         <div className="bg-gray-50 p-3 rounded-md">
                           <a
                             href="#"
-                            className="text-sm font-mono text-gray-700 hover:text-blue-600"
+                            className="text-sm font-mono text-gray-700 hover:text-blue-600 break-all"
                             onClick={(e) => {
                               e.preventDefault()
                               if (submissionData.parameters.spender) {
@@ -365,7 +365,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                       <div>
                         <div className="text-sm text-gray-500 mb-1">data</div>
                         <div className="bg-gray-50 p-3 rounded-md">
-                          <div className="text-xs font-mono text-gray-600 break-all whitespace-pre-wrap">
+                          <div className="text-xs font-mono text-gray-600 break-all whitespace-pre-wrap max-h-56 overflow-auto">
                             {submissionData.parameters.data}
                           </div>
                         </div>
@@ -380,9 +380,9 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                             </div>
                             <div className="p-3 space-y-2 text-xs">
                               {/* Target Addresses */}
-                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                              <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                 <span className="text-gray-500 font-medium">address[]:</span>
-                                <span className="font-mono text-gray-700">
+                                <span className="font-mono text-gray-700 break-all">
                                   [
                                   {displayActions
                                     .map((a) => `"${a.contractAddress}"`)
@@ -392,7 +392,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                               </div>
 
                               {/* Notice Period - sample data for now */}
-                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                              <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                 <span className="text-gray-500 font-medium">uint128:</span>
                                 <span className="font-mono text-gray-700">
                                   300 (notice period seconds)
@@ -400,7 +400,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                               </div>
 
                               {/* Voting Period - sample data for now */}
-                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                              <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                 <span className="text-gray-500 font-medium">uint128:</span>
                                 <span className="font-mono text-gray-700">
                                   600 (voting period seconds)
@@ -408,7 +408,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                               </div>
 
                               {/* Atomic Execute */}
-                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                              <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                 <span className="text-gray-500 font-medium">bool:</span>
                                 <span className="font-mono text-gray-700">
                                   true (atomic execute)
@@ -416,9 +416,9 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                               </div>
 
                               {/* Calldata Array */}
-                              <div className="grid grid-cols-[120px_1fr] gap-2">
+                              <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                 <span className="text-gray-500 font-medium">bytes[]:</span>
-                                <div className="font-mono text-gray-700">
+                                <div className="font-mono text-gray-700 break-all">
                                   {displayActions.length === 0
                                     ? '[]'
                                     : displayActions.map((action, index) => (
@@ -434,9 +434,9 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
 
                               {/* Memo Field */}
                               {agenda.snapshotUrl && (
-                                <div className="grid grid-cols-[120px_1fr] gap-2">
+                                <div className="grid grid-cols-[100px_1fr] md:grid-cols-[120px_1fr] gap-2">
                                   <span className="text-gray-500 font-medium">string:</span>
-                                  <span className="font-mono text-gray-700">
+                                  <span className="font-mono text-gray-700 break-words">
                                     "{agenda.snapshotUrl}" (memo: reference URL)
                                   </span>
                                 </div>
@@ -453,22 +453,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
           </div>
         </>
       ) : (
-        <div className="text-center py-12">
-          <div className="text-gray-500 text-sm mb-4">
-            This agenda is not registered in the DAO Agenda Metadata Repository.
-          </div>
-          <div className="text-center">
-            <a
-              href={getAgendaMetadataRepoFolderUrl(chain.network)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm"
-            >
-              DAO Agenda Metadata Repository
-              <span className="ml-1">↗</span>
-            </a>
-          </div>
-        </div>
+        <div className="text-gray-500 text-sm">No transaction details available.</div>
       )}
     </div>
   )

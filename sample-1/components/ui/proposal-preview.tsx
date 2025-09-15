@@ -441,17 +441,42 @@ export function ProposalPreview({
         ) : (
           <div className="border rounded-lg divide-y overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-[80px_150px_200px_1fr] gap-4 p-3 text-sm font-medium text-gray-500 bg-gray-50">
+            <div className="hidden md:grid grid-cols-[80px_150px_200px_1fr] gap-4 p-3 text-sm font-medium text-gray-500 bg-gray-50">
               <div>Action</div>
               <div>Contract</div>
               <div>Method</div>
               <div className="text-right">Parameters</div>
             </div>
 
-            {/* Table Rows */}
+            {/* Responsive Rows */}
             {actions.map((action, index) => (
               <div key={action.id}>
-                <div className="grid grid-cols-[80px_150px_200px_1fr] gap-4 p-3 text-sm hover:bg-gray-50 cursor-pointer">
+                {/* Mobile card */}
+                <div className="md:hidden p-3 text-sm hover:bg-gray-50 cursor-pointer space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">#{index + 1}</span>
+                    <div className="text-gray-500 cursor-pointer hover:text-gray-700" onClick={() => toggleParams(action.id)}>
+                      <span>
+                        {(() => {
+                          const parsedParams = parseCalldata(action);
+                          const paramCount = parsedParams ? parsedParams.length : 0;
+                          return `${paramCount} parameter${paramCount !== 1 ? 's' : ''}`;
+                        })()}
+                      </span>
+                      <ChevronDown className={`inline h-4 w-4 ml-1 transition-transform ${expandedParams[action.id] ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+                  <div className="text-blue-600 flex items-center break-all">
+                    <a href={getExplorerUrl(action.contractAddress, chainId)} target="_blank" rel="noopener noreferrer" className="underline">
+                      {formatAddress(action.contractAddress)}
+                    </a>
+                    <ExternalLink className="inline w-4 h-4 ml-1" />
+                  </div>
+                  <div className="break-words" title={action.method}>📋 {action.method}</div>
+                </div>
+
+                {/* Desktop row */}
+                <div className="hidden md:grid grid-cols-[80px_150px_200px_1fr] gap-4 p-3 text-sm hover:bg-gray-50 cursor-pointer">
                   <div className="flex items-center">
                     <span className="text-gray-500">#{index + 1}</span>
                   </div>
@@ -542,12 +567,12 @@ export function ProposalPreview({
           DAO Agenda Submission Parameters
         </h3>
 
-        <div className="space-y-6 bg-white border border-gray-200 rounded-lg p-6">
+        <div className="space-y-6 bg-white border border-gray-200 rounded-lg p-4 md:p-6">
           {/* TON Contract */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-2">TON Contract</h4>
             <div
-              className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100 text-blue-600 hover:underline"
+              className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100 text-blue-600 hover:underline break-all"
               onClick={() => TON_CONTRACT_ADDRESS && window.open(getExplorerUrl(TON_CONTRACT_ADDRESS, chainId), '_blank')}
             >
               {TON_CONTRACT_ADDRESS || 'Not configured'}
@@ -571,13 +596,13 @@ export function ProposalPreview({
               {/* Spender */}
               <div>
                 <div className="text-sm text-gray-500 mb-1">Spender</div>
-                            <div
-              className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100"
+                <div
+              className="font-mono text-sm bg-gray-50 px-3 py-2 rounded border border-gray-200 flex items-center cursor-pointer hover:bg-gray-100 break-all"
               onClick={() =>
                 window.open(getExplorerUrl(DAO_COMMITTEE_PROXY_ADDRESS, chainId), '_blank')
               }
             >
-                  {DAO_COMMITTEE_PROXY_ADDRESS}
+                  <span className="underline text-blue-600">{DAO_COMMITTEE_PROXY_ADDRESS}</span>
                   <ExternalLink className="w-4 h-4 ml-2" />
                 </div>
               </div>

@@ -787,27 +787,31 @@ export default function DAOCommitteeMembers() {
                     </div>
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Address</label>
-                      <a
-                        href={getExplorerUrl(member.creationAddress, chainId)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-mono ml-4"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={member.creationAddress}
-                      >
-                        {member.creationAddress}
-                      </a>
+                      <div className="min-w-0 flex-1 text-right ml-4">
+                        <a
+                          href={getExplorerUrl(member.creationAddress, chainId)}
+                          className="block font-mono text-sm text-blue-600 hover:text-blue-800 overflow-hidden whitespace-nowrap text-ellipsis md:overflow-visible md:whitespace-normal break-all"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={member.creationAddress}
+                        >
+                          {member.creationAddress}
+                        </a>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center">
                       <label className="text-sm font-medium text-gray-600">Candidate Contract</label>
-                      <a
-                        href={getExplorerUrl(member.candidateContract, chainId)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-mono ml-4"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={member.candidateContract}
-                      >
-                        {member.candidateContract}
-                      </a>
+                      <div className="min-w-0 flex-1 text-right ml-4">
+                        <a
+                          href={getExplorerUrl(member.candidateContract, chainId)}
+                          className="block font-mono text-sm text-blue-600 hover:text-blue-800 overflow-hidden whitespace-nowrap text-ellipsis md:overflow-visible md:whitespace-normal break-all"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={member.candidateContract}
+                        >
+                          {member.candidateContract}
+                        </a>
+                      </div>
                     </div>
                     <div className="flex justify-between">
                       <label className="text-sm font-medium text-gray-600">Total Staked</label>

@@ -106,7 +106,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
   return (
     <div className="space-y-2">
       <div className="flex justify-between py-2">
-        <span className="text-gray-600 text-sm">Agenda Creator</span>
+        <span className="text-gray-600 text-sm"><span className="hidden md:inline">Agenda </span>Creator</span>
         {agenda.creator?.address != "0x0000000000000000000000000000000000000000" ? (
           <a
             href={getExplorerUrl(agenda.creator.address, chainId)}
@@ -121,26 +121,26 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
         )}
       </div>
 
-      <div className="flex justify-between py-2">
-        <span className="text-gray-600 text-sm">Agenda Creation Time</span>
-        <span className="text-gray-900 text-sm">{formatDate(Number(agenda.createdTimestamp))}</span>
+      <div className="flex flex-col md:flex-row md:justify-between py-2">
+        <span className="text-gray-600 text-sm"><span className="hidden md:inline">Agenda </span>Creation Time</span>
+        <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">{formatDate(Number(agenda.createdTimestamp))}</span>
       </div>
 
-      <div className="flex justify-between py-2">
+      <div className="flex flex-col md:flex-row md:justify-between py-2">
         <span className="text-gray-600 text-sm">Notice End Time</span>
-        <span className="text-gray-900 text-sm">{formatDate(Number(agenda.noticeEndTimestamp))}</span>
+        <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">{formatDate(Number(agenda.noticeEndTimestamp))}</span>
       </div>
 
-      <div className="flex justify-between py-2">
+      <div className="flex flex-col md:flex-row md:justify-between py-2">
         <span className="text-gray-600 text-sm">Voting Start Time</span>
-        <span className="text-gray-900 text-sm">
+        <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">
           {agenda.votingStartedTimestamp > BigInt(0) ? formatDate(Number(agenda.votingStartedTimestamp)) : "-"}
         </span>
       </div>
 
-      <div className="flex justify-between py-2">
+      <div className="flex flex-col md:flex-row md:justify-between py-2">
         <span className="text-gray-600 text-sm">Voting End Time</span>
-        <span className="text-gray-900 text-sm">
+        <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">
           {agenda.votingEndTimestamp > BigInt(0) ? formatDate(Number(agenda.votingEndTimestamp)) : "-"}
         </span>
       </div>
@@ -175,17 +175,17 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
         </div>
       )}
 
-      <div className="flex justify-between py-2">
-        <span className="text-gray-600 text-sm">Agenda Execution Time Limit</span>
-        <span className="text-gray-900 text-sm">
+      <div className="flex flex-col md:flex-row md:justify-between py-2">
+        <span className="text-gray-600 text-sm"><span className="hidden md:inline">Agenda </span>Execution Time Limit</span>
+        <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">
           {agenda.executableLimitTimestamp > BigInt(0) ? formatDate(Number(agenda.executableLimitTimestamp)) : "-"}
         </span>
       </div>
 
       {agenda.executed && (
-        <div className="flex justify-between py-2">
+        <div className="flex flex-col md:flex-row md:justify-between py-2">
           <span className="text-gray-600 text-sm">Executed Time</span>
-          <span className="text-gray-900 text-sm">
+          <span className="text-gray-900 text-sm mt-1 md:mt-0 md:text-right">
             {agenda.executedTimestamp > BigInt(0) ? formatDate(Number(agenda.executedTimestamp)) : "-"}
           </span>
         </div>
@@ -209,7 +209,9 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
 
       {agenda.snapshotUrl && (
         <div className="flex justify-between py-2">
-          <span className="text-gray-600 text-sm">Snapshot URL (including official announcements)</span>
+          <span className="text-gray-600 text-sm">
+            Snapshot URL <span className="hidden md:inline">(including official announcements)</span>
+          </span>
           <a
             href={agenda.snapshotUrl}
             target="_blank"
@@ -236,7 +238,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
       )}
 
       <div className="flex justify-between py-2">
-        <span className="text-gray-600 text-sm">Agenda Description</span>
+        <span className="text-gray-600 text-sm"><span className="hidden md:inline">Agenda </span>Description</span>
         {isValidUrl(description) ? (
           <a
             href={description}
@@ -247,7 +249,7 @@ export default function AgendaInfo({ agenda }: AgendaInfoProps) {
             {description}
           </a>
         ) : (
-          <span className="text-gray-900 text-sm">{description}</span>
+          <p className="text-gray-900 text-sm text-right break-words ml-4">{description}</p>
         )}
       </div>
     </div>

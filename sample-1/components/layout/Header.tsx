@@ -13,6 +13,7 @@ export default function Header() {
     const [showDropdown, setShowDropdown] = useState(false)
     const [isMounted, setIsMounted] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
     // 🎯 Hydration Error 방지 - 클라이언트 마운트 후에만 지갑 상태 표시
     useEffect(() => {
@@ -130,19 +131,37 @@ export default function Header() {
     }
 
     return (
-      <header className="flex h-[73px] px-[30px] py-[19px] justify-between items-center self-stretch bg-[rgba(250,251,252,0.50)]">
+      <header className="relative flex h-14 md:h-[73px] px-4 md:px-[30px] py-3 md:py-[19px] justify-between items-center self-stretch bg-[rgba(250,251,252,0.50)]">
         {/* Logo - Left */}
         <Link href="/" className="flex items-center">
-          <div className="self-stretch h-20 px-7 py-5 bg-gray-50/50 inline-flex justify-between items-center">
-            <div className="flex justify-center items-center gap-1.5">
-              <div className="justify-start"><span className="text-black text-2xl font-extrabold font-['NanumSquare']">Tokamak </span><span className="text-blue-600 text-2xl font-extrabold font-['NanumSquare']">DAO</span></div>
-              <div className="justify-start text-black text-xs font-extrabold font-['NanumSquare'] leading-3">Community<br/>Version</div>
+          <div className="inline-flex items-center gap-2">
+            <div className="justify-start">
+              <span className="text-black text-xl md:text-2xl font-extrabold font-['NanumSquare']">Tokamak </span>
+              <span className="text-blue-600 text-xl md:text-2xl font-extrabold font-['NanumSquare']">DAO</span>
             </div>
+            <div className="hidden sm:block text-black text-[10px] md:text-xs font-extrabold font-['NanumSquare'] leading-3">Community<br/>Version</div>
           </div>
         </Link>
 
+        {/* Mobile menu button */}
+        <button
+          type="button"
+          className="md:hidden inline-flex items-center justify-center p-2 rounded text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-controls="primary-menu"
+          aria-expanded={isMobileMenuOpen}
+          onClick={() => setIsMobileMenuOpen((v) => !v)}
+        >
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {isMobileMenuOpen ? (
+              <path d="M18 6L6 18M6 6l12 12" />
+            ) : (
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            )}
+          </svg>
+        </button>
+
         {/* Navigation - Center */}
-        <nav className="flex items-center space-x-8">
+        <nav className="hidden md:flex items-center space-x-8">
           <Link
             href="/dao-committee"
             className={`text-center justify-start text-base font-semibold font-['Inter'] ${
@@ -164,7 +183,7 @@ export default function Header() {
         {/* Wallet - Right - Hydration Safe */}
         {!isMounted || isPending ? (
           // 마운트 중이거나 연결 중일 때 로딩 표시
-          <div className="w-32 h-10 bg-gray-100 rounded-md animate-pulse flex items-center justify-center">
+          <div className="w-24 md:w-32 h-9 md:h-10 bg-gray-100 rounded-md animate-pulse flex items-center justify-center">
             <span className="text-xs text-gray-500">Loading...</span>
           </div>
         ) : isConnected && address ? (
@@ -209,11 +228,36 @@ export default function Header() {
           </div>
         ) : (
           <button
-            className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            className="px-3 md:px-4 py-2 text-sm md:text-base font-medium text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
             onClick={handleConnect}
           >
-            Connect Wallet
+            Connect
           </button>
+        )}
+
+        {/* Mobile dropdown menu */}
+        {isMobileMenuOpen && (
+          <div
+            id="primary-menu"
+            className="md:hidden absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 shadow-lg rounded-md z-40"
+          >
+            <div className="flex flex-col p-2">
+              <Link
+                href="/dao-committee"
+                className={`px-3 py-2 rounded text-sm font-medium ${pathname === '/dao-committee' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                DAO Candidates
+              </Link>
+              <Link
+                href="/agenda"
+                className={`px-3 py-2 rounded text-sm font-medium ${pathname.startsWith('/agenda') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Agenda
+              </Link>
+            </div>
+          </div>
         )}
       </header>
     )

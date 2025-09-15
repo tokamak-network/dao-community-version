@@ -729,7 +729,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
       <div className="flex flex-col min-h-screen">
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col items-center">
-            <div className="w-full max-w-5xl px-4 py-8 transition-all duration-300 mx-auto">
+            <div className="w-full max-w-5xl px-4 py-8 transition-all duration-300 mx-auto md:px-6 md:py-8">
               <div className="space-y-8">
                 <div className="flex items-center justify-between">
                   <Tabs
@@ -737,10 +737,10 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                     onValueChange={(value) => this.setState({ activeTab: value })}
                     className="w-auto"
                   >
-                    <TabsList className="bg-transparent p-0 h-auto">
+                    <TabsList className="bg-transparent p-0 h-auto overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
                       <TabsTrigger
                         value="edit"
-                        className={`px-4 py-2 border-b-2 ${
+                        className={`px-3 md:px-4 py-2 border-b-2 ${
                           this.state.activeTab === "edit"
                             ? "border-gray-900 text-gray-900"
                             : "border-transparent text-gray-500"
@@ -752,7 +752,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                       <TabsTrigger
                         value="preview"
                         className={cn(
-                          "px-4 py-2 border-b-2 relative",
+                          "px-3 md:px-4 py-2 border-b-2 relative",
                           this.state.activeTab === "preview"
                             ? "border-gray-900 text-gray-900"
                             : "border-transparent text-gray-500",
@@ -771,7 +771,7 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                     </TabsList>
                   </Tabs>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="file"
                       accept=".json"
@@ -781,14 +781,14 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                     />
                     <button
                       onClick={() => this.fileInputRef.current?.click()}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className="hidden md:inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       <FileUp className="w-4 h-4 mr-2" />
                       Load from File
                     </button>
                     <button
                       onClick={this.handleSaveLocally}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className="hidden md:inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       <Save className="w-4 h-4 mr-2" />
                       Save Locally
@@ -797,13 +797,14 @@ export default class ProposalForm extends Component<ProposalFormProps, ProposalF
                     <button
                       onClick={this.handlePublish}
                       disabled={!this.state.canSubmit}
-                      className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                      className={`w-full md:w-auto inline-flex items-center h-10 px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
                         this.state.canSubmit
                           ? "bg-blue-600 text-white hover:bg-blue-700"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
                     >
-                      Submit DAO Agenda
+                      <span className="md:hidden">Submit</span>
+                      <span className="hidden md:inline">Submit DAO Agenda</span>
                     </button>
                     )}
                   </div>

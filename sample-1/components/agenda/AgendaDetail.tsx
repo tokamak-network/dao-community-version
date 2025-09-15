@@ -571,7 +571,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   const renderDropdownMenu = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="p-1.5 rounded-md hover:bg-gray-100">
+        <button className="hidden md:inline-flex p-1.5 rounded-md hover:bg-gray-100">
           <MoreVertical className="h-4 w-4 text-gray-500" />
         </button>
       </DropdownMenuTrigger>
@@ -649,61 +649,73 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
       {/* Navigation */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
         <button
           onClick={() => router.push(`/agenda?focus=${localAgenda.id}`)}
-          className="px-3 py-1.5 bg-white border border-gray-300 text-blue-600 text-xs rounded-md hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center h-9 px-3 bg-white border border-gray-300 text-blue-600 text-xs md:text-sm rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
         >
-          ← BACK TO ALL AGENDAS
+          <span className="md:hidden">Back</span>
+          <span className="hidden md:inline">← BACK TO ALL AGENDAS</span>
         </button>
 
-                <div className="flex gap-3">
+        <div className="flex gap-3">
           <button
             onClick={navigateToPreviousAgenda}
             disabled={localAgenda.id <= 1 || isLoadingPrevious}
-            className={`px-3 py-1.5 bg-white border border-gray-300 text-xs rounded-md transition-colors ${
+            className={`inline-flex items-center h-9 px-3 bg-white border border-gray-300 text-xs md:text-sm rounded-md transition-colors whitespace-nowrap ${
               localAgenda.id > 1 && !isLoadingPrevious
                 ? 'text-gray-700 hover:bg-gray-50 cursor-pointer'
                 : 'text-gray-400 cursor-not-allowed'
             }`}
           >
-            {isLoadingPrevious ? '← LOADING...' : '← PREVIOUS AGENDA'}
+            {isLoadingPrevious ? (
+              <>
+                <span className="md:hidden">Loading…</span>
+                <span className="hidden md:inline">← LOADING...</span>
+              </>
+            ) : (
+              <>
+                <span className="md:hidden">Prev</span>
+                <span className="hidden md:inline">← PREVIOUS AGENDA</span>
+              </>
+            )}
           </button>
           <button
             onClick={() => nextAgendaId && navigateToAgenda(nextAgendaId)}
             disabled={!nextAgendaId}
-            className={`px-3 py-1.5 bg-white border border-gray-300 text-xs rounded-md transition-colors ${
+            className={`inline-flex items-center h-9 px-3 bg-white border border-gray-300 text-xs md:text-sm rounded-md transition-colors whitespace-nowrap ${
               nextAgendaId
                 ? 'text-gray-700 hover:bg-gray-50 cursor-pointer'
                 : 'text-gray-400 cursor-not-allowed'
             }`}
           >
-            NEXT AGENDA →
+            <span className="md:hidden">Next</span>
+            <span className="hidden md:inline">NEXT AGENDA →</span>
           </button>
         </div>
       </div>
 
       {/* Main Content Container */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-4 md:p-6">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-blue-600 text-sm font-medium">#{localAgenda.id}</span>
             <span className="text-gray-400 text-sm">Posted {formatDateSimple(Number(localAgenda.createdTimestamp))}</span>
           </div>
-          <h1 className="text-xl font-semibold text-slate-700 font-['Inter'] mb-4">
+          <h1 className="text-lg md:text-xl font-semibold text-slate-700 font-['Inter'] mb-4 break-words">
             {localAgenda.title || `Agenda #${localAgenda.id} (Unregistered Metadata)`}
           </h1>
         </div>
 
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
-          <div className="flex justify-between items-baseline">
-            <div className="flex gap-8">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-baseline gap-3">
+            <div className="flex gap-4 md:gap-8 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
               <button
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`pb-3 text-sm whitespace-nowrap font-medium border-b-2 transition-colors ${
                   activeTab === 'info'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700'
@@ -713,7 +725,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                 Info
               </button>
               <button
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`pb-3 text-sm whitespace-nowrap font-medium border-b-2 transition-colors ${
                   activeTab === 'effects'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700'
@@ -723,7 +735,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
                 On-Chain Effects
               </button>
               <button
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`pb-3 text-sm whitespace-nowrap font-medium border-b-2 transition-colors ${
                   activeTab === 'comments'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-500 border-transparent hover:text-gray-700'
@@ -735,7 +747,7 @@ export default function AgendaDetail({ agenda }: AgendaDetailProps) {
             </div>
 
             {/* Voting Status - 같은 baseline */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
               <span className="text-gray-700 text-sm font-medium flex items-center gap-2">
                 <Zap className="h-4 w-4 mr-0.5" />
                 <span className="text-sm font-medium">{statusMessage}</span>
