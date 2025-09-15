@@ -205,7 +205,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                     </div>
                     {expanded && (
                       <div className="mt-2 space-y-1 text-gray-700">
-                        {decodedParams?.map((p, i) => (
+                        {decodedParams?.map((p: DecodedParam, i: number) => (
                           <div key={`${p.name}-${i}`} className="text-sm break-all">
                             <span className="text-gray-500">{p.name}</span>: <span className="font-mono">{String(p.value)}</span>
                           </div>
@@ -257,7 +257,7 @@ export default function AgendaEffects({ agenda }: AgendaEffectsProps) {
                           </button>
                           {expandedParams[`action-${index}`] && (
                             <div className="mt-2 space-y-1 text-gray-700">
-                              {decodedParams?.map((p, i) => (
+                              {decodedParams?.map((p: DecodedParam, i: number) => (
                                 <div key={`${p.name}-${i}`} className="text-sm break-all">
                                   <span className="text-gray-500">{p.name}</span>: <span className="font-mono">{String(p.value)}</span>
                                 </div>
