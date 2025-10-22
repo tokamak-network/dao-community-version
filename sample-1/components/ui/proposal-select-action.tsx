@@ -109,12 +109,15 @@ function RequiredContractAddress({
         }
 
         // Use environment variable for Etherscan API URL, fallback to mainnet
-        const apiUrl =
+        const baseApiUrl =
           process.env.NEXT_PUBLIC_ETHERSCAN_API_URL ||
           "https://api.etherscan.io/api";
 
-        // Get proxy ABI
-        const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
+        // Get chain ID from environment or default to Mainnet (1)
+        const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || "1";
+
+        // Get proxy
+        const proxyUrl = `${baseApiUrl}?chainid=${chainId}&module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
 
         const proxyResponse = await fetch(proxyUrl);
         if (!proxyResponse.ok) {
@@ -123,8 +126,13 @@ function RequiredContractAddress({
 
         const proxyData = await proxyResponse.json();
 
+        // Check for API key errors
+        if (proxyData.message && proxyData.message.includes("Invalid API Key")) {
+          throw new Error("Invalid Etherscan API key. Please check your environment variables.");
+        }
 
-        if (proxyData.status === "1") {
+        // Handle V2 API response format and check for deprecated API message
+        if (proxyData.status === "1" || proxyData.status === 1) {
           setIsContractFound(true);
           setError(null);
           onErrorChange?.(false);
@@ -191,16 +199,16 @@ function RequiredContractAddress({
             if (implementationAddress && implementationAddress !== "0x0000000000000000000000000000000000000000") {
 
               // Get implementation ABI
-              const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
-
+              const logicUrl = `${baseApiUrl}?chainid=${chainId}&module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
               const logicResponse = await fetch(logicUrl);
+
               if (!logicResponse.ok) {
                 throw new Error(`HTTP error! status: ${logicResponse.status}`);
               }
 
               const logicData = await logicResponse.json();
 
-              if (logicData.status === "1") {
+              if (logicData.status === "1" || logicData.status === 1) {
                 const logicAbi = JSON.parse(logicData.result);
                 // Filter only state-changing functions (exclude view and pure)
                 const filteredLogicAbi = logicAbi.filter(
@@ -223,11 +231,16 @@ function RequiredContractAddress({
             setAbiLogic([]);
           }
         } else {
-
-          const errorMessage =
-            proxyData.message || "Failed to fetch contract ABI";
+          // Handle V2 API error response and check for deprecated API message
+          let errorMessage = proxyData.message || proxyData.error || "Failed to fetch contract ABI";
           const errorResult = proxyData.result ? ` - ${proxyData.result}` : "";
-          setError(`${errorMessage}, ${errorResult}`);
+
+          // Check for deprecated API message
+          if (errorMessage.includes("deprecated") || errorMessage.includes("V1 endpoint")) {
+            errorMessage = "Etherscan API V1 is deprecated. Please contact the administrator to update the API configuration.";
+          }
+
+          setError(`${errorMessage}${errorResult}`);
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
@@ -235,7 +248,8 @@ function RequiredContractAddress({
         }
       } catch (error) {
         console.error("Error checking contract:", error);
-        setError("Failed to check contract. Please try again.");
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        setError(`Failed to check contract: ${errorMessage} `);
         setIsContractFound(false);
         setAbiProxy([]);
         setAbiLogic([]);
