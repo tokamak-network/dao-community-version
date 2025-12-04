@@ -90,14 +90,55 @@ function RequiredContractAddress({
           return;
         }
 
-        // Use environment variable for Etherscan API URL, fallback to mainnet
-        const apiUrl =
+        // Use environment variable for Etherscan API URL, but always use V2 API
+        // V2 API requires base path: https://api.etherscan.io/v2/api
+        let baseApiUrl =
           process.env.NEXT_PUBLIC_ETHERSCAN_API_URL ||
-          "https://api.etherscan.io/api";
+          "https://api.etherscan.io/v2/api";
 
-        // Get proxy ABI
-        const proxyUrl = `${apiUrl}?module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
-        console.log("Fetching ABI from:", proxyUrl);
+        // Force V2 API: if V1 URL is detected, convert to V2
+        if (baseApiUrl.includes("/api") && !baseApiUrl.includes("/v2/api")) {
+          console.warn(
+            "[Etherscan API] V1 URL detected, converting to V2:",
+            baseApiUrl
+          );
+          // Replace the /api at the end of the URL, not in the middle
+          baseApiUrl = baseApiUrl.replace(/\/api$/, "/v2/api");
+          // Or replace api.etherscan.io/api with api.etherscan.io/v2/api
+          baseApiUrl = baseApiUrl.replace(
+            /api\.etherscan\.io\/api/,
+            "api.etherscan.io/v2/api"
+          );
+        }
+
+        // Get chain ID from environment or default to Mainnet (1)
+        const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || "1";
+
+        console.log("[Etherscan API] Configuration:", {
+          originalEnvUrl: process.env.NEXT_PUBLIC_ETHERSCAN_API_URL,
+          baseApiUrl,
+          chainId,
+          chainIdSource: process.env.NEXT_PUBLIC_CHAIN_ID ? "env" : "default",
+          contractAddress: value,
+          apiKeyConfigured: apiKey ? "yes" : "no",
+        });
+
+        // Get proxy ABI using V2 API format with chainid parameter
+        const proxyUrl = `${baseApiUrl}?chainid=${chainId}&module=contract&action=getabi&address=${value}&apikey=${apiKey}`;
+        // Log URL without API key for security (define at function level for use in error handling)
+        const proxyUrlWithoutKey = proxyUrl.replace(
+          /apikey=[^&]*/,
+          "apikey=***"
+        );
+        console.log("[Etherscan API] Final request URL:", proxyUrlWithoutKey);
+        console.log(
+          "[Etherscan API] URL contains /v2/api:",
+          proxyUrl.includes("/v2/api")
+        );
+        console.log(
+          "[Etherscan API] URL contains chainid:",
+          proxyUrl.includes("chainid=")
+        );
 
         const proxyResponse = await fetch(proxyUrl);
         if (!proxyResponse.ok) {
@@ -107,7 +148,18 @@ function RequiredContractAddress({
         const proxyData = await proxyResponse.json();
         console.log("Proxy ABI response:", proxyData);
 
-        if (proxyData.status === "1") {
+        // Check for API key errors
+        if (
+          proxyData.message &&
+          proxyData.message.includes("Invalid API Key")
+        ) {
+          throw new Error(
+            "Invalid Etherscan API key. Please check your environment variables."
+          );
+        }
+
+        // Handle V2 API response format and check for deprecated API message
+        if (proxyData.status === "1" || proxyData.status === 1) {
           setIsContractFound(true);
           setError(null);
           const proxyAbi = JSON.parse(proxyData.result);
@@ -136,9 +188,16 @@ function RequiredContractAddress({
               const implementationAddress = await contract.implementation();
               console.log("Implementation address:", implementationAddress);
 
-              // Get implementation ABI
-              const logicUrl = `${apiUrl}?module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
-              console.log("Fetching implementation ABI from:", logicUrl);
+              // Get implementation ABI using V2 API format with chainid parameter
+              const logicUrl = `${baseApiUrl}?chainid=${chainId}&module=contract&action=getabi&address=${implementationAddress}&apikey=${apiKey}`;
+              const logicUrlWithoutKey = logicUrl.replace(
+                /apikey=[^&]*/,
+                "apikey=***"
+              );
+              console.log(
+                "[Etherscan API] Fetching implementation ABI from:",
+                logicUrlWithoutKey
+              );
 
               const logicResponse = await fetch(logicUrl);
               if (!logicResponse.ok) {
@@ -148,7 +207,7 @@ function RequiredContractAddress({
               const logicData = await logicResponse.json();
               console.log("Logic ABI response:", logicData);
 
-              if (logicData.status === "1") {
+              if (logicData.status === "1" || logicData.status === 1) {
                 const logicAbi = JSON.parse(logicData.result);
                 // Filter only function and view types
                 const filteredLogicAbi = logicAbi.filter(
@@ -169,18 +228,47 @@ function RequiredContractAddress({
             setAbiLogic([]);
           }
         } else {
-          console.log("No proxy ABI found");
-          const errorMessage =
-            proxyData.message || "Failed to fetch contract ABI";
+          // Handle V2 API error response and check for deprecated API message
+          let errorMessage =
+            proxyData.message ||
+            proxyData.error ||
+            "Failed to fetch contract ABI";
           const errorResult = proxyData.result ? ` - ${proxyData.result}` : "";
-          setError(`${errorMessage}, ${errorResult}`);
+
+          // Check for deprecated API message
+          if (
+            errorMessage.includes("deprecated") ||
+            errorMessage.includes("V1 endpoint")
+          ) {
+            console.error(
+              "[Etherscan API ERROR] Deprecated V1 endpoint detected!"
+            );
+            console.error(
+              "[Etherscan API ERROR] Request URL:",
+              proxyUrlWithoutKey
+            );
+            console.error("[Etherscan API ERROR] Full response:", proxyData);
+            errorMessage =
+              "Etherscan API V1 is deprecated. Please contact the administrator to update the API configuration.";
+          }
+
+          console.error("[Etherscan API ERROR] Error message:", errorMessage);
+          console.error(
+            "[Etherscan API ERROR] Request URL:",
+            proxyUrlWithoutKey
+          );
+          console.error("[Etherscan API ERROR] Full response:", proxyData);
+
+          setError(`${errorMessage}${errorResult}`);
           setIsContractFound(false);
           setAbiProxy([]);
           setAbiLogic([]);
         }
       } catch (error) {
         console.error("Error checking contract:", error);
-        setError("Failed to check contract. Please try again.");
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error occurred";
+        setError(`Failed to check contract: ${errorMessage} `);
         setIsContractFound(false);
         setAbiProxy([]);
         setAbiLogic([]);

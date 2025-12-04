@@ -62,6 +62,11 @@ Note: Other variables including `NEXT_PUBLIC_CHAIN_ID` are pre-configured in the
   - Get your API key from https://etherscan.io/apis
   - Used to fetch contract ABIs for transaction simulation
 
+- `NEXT_PUBLIC_ETHERSCAN_API_URL`: Etherscan API URL (optional)
+  - Default: `https://api.etherscan.io/v2/api` (V2 API)
+  - The application uses Etherscan API V2 by default
+  - If you need to customize the API endpoint, set this variable
+
 ### Contract Addresses
 - `NEXT_PUBLIC_DAO_COMMITTEE_PROXY_ADDRESS`: The address of the DAO Committee Proxy contract
   - Mainnet: `0xDD9f0cCc044B0781289Ee318e5971b0139602C26`
